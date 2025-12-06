@@ -581,25 +581,38 @@ func ValidatePath(path string) error {
 	}
 
 	parentDir := filepath.Dir(path)
+	parentCreated := false
 	if _, err := os.Stat(parentDir); os.IsNotExist(err) {
+		// Try to create parent to verify we have permission
 		if err := os.MkdirAll(parentDir, 0755); err != nil {
 			return fmt.Errorf("cannot create parent directory: %w", err)
 		}
-		os.Remove(parentDir)
+		parentCreated = true
 	}
 
 	if info, err := os.Stat(path); err == nil {
 		if !info.IsDir() {
+			if parentCreated {
+				os.Remove(parentDir)
+			}
 			return fmt.Errorf("path exists but is not a directory")
 		}
 	}
 
+	// Determine which directory to test for writability
 	testDir := parentDir
 	if _, err := os.Stat(path); err == nil {
 		testDir = path
 	}
 
-	if !isWritable(testDir) {
+	writable := isWritable(testDir)
+	
+	// Clean up if we created the parent just for testing
+	if parentCreated {
+		os.RemoveAll(parentDir)
+	}
+
+	if !writable {
 		return fmt.Errorf("path is not writable (or timed out)")
 	}
 
