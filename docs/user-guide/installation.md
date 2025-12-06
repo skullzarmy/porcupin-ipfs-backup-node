@@ -13,7 +13,6 @@ This guide covers installing Porcupin on all supported platforms.
 | **Windows (x64)**         | x64          | `porcupin-windows-amd64.zip`   | Windows 10/11                      |
 | **Windows (ARM)**         | ARM64        | `porcupin-windows-arm64.zip`   | Surface Pro X, etc.                |
 | **Linux Desktop (x64)**   | x64          | `porcupin-linux-amd64.tar.gz`  | Ubuntu, Fedora, etc. with GUI      |
-| **Linux Desktop (ARM64)** | ARM64        | `porcupin-linux-arm64.tar.gz`  | ARM Linux with GUI                 |
 | **Linux Server (x64)**    | x64          | `porcupin-server-linux-amd64`  | Headless Ubuntu/Debian, no GUI     |
 | **Linux Server (ARM64)**  | ARM64        | `porcupin-server-linux-arm64`  | Headless, Raspberry Pi 4/5         |
 | **macOS Server (Intel)**  | x64          | `porcupin-server-darwin-amd64` | Headless macOS Intel               |
@@ -56,13 +55,9 @@ All downloads available at [Releases](https://github.com/skullzarmy/porcupin-ipf
 **Requires:** GTK 3 and WebKit2GTK (installed by default on most desktop distros)
 
 ```bash
-# Download and extract (x64)
+# Download and extract
 wget https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases/latest/download/porcupin-linux-amd64.tar.gz
 tar -xzvf porcupin-linux-amd64.tar.gz
-
-# Or for ARM64
-wget https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases/latest/download/porcupin-linux-arm64.tar.gz
-tar -xzvf porcupin-linux-arm64.tar.gz
 
 # Make executable
 chmod +x porcupin

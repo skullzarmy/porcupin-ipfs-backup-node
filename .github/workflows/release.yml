@@ -1,12 +1,17 @@
 name: Build and Release
 
 on:
-  push:
-    branches: [main]
-    tags:
-      - "v*"
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g., v0.1.0)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as pre-release"
+        required: false
+        type: boolean
+        default: false
 
 env:
   GO_VERSION: "1.25"
@@ -199,7 +204,6 @@ jobs:
   release:
     needs: [build-desktop, build-headless, build-docker]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
 
     permissions:
       contents: write
@@ -219,8 +223,10 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ inputs.version }}
+          name: ${{ inputs.version }}
           draft: false
-          prerelease: ${{ contains(github.ref, '-rc') || contains(github.ref, '-beta') || contains(github.ref, '-alpha') }}
+          prerelease: ${{ inputs.prerelease }}
           generate_release_notes: true
           files: |
             artifacts/porcupin-macos/porcupin-macos.zip

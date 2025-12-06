@@ -1,6 +1,7 @@
 import { Github, AlertTriangle, Mail, ExternalLink, Heart } from "lucide-react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { Logo } from "./Logo";
+import { VERSION } from "../lib/version";
 
 export function About() {
     return (
@@ -9,7 +10,7 @@ export function About() {
                 <Logo size={96} className="about-logo" />
                 <div className="about-info">
                     <h1>Porcupin</h1>
-                    <p className="version">Version 1.0.0</p>
+                    <p className="version">Version {VERSION}</p>
                 </div>
             </div>
 
