@@ -391,10 +391,17 @@ func TestManager_CancelMigration_NoMigration(t *testing.T) {
 }
 
 func TestGetGlobalMigrationStatus_NoManager(t *testing.T) {
-	// Reset global state
+	// Save and restore global state to avoid race with other tests
 	globalMigrationMu.Lock()
+	savedManager := globalMigrationManager
 	globalMigrationManager = nil
 	globalMigrationMu.Unlock()
+
+	defer func() {
+		globalMigrationMu.Lock()
+		globalMigrationManager = savedManager
+		globalMigrationMu.Unlock()
+	}()
 
 	status := GetGlobalMigrationStatus()
 	if status.InProgress {
@@ -403,10 +410,17 @@ func TestGetGlobalMigrationStatus_NoManager(t *testing.T) {
 }
 
 func TestCancelGlobalMigration_NoManager(t *testing.T) {
-	// Reset global state
+	// Save and restore global state to avoid race with other tests
 	globalMigrationMu.Lock()
+	savedManager := globalMigrationManager
 	globalMigrationManager = nil
 	globalMigrationMu.Unlock()
+
+	defer func() {
+		globalMigrationMu.Lock()
+		globalMigrationManager = savedManager
+		globalMigrationMu.Unlock()
+	}()
 
 	err := CancelGlobalMigration()
 	if err == nil {
