@@ -1,7 +1,11 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.25-bookworm AS builder
 
-RUN apk add --no-cache git gcc musl-dev
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    gcc \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -16,12 +20,15 @@ COPY porcupin/ ./
 RUN CGO_ENABLED=1 go build -o /porcupin-server ./cmd/headless
 
 # Runtime stage
-FROM alpine:3.19
+FROM debian:bookworm-slim
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
-RUN adduser -D -u 1000 porcupin
+RUN useradd -u 1000 -m porcupin
 USER porcupin
 
 WORKDIR /home/porcupin
