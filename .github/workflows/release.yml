@@ -24,6 +24,7 @@ jobs:
             output: porcupin.app
             package_cmd: zip -r porcupin-macos.zip porcupin.app
             package_file: porcupin-macos.zip
+            build_tags: ""
 
           # Windows x64
           - os: windows-latest
@@ -32,6 +33,7 @@ jobs:
             output: porcupin.exe
             package_cmd: Compress-Archive -Path porcupin.exe -DestinationPath porcupin-windows-amd64.zip
             package_file: porcupin-windows-amd64.zip
+            build_tags: ""
 
           # Windows ARM64
           - os: windows-latest
@@ -40,6 +42,7 @@ jobs:
             output: porcupin.exe
             package_cmd: Compress-Archive -Path porcupin.exe -DestinationPath porcupin-windows-arm64.zip
             package_file: porcupin-windows-arm64.zip
+            build_tags: ""
 
           # Linux x64
           - os: ubuntu-latest
@@ -48,6 +51,7 @@ jobs:
             output: porcupin
             package_cmd: tar -czvf porcupin-linux-amd64.tar.gz porcupin
             package_file: porcupin-linux-amd64.tar.gz
+            build_tags: "webkit2_41"
 
           # Linux ARM64 (native ARM64 runner)
           - os: ubuntu-24.04-arm64
@@ -56,6 +60,7 @@ jobs:
             output: porcupin
             package_cmd: tar -czvf porcupin-linux-arm64.tar.gz porcupin
             package_file: porcupin-linux-arm64.tar.gz
+            build_tags: "webkit2_41"
 
     runs-on: ${{ matrix.os }}
 
@@ -93,8 +98,8 @@ jobs:
       - name: Build Wails app
         working-directory: porcupin
         run: |
-          if [ "${{ runner.os }}" = "Linux" ]; then
-            wails build -platform ${{ matrix.platform }} -tags webkit2_41
+          if [ -n "${{ matrix.build_tags }}" ]; then
+            wails build -platform ${{ matrix.platform }} -tags ${{ matrix.build_tags }}
           else
             wails build -platform ${{ matrix.platform }}
           fi
