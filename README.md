@@ -1,4 +1,4 @@
-# Porcupin 🦔
+# <img src="docs/assets/porcupin-icon-32.png" alt="Porcupin" width="32" height="32" style="vertical-align: middle;"/> Porcupin
 
 **A set-and-forget Tezos NFT preservation app that pins your NFT assets to IPFS.**
 
@@ -22,6 +22,8 @@ Help us build and maintain this open-source tool for the Tezos community. Vote o
 👉 **[Vote on Tezos Homebase](https://tezos-homebase.io/explorer/lite/dao/64ef1c7d514de7b078cb8ed2/community/proposal/69305001ec807965f1487f61)**
 
 _Connect any Tezos wallet to vote. Your Tez is your vote!_
+
+**💜 We also accept Tezos donations:** `tz1U4wbRsojw1uWcNUpVMK2uihuhhXFYNVg3`
 
 ---
 
@@ -218,7 +220,7 @@ You are free to use, modify, and distribute this software. We just ask that you 
 
 <p align="center">
   <a href="https://fafolab.xyz">
-    <img src="docs/assets/fafolab-logo.png" alt="FAFOlab" width="200"/>
+    <img src="https://github.com/skullzarmy/porcupin-ipfs-backup-node/blob/main/docs/assets/fafo-logo-200.png" alt="FAFOlab" width="200"/>
   </a>
 </p>
 
