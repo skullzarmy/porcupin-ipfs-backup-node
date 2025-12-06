@@ -29,13 +29,22 @@ jobs:
 
             - name: Run tests with coverage
               working-directory: porcupin
-              run: go test ./... -coverprofile=coverage.out -covermode=atomic
+              id: coverage
+              run: |
+                  go test ./... -coverprofile=coverage.txt -covermode=atomic
+                  COVERAGE=$(go tool cover -func=coverage.txt | grep total | awk '{print $3}' | tr -d '%')
+                  echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+                  echo "Coverage: $COVERAGE%"
 
-            - name: Upload coverage
+            - name: Upload coverage to Codecov
               uses: codecov/codecov-action@v4
               with:
-                  files: porcupin/coverage.out
+                  file: porcupin/coverage.txt
+                  flags: unittests
+                  name: porcupin-coverage
                   fail_ci_if_error: false
+              env:
+                  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     lint:
         runs-on: ubuntu-latest
