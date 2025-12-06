@@ -4,8 +4,16 @@
 *.dll
 *.so
 *.dylib
+
+# Build outputs
 build/bin/
+porcupin/build/bin/
 dist/
+*.app
+*.dmg
+*.msi
+*.zip
+*.tar.gz
 
 # Test binary, built with `go test -c`
 *.test
@@ -46,10 +54,14 @@ logs/
 .env
 .env.local
 
-# Wails
+# Wails build artifacts
 frontend/dist/
 frontend/build/
-wails.json
+porcupin/frontend/dist/
+porcupin/frontend/node_modules/
 
 # IPFS
 .ipfs/
+
+# Release artifacts
+release/

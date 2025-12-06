@@ -1,0 +1,27 @@
+{
+    "name": "porcupin-build",
+    "version": "1.0.0",
+    "description": "Build scripts for Porcupin",
+    "scripts": {
+        "build": "bun run build:all",
+        "build:all": "bun run build:desktop && bun run build:headless",
+        "build:desktop": "bun run build:macos && bun run build:windows && bun run build:linux",
+        "build:macos": "cd porcupin && wails build -platform darwin/universal",
+        "build:windows": "bun run build:windows:amd64 && bun run build:windows:arm64",
+        "build:windows:amd64": "cd porcupin && wails build -platform windows/amd64",
+        "build:windows:arm64": "cd porcupin && wails build -platform windows/arm64",
+        "build:linux": "bun run build:linux:amd64 && bun run build:linux:arm64",
+        "build:linux:amd64": "cd porcupin && wails build -platform linux/amd64",
+        "build:linux:arm64": "cd porcupin && wails build -platform linux/arm64",
+        "build:headless": "bun run build:headless:darwin && bun run build:headless:linux",
+        "build:headless:darwin": "bun run build:headless:darwin:amd64 && bun run build:headless:darwin:arm64",
+        "build:headless:darwin:amd64": "cd porcupin && GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o build/bin/porcupin-server-darwin-amd64 ./cmd/headless",
+        "build:headless:darwin:arm64": "cd porcupin && GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o build/bin/porcupin-server-darwin-arm64 ./cmd/headless",
+        "build:headless:linux": "bun run build:headless:linux:amd64 && bun run build:headless:linux:arm64",
+        "build:headless:linux:amd64": "cd porcupin && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o build/bin/porcupin-server-linux-amd64 ./cmd/headless",
+        "build:headless:linux:arm64": "cd porcupin && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o build/bin/porcupin-server-linux-arm64 ./cmd/headless",
+        "build:docker": "docker build -t porcupin .",
+        "dev": "cd porcupin && wails dev",
+        "clean": "rm -rf porcupin/build/bin/*"
+    }
+}

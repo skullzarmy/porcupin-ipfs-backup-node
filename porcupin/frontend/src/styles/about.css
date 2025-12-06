@@ -1,0 +1,154 @@
+.about-page {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 32px;
+    text-align: center;
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.about-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.about-hero .about-logo {
+    opacity: 0.95;
+}
+
+.about-hero h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.5px;
+}
+
+.about-hero .version {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.about-tagline {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--accent-primary);
+    margin-bottom: 12px;
+}
+
+.about-description {
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-secondary);
+    margin-bottom: 32px;
+}
+
+.about-links {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 40px;
+}
+
+.about-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 18px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.about-link:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+    transform: translateY(-1px);
+}
+
+.about-link svg:first-child {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.about-link .link-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.about-link .link-title {
+    font-weight: 500;
+}
+
+.about-link .link-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.about-link svg:last-child {
+    color: var(--text-muted);
+    opacity: 0.5;
+    flex-shrink: 0;
+}
+
+.about-credits {
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+    width: 100%;
+}
+
+.about-credits p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin: 6px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.about-credits .heart-icon {
+    color: var(--accent-danger);
+}
+
+.about-credits a {
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.about-credits a:hover {
+    color: var(--accent-primary);
+}
+
+.about-credits .credit-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font: inherit;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.about-credits .credit-link:hover {
+    color: var(--accent-primary);
+}
+
+.about-credits .copyright {
+    font-size: 12px;
+    color: var(--text-muted);
+}

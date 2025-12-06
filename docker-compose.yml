@@ -1,0 +1,18 @@
+services:
+  porcupin:
+    build: .
+    container_name: porcupin
+    restart: unless-stopped
+    volumes:
+      - porcupin-data:/home/porcupin/.porcupin
+    ports:
+      # IPFS Swarm (for peer connections)
+      - "4001:4001"
+      - "4001:4001/udp"
+    environment:
+      - TZ=UTC
+    # Uncomment to add wallets on startup
+    # command: ["--add-wallet", "tz1YourWalletAddress"]
+
+volumes:
+  porcupin-data:

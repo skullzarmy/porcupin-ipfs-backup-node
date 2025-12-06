@@ -1,0 +1,21 @@
+{
+    "$schema": "https://wails.io/schemas/config.v2.json",
+    "name": "Porcupin",
+    "outputfilename": "porcupin",
+    "frontend:install": "npm install",
+    "frontend:build": "npm run build",
+    "frontend:dev:watcher": "npm run dev",
+    "frontend:dev:serverUrl": "auto",
+    "wailsjsdir": "./frontend",
+    "author": {
+        "name": "skllzrmy.tez",
+        "email": "joe@poundfit.com"
+    },
+    "info": {
+        "companyName": "Porcupin",
+        "productName": "Porcupin",
+        "productVersion": "1.0.0",
+        "copyright": "© 2025 skllzrmy.tez",
+        "comments": "Tezos NFT Backup to IPFS"
+    }
+}

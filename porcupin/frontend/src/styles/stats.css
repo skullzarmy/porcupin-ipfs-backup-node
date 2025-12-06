@@ -1,0 +1,121 @@
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.stats-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+@media (max-width: 900px) {
+    .stats-grid-3 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .stats-grid-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+.stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.stat-card.highlight {
+    background: linear-gradient(135deg, var(--accent-primary) 0%, #7c3aed 100%);
+    border: none;
+    color: white;
+}
+.stat-card.highlight .stat-label {
+    color: rgba(255, 255, 255, 0.85);
+}
+.stat-card.primary {
+    border-left: 3px solid var(--accent-success);
+}
+.stat-card.success {
+    border-left: 3px solid var(--accent-success);
+    background: rgba(34, 197, 94, 0.05);
+}
+.stat-card.warning {
+    border-left: 3px solid var(--accent-warning);
+}
+.stat-card.danger {
+    border-left: 3px solid var(--accent-danger);
+}
+.stat-card.neutral {
+    border-left: 3px solid var(--text-tertiary);
+}
+.stat-card.info {
+    border-left: 3px solid var(--accent-info);
+}
+
+.stat-icon {
+    font-size: 32px;
+    opacity: 0.9;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.stat-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+.stat-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 12px;
+    letter-spacing: 0.5px;
+}
+
+.stat-badge.success {
+    background: rgba(34, 197, 94, 0.2);
+    color: var(--accent-success);
+}
+.stat-badge.warning {
+    background: rgba(245, 158, 11, 0.2);
+    color: var(--accent-warning);
+}
+.stat-badge.danger {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--accent-danger);
+}
+.stat-badge.info {
+    background: rgba(59, 130, 246, 0.2);
+    color: var(--accent-info);
+}

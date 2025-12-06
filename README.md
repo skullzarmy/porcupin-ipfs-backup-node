@@ -1,66 +1,166 @@
-# Porcupin Tezos Backup Node
+# Porcupin
 
-A modern, optimized native application for preserving Tezos NFT history by backing up NFT data to IPFS.
+**A set-and-forget Tezos NFT preservation app that pins your NFT assets to IPFS.**
 
-## Overview
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Go Version](https://img.shields.io/badge/go-1.23+-00ADD8.svg)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker-lightgrey.svg)
 
-Porcupin connects to the Tezos blockchain via TZKT API, identifies NFTs associated with specific wallets (both owned and created), and ensures their content (metadata, images, assets) is pinned to IPFS, preventing data loss due to cache eviction or host disappearance.
+Porcupin automatically monitors your Tezos wallets and backs up all NFT content (images, metadata, videos) to IPFS. Once configured, it runs in the background keeping your digital art collection safe.
+
+---
+
+## 📖 Documentation
+
+| I want to...                 | Go here                                     |
+| ---------------------------- | ------------------------------------------- |
+| **Install and use Porcupin** | **[User Guide](docs/user-guide/README.md)** |
+| **Develop/contribute**       | [Developer Setup](#developer-setup) (below) |
+
+---
 
 ## Features
 
-- 🔐 **Complete NFT Preservation**: Backs up both metadata JSON and all referenced assets
-- 🌐 **Multi-Platform**: Desktop (macOS, Windows, Linux), Raspberry Pi, and Docker
-- ⚡ **Optimized Performance**: Event-driven WebSocket updates, concurrent processing
-- 🛡️ **Production-Hardened**: Resource limits, security safeguards, validation
-- 📊 **Real-time Dashboard**: Track sync status, pinned size, and node health
+-   🦔 **Set and Forget** - Add wallets once, Porcupin handles the rest
+-   📌 **IPFS Pinning** - Embedded Kubo node, no external services needed
+-   🔄 **Real-time Sync** - Watches for new NFTs via TZKT
+-   💻 **Cross-Platform** - macOS, Windows, Linux, Raspberry Pi, Docker
+-   📊 **Dashboard** - Track sync status, storage usage, failed assets
 
-## Requirements
+---
 
-- Go 1.23+
-- Wails v2 (for desktop builds)
-- Docker (for containerized deployment)
+## User Installation
 
-## Quick Start
+**👉 See the [User Guide](docs/user-guide/README.md) for complete installation instructions.**
 
-### Development Setup
+Quick links:
+
+-   [Which binary do I need?](docs/user-guide/installation.md#quick-reference-which-binary-do-i-need)
+-   [Desktop App](docs/user-guide/installation.md#desktop-app-gui) (macOS, Windows, Linux)
+-   [Headless Server](docs/user-guide/installation.md#headless-server-no-gui) (Ubuntu, Raspberry Pi)
+-   [Docker](docs/user-guide/installation.md#docker)
+-   [Configuration](docs/user-guide/configuration.md)
+-   [Troubleshooting](docs/user-guide/troubleshooting.md)
+
+---
+
+## Developer Setup
+
+For developers who want to build from source or contribute.
+
+### Prerequisites
+
+| Tool    | Version | Installation                                               |
+| ------- | ------- | ---------------------------------------------------------- |
+| Go      | 1.23+   | [go.dev/dl](https://go.dev/dl/)                            |
+| Node.js | 18+     | [nodejs.org](https://nodejs.org/)                          |
+| Wails   | v2      | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
+
+**Platform-specific:**
+
+-   **macOS:** `xcode-select --install`
+-   **Linux:** `sudo apt install build-essential libgtk-3-dev libwebkit2gtk-4.0-dev`
+-   **Windows:** Visual Studio Build Tools with C++ workload
+
+### Quick Start
 
 ```bash
-# Install dependencies
-go mod download
-
-# Run in development mode
-wails dev
+git clone https://github.com/skullzarmy/porcupin-ipfs-backup-node.git
+cd porcupin-ipfs-backup-node
+npm install
+npm run dev
 ```
 
-### Docker Deployment
+### Build Commands
 
 ```bash
-# Build the container
-docker build -t porcupin .
-
-# Run headless
-docker run -v ./data:/data -p 127.0.0.1:8080:8080 porcupin
+npm run build              # Build all (desktop + headless)
+npm run build:desktop      # macOS + Windows desktop
+npm run build:macos        # macOS only
+npm run build:windows      # Windows only
+npm run build:headless     # All headless binaries
+npm run build:headless:linux  # Linux x64
+npm run build:headless:arm    # Raspberry Pi ARM64
+npm run build:docker       # Docker image
+npm run clean              # Clean build artifacts
 ```
+
+### Build Outputs
+
+```text
+porcupin/build/bin/
+├── Porcupin.app/                  # macOS desktop
+├── Porcupin.exe                   # Windows desktop
+├── porcupin-server-linux-amd64    # Linux x64 headless
+└── porcupin-server-linux-arm64    # Raspberry Pi headless
+```
+
+### Project Structure
+
+```text
+porcupin-ipfs-backup-node/
+├── porcupin/                  # Main Wails application
+│   ├── app.go                 # Wails bindings (Go ↔ JS)
+│   ├── main.go                # Desktop entry point
+│   ├── backend/               # Go backend
+│   │   ├── config/            # Configuration
+│   │   ├── core/              # BackupService, BackupManager
+│   │   ├── db/                # SQLite (GORM)
+│   │   ├── indexer/           # TZKT API
+│   │   ├── ipfs/              # Embedded Kubo node
+│   │   └── storage/           # Storage management
+│   ├── cmd/headless/          # Headless server entry
+│   └── frontend/              # React + Vite + TypeScript
+├── docs/
+│   ├── user-guide/            # 📖 User documentation
+│   ├── architecture.md        # Technical architecture
+│   └── requirements.md        # Product requirements
+├── Dockerfile
+└── docker-compose.yml
+```
+
+### Tests
+
+```bash
+cd porcupin
+go test ./...
+go test -cover ./...
+```
+
+---
 
 ## Architecture
 
-- **Backend**: Go (Golang) with embedded Kubo IPFS node
-- **Frontend**: React with TailwindCSS
-- **Database**: SQLite for local state
-- **Desktop Wrapper**: Wails v2
+See [docs/architecture.md](docs/architecture.md) for detailed technical documentation.
 
-## Documentation
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                         Porcupin                            │
+├─────────────────────────────────────────────────────────────┤
+│  Frontend (React)          │  Backend (Go)                  │
+│  ├── Dashboard             │  ├── BackupService             │
+│  ├── Wallets               │  │   └── BackupManager         │
+│  ├── Assets                │  ├── Indexer (TZKT API)        │
+│  └── Settings              │  ├── IPFS Node (Kubo)          │
+│                            │  └── Database (SQLite)         │
+├─────────────────────────────────────────────────────────────┤
+│              Wails v2 (Desktop) / CLI (Server)              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-See the `/docs` directory for detailed documentation:
-- [Requirements](docs/requirements.md)
-- [Architecture](docs/architecture.md)
-- [Implementation Plan](docs/implementation_plan.md)
-- [Security Audit](docs/audit.md)
-
-## License
-
-MIT License - See LICENSE file for details
+---
 
 ## Contributing
 
-Contributions are welcome! Please read CONTRIBUTING.md for guidelines.
+1. Fork the repository
+2. Create a feature branch
+3. Make changes and run tests
+4. Submit a pull request
+
+---
+
+## License
+
+MIT License - See [LICENSE](LICENSE) for details.
+
+Made with 🦔 for the Tezos NFT community

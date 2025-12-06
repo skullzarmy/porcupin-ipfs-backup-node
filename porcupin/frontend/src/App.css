@@ -1,0 +1,175 @@
+/* Modern Porcupin Styles */
+@import "./styles/base.css";
+@import "./styles/sidebar.css";
+@import "./styles/layout.css";
+@import "./styles/sync-progress.css";
+@import "./styles/stats.css";
+@import "./styles/progress.css";
+@import "./styles/buttons.css";
+@import "./styles/wallets-assets.css";
+@import "./styles/settings.css";
+@import "./styles/failed-assets.css";
+@import "./styles/about.css";
+@import "./styles/assets.css";
+
+/* Additional utility styles */
+.empty-state {
+    text-align: center;
+    padding: 48px 24px;
+    color: var(--text-muted);
+    font-size: 15px;
+}
+
+.view-toggle {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.view-toggle button {
+    padding: 8px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.view-toggle button.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+}
+
+.view-toggle button:hover:not(.active) {
+    background: var(--bg-hover);
+}
+
+.nft-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.nft-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+}
+
+.nft-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: left;
+    font-family: inherit;
+}
+
+.nft-header:hover {
+    background: var(--bg-hover);
+}
+
+.nft-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.nft-title {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.nft-summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.status-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.dot.pinned {
+    background: var(--accent-success);
+}
+.dot.pending {
+    background: var(--accent-warning);
+}
+.dot.failed {
+    background: var(--accent-danger);
+}
+
+.expand-icon {
+    font-size: 20px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+    margin-left: 8px;
+}
+
+.nft-card.expanded .expand-icon {
+    transform: rotate(180deg);
+}
+
+.nft-assets {
+    border-top: 1px solid var(--border-color);
+    padding: 8px;
+}
+
+.asset-table.compact {
+    font-size: 13px;
+}
+.asset-table.compact th,
+.asset-table.compact td {
+    padding: 8px 12px;
+}
+
+.retry-btn {
+    background: var(--accent-warning);
+    color: white;
+    border: none;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    cursor: pointer;
+}
+
+.retry-btn:hover {
+    background: #d97706;
+}
+
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .sidebar {
+        width: 56px;
+        min-width: 56px;
+    }
+    .sidebar.expanded {
+        width: 180px;
+    }
+}

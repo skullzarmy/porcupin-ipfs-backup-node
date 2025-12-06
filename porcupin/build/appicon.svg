@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <g transform="translate(20,80)">
+    <--save-dev spritesheet-js && bunx spritesheet-js public/assets/frog/froggy-*.png --sheet public/assets/frog/frogs.png --data public/assets/frog/frogs.json --format Body -->
+    <path d="M 20 60 L 140 60 L 120 20 L 20 20 Z" fill="black"/>
+    
+    <--save-dev spritesheet-js && bunx spritesheet-js public/assets/frog/froggy-*.png --sheet public/assets/frog/frogs.png --data public/assets/frog/frogs.json --format Spikes -->
+    <path d="M 30 20 L 40 -10 L 45 20" fill="black"/>
+    <path d="M 50 20 L 65 -20 L 68 20" fill="black"/>
+    <path d="M 72 20 L 90 -25 L 92 20" fill="black"/>
+    <path d="M 95 20 L 110 -20 L 112 20" fill="black"/>
+    <path d="M 115 20 L 125 -10 L 128 20" fill="black"/>
+    
+    <--save-dev spritesheet-js && bunx spritesheet-js public/assets/frog/froggy-*.png --sheet public/assets/frog/frogs.png --data public/assets/frog/frogs.json --format Face -->
+    <path d="M 120 20 L 155 35 L 150 50 L 140 60" fill="black"/>
+    
+    <--save-dev spritesheet-js && bunx spritesheet-js public/assets/frog/froggy-*.png --sheet public/assets/frog/frogs.png --data public/assets/frog/frogs.json --format Eye -->
+    <circle cx="145" cy="38" r="4" fill="white"/>
+    
+    <--save-dev spritesheet-js && bunx spritesheet-js public/assets/frog/froggy-*.png --sheet public/assets/frog/frogs.png --data public/assets/frog/frogs.json --format Nose -->
+    <circle cx="152" cy="42" r="2" fill="white"/>
+    
+    <--save-dev spritesheet-js && bunx spritesheet-js public/assets/frog/froggy-*.png --sheet public/assets/frog/frogs.png --data public/assets/frog/frogs.json --format Legs -->
+    <rect x="35" y="60" width="8" height="15" fill="black"/>
+    <rect x="115" y="60" width="8" height="15" fill="black"/>
+  </g>
+</svg>
