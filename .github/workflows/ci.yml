@@ -7,7 +7,7 @@ on:
         branches: [main]
 
 env:
-    GO_VERSION: "1.23"
+    GO_VERSION: "1.25"
 
 jobs:
     test:
@@ -22,10 +22,6 @@ jobs:
               with:
                   go-version: ${{ env.GO_VERSION }}
                   cache-dependency-path: porcupin/go.sum
-
-            - name: Downgrade go.mod for CI compatibility
-              working-directory: porcupin
-              run: go mod edit -go=1.23
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -74,10 +70,6 @@ jobs:
                   go-version: ${{ env.GO_VERSION }}
                   cache-dependency-path: porcupin/go.sum
 
-            - name: Downgrade go.mod for CI compatibility
-              working-directory: porcupin
-              run: go mod edit -go=1.23
-
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
@@ -92,7 +84,7 @@ jobs:
             - name: Run golangci-lint
               uses: golangci/golangci-lint-action@v6
               with:
-                  version: v1.61.0
+                  version: latest
                   working-directory: porcupin
 
     build-check:
@@ -107,10 +99,6 @@ jobs:
               with:
                   go-version: ${{ env.GO_VERSION }}
                   cache-dependency-path: porcupin/go.sum
-
-            - name: Downgrade go.mod for CI compatibility
-              working-directory: porcupin
-              run: go mod edit -go=1.23
 
             - name: Install Linux dependencies
               run: |
