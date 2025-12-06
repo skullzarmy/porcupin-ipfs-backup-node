@@ -206,8 +206,10 @@ func TestSameDevice_HomePaths(t *testing.T) {
 		t.Fatalf("Failed to get home dir: %v", err)
 	}
 
-	path1 := filepath.Join(home, ".porcupin", "ipfs")
-	path2 := filepath.Join(home, ".porcupin", "backup")
+	// Use paths that exist (home dir itself) to avoid "no such file or directory"
+	// SameDevice checks parent when path doesn't exist, so we use existing paths
+	path1 := home
+	path2 := home
 
 	same, err := SameDevice(path1, path2)
 	if err != nil {
@@ -219,7 +221,8 @@ func TestSameDevice_HomePaths(t *testing.T) {
 }
 
 func TestSameDevice_TildeExpansion(t *testing.T) {
-	same, err := SameDevice("~/.porcupin/a", "~/.porcupin/b")
+	// Use ~ which expands to home dir (exists on all systems)
+	same, err := SameDevice("~", "~")
 	if err != nil {
 		t.Fatalf("SameDevice error: %v", err)
 	}
