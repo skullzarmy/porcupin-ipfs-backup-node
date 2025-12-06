@@ -1,8 +1,8 @@
-# Developer Setup Guide
+# Developer Guide
 
 This guide is for developers who want to build Porcupin from source or contribute to the project.
 
-**Looking to install and use Porcupin?** See the [User Guide](docs/user-guide/README.md) instead.
+**Looking to install and use Porcupin?** See the [User Guide](user-guide/README.md) instead.
 
 ---
 
@@ -10,69 +10,11 @@ This guide is for developers who want to build Porcupin from source or contribut
 
 ### Required Tools
 
-| Tool    | Version | Purpose                |
-| ------- | ------- | ---------------------- |
-| Go      | 1.23+   | Backend compilation    |
-| Node.js | 18+     | Frontend build tooling |
-| Wails   | v2      | Desktop app framework  |
-
-### Install Go
-
-**macOS:**
-
-```bash
-brew install go
-```
-
-**Linux (Ubuntu/Debian):**
-
-```bash
-wget https://go.dev/dl/go1.23.4.linux-amd64.tar.gz
-sudo tar -C /usr/local -xzf go1.23.4.linux-amd64.tar.gz
-echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-source ~/.bashrc
-```
-
-**Windows:**
-Download from [go.dev/dl](https://go.dev/dl/) and run the installer.
-
-### Install Node.js
-
-**macOS:**
-
-```bash
-brew install node
-```
-
-**Linux (Ubuntu/Debian):**
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt-get install -y nodejs
-```
-
-**Windows:**
-Download from [nodejs.org](https://nodejs.org/) and run the installer.
-
-### Install Wails
-
-```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-```
-
-**Important:** Ensure `$(go env GOPATH)/bin` is in your PATH:
-
-```bash
-# Add to ~/.zshrc or ~/.bashrc
-export PATH="$PATH:$(go env GOPATH)/bin"
-source ~/.zshrc  # or ~/.bashrc
-```
-
-Verify installation:
-
-```bash
-wails version
-```
+| Tool    | Version | Installation                                               |
+| ------- | ------- | ---------------------------------------------------------- |
+| Go      | 1.23+   | [go.dev/dl](https://go.dev/dl/)                            |
+| Node.js | 18+     | [nodejs.org](https://nodejs.org/)                          |
+| Wails   | v2      | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
 
 ### Platform-Specific Dependencies
 
@@ -85,7 +27,11 @@ xcode-select --install
 **Linux (Ubuntu/Debian):**
 
 ```bash
-sudo apt-get install build-essential libgtk-3-dev libwebkit2gtk-4.0-dev
+# Ubuntu 24.04+
+sudo apt install build-essential libgtk-3-dev libwebkit2gtk-4.1-dev
+
+# Ubuntu 22.04
+sudo apt install build-essential libgtk-3-dev libwebkit2gtk-4.0-dev
 ```
 
 **Linux (Fedora):**
@@ -95,18 +41,19 @@ sudo dnf install gtk3-devel webkit2gtk4.0-devel
 ```
 
 **Windows:**
+
 Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with "Desktop development with C++" workload.
 
 ---
 
-## Clone and Run
+## Quick Start
 
 ```bash
 # Clone
 git clone https://github.com/skullzarmy/porcupin-ipfs-backup-node.git
 cd porcupin-ipfs-backup-node
 
-# Install npm dependencies (for build scripts)
+# Install npm dependencies
 npm install
 
 # Run in development mode with hot reload
@@ -230,7 +177,7 @@ porcupin-ipfs-backup-node/
 ├── docs/
 │   ├── user-guide/            # User documentation
 │   ├── architecture.md        # Technical docs
-│   └── requirements.md        # Product requirements
+│   └── development.md         # This file
 │
 └── backend/                   # (Future) Standalone backend
 ```
@@ -272,15 +219,23 @@ porcupin-ipfs-backup-node/
     ```
 
 2. Add to `InitDB()` AutoMigrate:
+
     ```go
     return db.AutoMigrate(&Wallet{}, &NFT{}, &Asset{}, &Setting{}, &MyModel{})
     ```
 
-### Modifying IPFS Behavior
+3. Create helper methods on `Database` struct
 
--   Pin/Unpin logic: `porcupin/backend/ipfs/node.go`
--   Backup orchestration: `porcupin/backend/core/backup.go`
--   Service lifecycle: `porcupin/backend/core/service.go`
+### Key Files for Common Changes
+
+| Change                 | File(s)                            |
+| ---------------------- | ---------------------------------- |
+| IPFS pinning behavior  | `porcupin/backend/ipfs/node.go`    |
+| Backup orchestration   | `porcupin/backend/core/backup.go`  |
+| Service lifecycle      | `porcupin/backend/core/service.go` |
+| TZKT API integration   | `porcupin/backend/indexer/tzkt.go` |
+| Wails bindings (Go↔JS) | `porcupin/app.go`                  |
+| Database models        | `porcupin/backend/db/db.go`        |
 
 ---
 
@@ -304,7 +259,7 @@ go test -v ./...
 
 ---
 
-## Troubleshooting Development Issues
+## Troubleshooting
 
 ### "wails: command not found"
 
@@ -313,6 +268,8 @@ Add Go bin to PATH:
 ```bash
 export PATH="$PATH:$(go env GOPATH)/bin"
 ```
+
+Add to `~/.zshrc` or `~/.bashrc` to persist.
 
 ### Wails build fails on macOS
 
@@ -327,8 +284,11 @@ xcode-select --install
 Install GTK/WebKit:
 
 ```bash
-# Ubuntu/Debian
-sudo apt-get install libgtk-3-dev libwebkit2gtk-4.0-dev
+# Ubuntu 24.04+
+sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+
+# Ubuntu 22.04
+sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev
 
 # Fedora
 sudo dnf install gtk3-devel webkit2gtk4.0-devel
@@ -361,18 +321,9 @@ npm run dev
 
 ## Code Style
 
--   **Go:** Follow standard Go formatting (`gofmt`)
+-   **Go:** Follow standard Go formatting (`gofmt`, `goimports`)
 -   **TypeScript/React:** Prettier + ESLint (configured in frontend)
--   Use meaningful commit messages
+-   Use meaningful commit messages ([Conventional Commits](https://www.conventionalcommits.org/))
 -   Add tests for new functionality
 
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make changes
-4. Run tests: `cd porcupin && go test ./...`
-5. Commit with descriptive message
-6. Push and open a Pull Request
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for full style guidelines.

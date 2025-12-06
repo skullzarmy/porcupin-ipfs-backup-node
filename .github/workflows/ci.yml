@@ -1,0 +1,87 @@
+name: CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+env:
+    GO_VERSION: "1.23"
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+                  cache-dependency-path: porcupin/go.sum
+
+            - name: Run tests
+              working-directory: porcupin
+              run: go test ./... -v -race
+
+            - name: Run tests with coverage
+              working-directory: porcupin
+              run: go test ./... -coverprofile=coverage.out -covermode=atomic
+
+            - name: Upload coverage
+              uses: codecov/codecov-action@v4
+              with:
+                  files: porcupin/coverage.out
+                  fail_ci_if_error: false
+
+    lint:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+                  cache-dependency-path: porcupin/go.sum
+
+            - name: Run golangci-lint
+              uses: golangci/golangci-lint-action@v4
+              with:
+                  version: latest
+                  working-directory: porcupin
+
+    build-check:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+                  cache-dependency-path: porcupin/go.sum
+
+            - name: Install Linux dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+            - name: Build check (headless)
+              working-directory: porcupin
+              env:
+                  CGO_ENABLED: "0"
+              run: go build -o /dev/null ./cmd/headless
+
+            - name: Build check (desktop)
+              working-directory: porcupin
+              env:
+                  CGO_ENABLED: "1"
+              run: go build -tags webkit2_41 -o /dev/null .
