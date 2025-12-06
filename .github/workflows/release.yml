@@ -82,6 +82,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+          # Wails v2 needs webkit2gtk-4.0, build with 4.1 tags
+        env:
+          CGO_ENABLED: "1"
 
       - name: Install frontend dependencies
         working-directory: porcupin/frontend
@@ -89,7 +92,13 @@ jobs:
 
       - name: Build Wails app
         working-directory: porcupin
-        run: wails build -platform ${{ matrix.platform }}
+        run: |
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            wails build -platform ${{ matrix.platform }} -tags webkit2_41
+          else
+            wails build -platform ${{ matrix.platform }}
+          fi
+        shell: bash -tags webkit2_41
 
       - name: Package app
         working-directory: porcupin/build/bin
