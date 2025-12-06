@@ -98,7 +98,7 @@ jobs:
           else
             wails build -platform ${{ matrix.platform }}
           fi
-        shell: bash -tags webkit2_41
+        shell: bash
 
       - name: Package app
         working-directory: porcupin/build/bin
