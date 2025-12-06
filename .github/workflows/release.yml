@@ -107,9 +107,7 @@ jobs:
 
       - name: Package app
         working-directory: porcupin/build/bin
-        shell: bash
-        run: |
-          ${{ matrix.package_cmd }}
+        run: ${{ matrix.package_cmd }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
