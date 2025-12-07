@@ -90,8 +90,9 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 	// /R:3 = retry 3 times on failed copies
 	// /W:5 = wait 5 seconds between retries
 	// /XF = exclude files (lock files)
-	// /BYTES = show progress in bytes
-	// /NP = no percentage in output (we'll track manually)
+	// /BYTES = show sizes in bytes (enables per-file byte counts in output)
+	// /V = verbose output (shows file names being copied)
+	// /ETA = show estimated time of arrival for copied files
 	args := []string{
 		source,
 		dest,
@@ -101,7 +102,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		"/W:5",
 		"/XF", "repo.lock", "*.lock",
 		"/BYTES",
-		"/NP",
+		"/V",
 	}
 
 	log.Printf("Running: robocopy %s", strings.Join(args, " "))
@@ -143,37 +144,74 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 	wg.Add(2)
 
 	// Parse robocopy output for progress
+	// With /BYTES /V, output includes lines like:
+	//   "New File  \t\t      12345\tfilename.ext"
+	//   "100%"
 	go func() {
 		defer wg.Done()
-		buf := make([]byte, 4096)
+		buf := make([]byte, 8192)
+		var lineBuf strings.Builder
+		
 		for {
 			n, err := stdout.Read(buf)
 			if n > 0 {
-				line := string(buf[:n])
-				log.Printf("robocopy: %s", strings.TrimSpace(line))
-
-				// Robocopy output is less structured than rsync
-				// We'll update progress based on file count estimation
-				// This is approximate - better than nothing
-				if strings.Contains(line, "New File") || strings.Contains(line, "Newer") {
-					// Estimate progress
-					if totalSize > 0 {
-						bytesCopied += totalSize / 100 // Rough estimate
-						progress := float64(bytesCopied) / float64(totalSize) * 100
-						if progress > 100 {
-							progress = 100
+				chunk := string(buf[:n])
+				
+				// Process line by line for accurate byte counting
+				for _, char := range chunk {
+					if char == '\n' || char == '\r' {
+						line := lineBuf.String()
+						lineBuf.Reset()
+						
+						if line == "" {
+							continue
 						}
-
-						m.mu.Lock()
-						m.migrationStatus.BytesCopied = bytesCopied
-						m.migrationStatus.Progress = progress
-						m.migrationStatus.CurrentFile = currentFile
-						status := *m.migrationStatus
-						m.mu.Unlock()
-
-						if progressCallback != nil {
-							progressCallback(status)
+						
+						// Parse "New File" or "Newer" lines which contain file size
+						// Format: "  New File  \t\t   123456789\tpath\\to\\file.ext"
+						if strings.Contains(line, "New File") || strings.Contains(line, "Newer") || 
+						   strings.Contains(line, "Modified") || strings.Contains(line, "*EXTRA") {
+							// Extract the file size (number before the filename)
+							fields := strings.Fields(line)
+							for i, field := range fields {
+								// Look for a numeric field that represents file size
+								if size, parseErr := strconv.ParseInt(field, 10, 64); parseErr == nil && size > 0 {
+									// The next field after size is usually the filename
+									if i+1 < len(fields) {
+										currentFile = fields[i+1]
+									}
+									bytesCopied += size
+									
+									// Calculate progress
+									var progress float64
+									if totalSize > 0 {
+										progress = float64(bytesCopied) / float64(totalSize) * 100
+										if progress > 100 {
+											progress = 100
+										}
+									}
+									
+									m.mu.Lock()
+									m.migrationStatus.BytesCopied = bytesCopied
+									m.migrationStatus.Progress = progress
+									m.migrationStatus.CurrentFile = currentFile
+									status := *m.migrationStatus
+									m.mu.Unlock()
+									
+									if progressCallback != nil {
+										progressCallback(status)
+									}
+									break
+								}
+							}
 						}
+						
+						// Log progress periodically
+						if strings.Contains(line, "Bytes :") || strings.Contains(line, "Files :") {
+							log.Printf("robocopy: %s", line)
+						}
+					} else {
+						lineBuf.WriteRune(char)
 					}
 				}
 			}
@@ -232,7 +270,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		return fmt.Errorf("robocopy failed (exit code %d): %w\nstderr: %s", exitCode, waitErr, stderrBuf.String())
 	}
 
-	log.Printf("robocopy completed successfully (exit code %d)", exitCode)
+	log.Printf("robocopy completed successfully (exit code %d), copied %.2f GB", exitCode, float64(bytesCopied)/1024/1024/1024)
 
 	m.mu.Lock()
 	m.migrationStatus.Progress = 100

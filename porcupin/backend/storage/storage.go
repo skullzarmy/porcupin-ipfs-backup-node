@@ -4,6 +4,7 @@
 package storage
 
 import (
+	"bufio"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,26 +24,71 @@ func getDeviceID(path string) (uint64, error) {
 
 // isNetworkMount checks if a path is on a network mount
 func isNetworkMount(path string) bool {
-	// Read /proc/mounts or use mount command to check
-	if runtime.GOOS == "darwin" {
-		// On macOS, check if it's under /Volumes and is a network share
-		out, err := exec.Command("mount").Output()
-		if err != nil {
-			return false
-		}
-		
-		// Find the mount point for this path
-		lines := strings.Split(string(out), "\n")
-		for _, line := range lines {
-			if strings.Contains(line, "smbfs") || strings.Contains(line, "nfs") || 
-			   strings.Contains(line, "afpfs") || strings.Contains(line, "cifs") {
-				parts := strings.Fields(line)
-				if len(parts) >= 3 {
-					mountPoint := parts[2]
-					if strings.HasPrefix(path, mountPoint) {
-						return true
-					}
+	switch runtime.GOOS {
+	case "darwin":
+		return isNetworkMountDarwin(path)
+	case "linux":
+		return isNetworkMountLinux(path)
+	}
+	return false
+}
+
+// isNetworkMountDarwin checks for network mounts on macOS using mount command
+func isNetworkMountDarwin(path string) bool {
+	out, err := exec.Command("mount").Output()
+	if err != nil {
+		return false
+	}
+	
+	// Find the mount point for this path
+	lines := strings.Split(string(out), "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "smbfs") || strings.Contains(line, "nfs") || 
+		   strings.Contains(line, "afpfs") || strings.Contains(line, "cifs") {
+			parts := strings.Fields(line)
+			if len(parts) >= 3 {
+				mountPoint := parts[2]
+				if strings.HasPrefix(path, mountPoint) {
+					return true
 				}
+			}
+		}
+	}
+	return false
+}
+
+// isNetworkMountLinux checks for network mounts on Linux by parsing /proc/mounts
+func isNetworkMountLinux(path string) bool {
+	// Network filesystem types on Linux
+	networkFSTypes := map[string]bool{
+		"nfs":    true,
+		"nfs4":   true,
+		"cifs":   true,
+		"smbfs":  true,
+		"sshfs":  true,
+		"fuse.sshfs": true,
+		"ncpfs":  true,
+		"9p":     true, // Plan 9 / WSL
+	}
+	
+	file, err := os.Open("/proc/mounts")
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Format: device mountpoint fstype options dump pass
+		fields := strings.Fields(line)
+		if len(fields) >= 3 {
+			mountPoint := fields[1]
+			fsType := fields[2]
+			
+			// Check if path is under this mount point and it's a network FS
+			if strings.HasPrefix(path, mountPoint) && networkFSTypes[fsType] {
+				return true
 			}
 		}
 	}
@@ -161,7 +207,7 @@ func generateLabelForOS(path string, storageType StorageType, goos string) strin
 			}
 		}
 	case "linux":
-		// Handle /mnt/name and /media/user/name patterns
+		// Handle /mnt/name, /media/user/name, and /run/media/user/name patterns
 		if strings.HasPrefix(path, "/mnt/") {
 			parts := strings.Split(path, "/")
 			if len(parts) >= 3 {
@@ -171,6 +217,11 @@ func generateLabelForOS(path string, storageType StorageType, goos string) strin
 			parts := strings.Split(path, "/")
 			if len(parts) >= 4 {
 				volumeName = parts[3] // /media/user/volumename
+			}
+		} else if strings.HasPrefix(path, "/run/media/") {
+			parts := strings.Split(path, "/")
+			if len(parts) >= 5 {
+				volumeName = parts[4] // /run/media/user/volumename
 			}
 		}
 	case "windows":
@@ -227,6 +278,11 @@ func getMountPointForOS(path string, goos string) string {
 			if len(parts) >= 4 {
 				return "/media/" + parts[2] + "/" + parts[3]
 			}
+		} else if strings.HasPrefix(path, "/run/media/") {
+			parts := strings.Split(path, "/")
+			if len(parts) >= 5 {
+				return "/run/media/" + parts[3] + "/" + parts[4]
+			}
 		}
 	case "windows":
 		if len(path) >= 2 && path[1] == ':' {
@@ -272,20 +328,46 @@ func ListAvailableLocations() ([]*StorageLocation, error) {
 
 	// On Linux, check common mount points
 	if runtime.GOOS == "linux" {
-		mountPoints := []string{"/mnt", "/media"}
-		for _, mp := range mountPoints {
-			entries, err := os.ReadDir(mp)
-			if err != nil {
-				continue
-			}
+		// Scan /mnt directly
+		if entries, err := os.ReadDir("/mnt"); err == nil {
 			for _, entry := range entries {
 				if entry.IsDir() {
-					volumePath := filepath.Join(mp, entry.Name())
+					volumePath := filepath.Join("/mnt", entry.Name())
 					loc, err := GetStorageInfo(volumePath)
 					if err == nil && loc.IsWritable && loc.IsMounted {
 						suggestedPath := filepath.Join(volumePath, "porcupin-ipfs")
 						loc.Path = suggestedPath
 						locations = append(locations, loc)
+					}
+				}
+			}
+		}
+		
+		// Scan /media/user/ and /run/media/user/ (modern Linux distros)
+		mediaRoots := []string{"/media", "/run/media"}
+		for _, mediaRoot := range mediaRoots {
+			userDirs, err := os.ReadDir(mediaRoot)
+			if err != nil {
+				continue
+			}
+			for _, userDir := range userDirs {
+				if !userDir.IsDir() {
+					continue
+				}
+				userPath := filepath.Join(mediaRoot, userDir.Name())
+				volumes, err := os.ReadDir(userPath)
+				if err != nil {
+					continue
+				}
+				for _, vol := range volumes {
+					if vol.IsDir() {
+						volumePath := filepath.Join(userPath, vol.Name())
+						loc, err := GetStorageInfo(volumePath)
+						if err == nil && loc.IsWritable && loc.IsMounted {
+							suggestedPath := filepath.Join(volumePath, "porcupin-ipfs")
+							loc.Path = suggestedPath
+							locations = append(locations, loc)
+						}
 					}
 				}
 			}
