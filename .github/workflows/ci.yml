@@ -11,7 +11,10 @@ env:
 
 jobs:
     test:
-        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                os: [ubuntu-latest, macos-latest, windows-latest]
+        runs-on: ${{ matrix.os }}
 
         steps:
             - name: Checkout
@@ -39,6 +42,7 @@ jobs:
               run: go test ./... -v -race
 
             - name: Run tests with coverage
+              if: matrix.os == 'ubuntu-latest'
               working-directory: porcupin
               id: coverage
               run: |
@@ -48,6 +52,7 @@ jobs:
                   echo "Coverage: $COVERAGE%"
 
             - name: Upload coverage to Codecov
+              if: matrix.os == 'ubuntu-latest'
               uses: codecov/codecov-action@v4
               with:
                   file: porcupin/coverage.txt

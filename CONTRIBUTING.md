@@ -202,6 +202,17 @@ func (s *BackupService) ProcessAsset(asset *Asset) {
 }
 ```
 
+### Cross-Platform Development
+
+Porcupin supports macOS, Linux, and Windows. When adding platform-specific code:
+
+-   **Use build tags** for code that won't compile on all platforms (syscalls, different imports)
+-   **Use `runtime.GOOS` switches** for simple runtime differences
+-   **Never use Unix commands** (`du`, `rsync`, `mount`) without a Windows alternative
+-   **Always use `filepath.Join()`** instead of hardcoded path separators
+
+See the full [Cross-Platform Development Guide](docs/cross-platform.md) for patterns and examples.
+
 ### TypeScript/React Style Guide
 
 -   Use TypeScript strict mode

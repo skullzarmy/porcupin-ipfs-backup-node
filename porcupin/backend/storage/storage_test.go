@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -643,76 +642,108 @@ func TestGenerateLabel_LocalStorage(t *testing.T) {
 	}
 }
 
-func TestGenerateLabel_ExternalVolume(t *testing.T) {
-	var path, expected string
-	switch runtime.GOOS {
-	case "darwin":
-		path = "/Volumes/MyDrive/data"
-		expected = "MyDrive (External)"
-	case "linux":
-		path = "/mnt/MyDrive/data"
-		expected = "MyDrive (External)"
-	default:
-		t.Skip("Test not implemented for this OS")
+// TestGenerateLabelForOS_AllPlatforms tests label generation for ALL platforms
+// regardless of which OS the test is running on
+func TestGenerateLabelForOS_AllPlatforms(t *testing.T) {
+	tests := []struct {
+		name        string
+		path        string
+		storageType StorageType
+		goos        string
+		expected    string
+	}{
+		// macOS tests
+		{"darwin_volumes_external", "/Volumes/MyDrive/data", StorageTypeExternal, "darwin", "MyDrive (External)"},
+		{"darwin_volumes_network", "/Volumes/NetworkShare/data", StorageTypeNetwork, "darwin", "NetworkShare (Network)"},
+		{"darwin_volumes_local", "/Volumes/Macintosh HD/Users", StorageTypeLocal, "darwin", "Macintosh HD"},
+		{"darwin_non_volumes", "/Users/test/.porcupin", StorageTypeExternal, "darwin", "External Drive"},
+		{"darwin_mnt_not_recognized", "/mnt/drive", StorageTypeExternal, "darwin", "External Drive"},
+
+		// Linux tests
+		{"linux_mnt_external", "/mnt/MyDrive/data", StorageTypeExternal, "linux", "MyDrive (External)"},
+		{"linux_mnt_network", "/mnt/NetworkShare/data", StorageTypeNetwork, "linux", "NetworkShare (Network)"},
+		{"linux_media_external", "/media/user/USBDrive/files", StorageTypeExternal, "linux", "USBDrive (External)"},
+		{"linux_media_network", "/media/user/NASShare/files", StorageTypeNetwork, "linux", "NASShare (Network)"},
+		{"linux_opt_not_recognized", "/opt/data", StorageTypeExternal, "linux", "External Drive"},
+		{"linux_home_not_recognized", "/home/user/.porcupin", StorageTypeLocal, "linux", "Local Storage"},
+
+		// Windows tests
+		{"windows_d_drive_external", "D:\\Data\\files", StorageTypeExternal, "windows", "D Drive (External)"},
+		{"windows_e_drive_network", "E:\\Share", StorageTypeNetwork, "windows", "E Drive (Network)"},
+		{"windows_c_drive_local", "C:\\Users\\test", StorageTypeLocal, "windows", "C Drive"},
+		{"windows_unc_not_recognized", "\\\\server\\share", StorageTypeNetwork, "windows", "Network Drive"},
+
+		// Fallback tests (unknown OS)
+		{"unknown_os_external", "/some/path", StorageTypeExternal, "freebsd", "External Drive"},
+		{"unknown_os_network", "/some/path", StorageTypeNetwork, "freebsd", "Network Drive"},
+		{"unknown_os_local", "/some/path", StorageTypeLocal, "freebsd", "Local Storage"},
 	}
-	label := generateLabel(path, StorageTypeExternal)
-	if label != expected {
-		t.Errorf("label = %q, want %q", label, expected)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := generateLabelForOS(tt.path, tt.storageType, tt.goos)
+			if got != tt.expected {
+				t.Errorf("generateLabelForOS(%q, %v, %q) = %q, want %q",
+					tt.path, tt.storageType, tt.goos, got, tt.expected)
+			}
+		})
 	}
 }
 
-func TestGenerateLabel_NetworkVolume(t *testing.T) {
-	var path, expected string
-	switch runtime.GOOS {
-	case "darwin":
-		path = "/Volumes/NetworkShare/data"
-		expected = "NetworkShare (Network)"
-	case "linux":
-		path = "/mnt/NetworkShare/data"
-		expected = "NetworkShare (Network)"
-	default:
-		t.Skip("Test not implemented for this OS")
+// TestGetMountPointForOS_AllPlatforms tests mount point extraction for ALL platforms
+func TestGetMountPointForOS_AllPlatforms(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		goos     string
+		expected string
+	}{
+		// macOS
+		{"darwin_volumes", "/Volumes/MyDrive/some/nested/path", "darwin", "/Volumes/MyDrive"},
+		{"darwin_volumes_root", "/Volumes/MyDrive", "darwin", "/Volumes/MyDrive"},
+		{"darwin_non_volumes", "/Users/test/data", "darwin", "/Users/test/data"},
+
+		// Linux
+		{"linux_mnt", "/mnt/MyDrive/some/nested/path", "linux", "/mnt/MyDrive"},
+		{"linux_mnt_root", "/mnt/MyDrive", "linux", "/mnt/MyDrive"},
+		{"linux_media", "/media/user/USBDrive/files/data", "linux", "/media/user/USBDrive"},
+		{"linux_media_root", "/media/user/USBDrive", "linux", "/media/user/USBDrive"},
+		{"linux_home", "/home/user/data", "linux", "/home/user/data"},
+
+		// Windows
+		{"windows_d_drive", "D:\\Users\\test\\data", "windows", "D:\\"},
+		{"windows_c_drive", "C:\\Program Files", "windows", "C:\\"},
+		{"windows_unc", "\\\\server\\share\\folder", "windows", "\\\\server\\share\\folder"},
+
+		// Unknown OS - returns path unchanged
+		{"freebsd_unchanged", "/usr/local/data", "freebsd", "/usr/local/data"},
 	}
-	label := generateLabel(path, StorageTypeNetwork)
-	if label != expected {
-		t.Errorf("label = %q, want %q", label, expected)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getMountPointForOS(tt.path, tt.goos)
+			if got != tt.expected {
+				t.Errorf("getMountPointForOS(%q, %q) = %q, want %q",
+					tt.path, tt.goos, got, tt.expected)
+			}
+		})
 	}
 }
 
-func TestGenerateLabel_ExternalNonVolume(t *testing.T) {
-	label := generateLabel("/mnt/external", StorageTypeExternal)
-	if label != "External Drive" {
-		t.Errorf("label = %q, want 'External Drive'", label)
+// Keep a simple runtime test to verify the wrapper works
+func TestGenerateLabel_UsesRuntimeOS(t *testing.T) {
+	// Just verify it doesn't panic and returns something reasonable
+	label := generateLabel("/some/path", StorageTypeLocal)
+	if label == "" {
+		t.Error("generateLabel returned empty string")
 	}
 }
 
-// =============================================================================
-// GET MOUNT POINT TESTS
-// =============================================================================
-
-func TestGetMountPoint_VolumePath(t *testing.T) {
-	var path, expected string
-	switch runtime.GOOS {
-	case "darwin":
-		path = "/Volumes/MyDrive/some/nested/path"
-		expected = "/Volumes/MyDrive"
-	case "linux":
-		path = "/mnt/MyDrive/some/nested/path"
-		expected = "/mnt/MyDrive"
-	default:
-		t.Skip("Test not implemented for this OS")
-	}
-	mp := getMountPoint(path)
-	if mp != expected {
-		t.Errorf("mount point = %q, want %q", mp, expected)
-	}
-}
-
-func TestGetMountPoint_NonVolumePath(t *testing.T) {
-	path := "/usr/local/share"
-	mp := getMountPoint(path)
-	if mp != path {
-		t.Errorf("mount point = %q, want %q (original path)", mp, path)
+func TestGetMountPoint_UsesRuntimeOS(t *testing.T) {
+	// Just verify it doesn't panic and returns something
+	mp := getMountPoint("/some/path")
+	if mp == "" {
+		t.Error("getMountPoint returned empty string")
 	}
 }
 

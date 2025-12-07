@@ -228,14 +228,15 @@ porcupin-ipfs-backup-node/
 
 ### Key Files for Common Changes
 
-| Change                 | File(s)                            |
-| ---------------------- | ---------------------------------- |
-| IPFS pinning behavior  | `porcupin/backend/ipfs/node.go`    |
-| Backup orchestration   | `porcupin/backend/core/backup.go`  |
-| Service lifecycle      | `porcupin/backend/core/service.go` |
-| TZKT API integration   | `porcupin/backend/indexer/tzkt.go` |
-| Wails bindings (Go↔JS) | `porcupin/app.go`                  |
-| Database models        | `porcupin/backend/db/db.go`        |
+| Change                 | File(s)                                       |
+| ---------------------- | --------------------------------------------- |
+| IPFS pinning behavior  | `porcupin/backend/ipfs/node.go`               |
+| Backup orchestration   | `porcupin/backend/core/backup.go`             |
+| Service lifecycle      | `porcupin/backend/core/service.go`            |
+| TZKT API integration   | `porcupin/backend/indexer/tzkt.go`            |
+| Wails bindings (Go↔JS) | `porcupin/app.go`                             |
+| Database models        | `porcupin/backend/db/db.go`                   |
+| Platform-specific code | See [Cross-Platform Guide](cross-platform.md) |
 
 ---
 
@@ -327,3 +328,14 @@ npm run dev
 -   Add tests for new functionality
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for full style guidelines.
+
+---
+
+## Related Documentation
+
+| Document                                  | Description                                                  |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| [Cross-Platform Guide](cross-platform.md) | Build tags, platform-specific patterns, and OS compatibility |
+| [Architecture](architecture.md)           | System design, data flow, and component overview             |
+| [Audit](audit.md)                         | Security and reliability risk mitigations                    |
+| [CONTRIBUTING.md](../CONTRIBUTING.md)     | Contribution guidelines and code style                       |

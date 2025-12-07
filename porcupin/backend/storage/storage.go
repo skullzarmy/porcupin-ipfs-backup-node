@@ -142,11 +142,17 @@ func GetStorageInfo(path string) (*StorageLocation, error) {
 }
 
 // generateLabel creates a human-readable label for a storage location
+// generateLabel creates a human-readable label for a storage location
 func generateLabel(path string, storageType StorageType) string {
+	return generateLabelForOS(path, storageType, runtime.GOOS)
+}
+
+// generateLabelForOS is the testable implementation that accepts OS as parameter
+func generateLabelForOS(path string, storageType StorageType, goos string) string {
 	// Extract volume/mount name from path based on OS
 	var volumeName string
 	
-	switch runtime.GOOS {
+	switch goos {
 	case "darwin":
 		if strings.HasPrefix(path, "/Volumes/") {
 			parts := strings.Split(path, "/")
@@ -197,7 +203,12 @@ func generateLabel(path string, storageType StorageType) string {
 
 // getMountPoint finds the mount point for a path
 func getMountPoint(path string) string {
-	switch runtime.GOOS {
+	return getMountPointForOS(path, runtime.GOOS)
+}
+
+// getMountPointForOS is the testable implementation that accepts OS as parameter
+func getMountPointForOS(path string, goos string) string {
+	switch goos {
 	case "darwin":
 		if strings.HasPrefix(path, "/Volumes/") {
 			parts := strings.Split(path, "/")

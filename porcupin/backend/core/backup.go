@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -736,20 +735,12 @@ func (bm *BackupManager) MarkDiskUsageDirty() {
 func (bm *BackupManager) UpdateDiskUsage() {
 	if atomic.CompareAndSwapInt32(&bm.diskUsageDirty, 1, 0) {
 		repoPath := bm.ipfs.GetRepoPath()
-		cmd := exec.Command("du", "-sk", repoPath)
-		output, err := cmd.Output()
+		sizeBytes, err := getDiskUsageBytes(repoPath)
 		if err != nil {
 			log.Printf("Failed to get disk usage: %v", err)
 			return
 		}
-		
-		var sizeKB int64
-		if _, err := fmt.Sscanf(string(output), "%d", &sizeKB); err != nil {
-			log.Printf("Failed to parse disk usage output: %v", err)
-			return
-		}
-		sizeBytes := sizeKB * 1024
-		
+
 		bm.db.SetSetting("disk_usage_bytes", fmt.Sprintf("%d", sizeBytes))
 		log.Printf("Updated disk usage: %.2f GB", float64(sizeBytes)/1024/1024/1024)
 	}
