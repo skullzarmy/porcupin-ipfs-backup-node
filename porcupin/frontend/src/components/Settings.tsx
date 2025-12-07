@@ -96,7 +96,7 @@ export function Settings({ onStatsChange }: SettingsProps) {
                 setSyncOwned(cfgRes.Backup.sync_owned !== false);
                 setSyncCreated(cfgRes.Backup.sync_created !== false);
             }
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         }
     }, []);
@@ -123,7 +123,7 @@ export function Settings({ onStatsChange }: SettingsProps) {
                     setMigrating(true);
                     setMigrationStatus(status);
                 }
-            } catch (err) {
+            } catch (err: unknown) {
                 console.error("Error checking migration status:", err);
             }
         };
@@ -229,7 +229,7 @@ export function Settings({ onStatsChange }: SettingsProps) {
             });
             setMessage("Settings saved!");
             loadSettings();
-        } catch (err) {
+        } catch (err: unknown) {
             setMessage("Error saving: " + String(err));
         } finally {
             setSaving(false);

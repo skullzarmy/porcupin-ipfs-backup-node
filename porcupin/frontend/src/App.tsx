@@ -9,10 +9,21 @@ import { Assets } from "./components/Assets";
 import { Settings } from "./components/Settings";
 import { About } from "./components/About";
 
+/** Asset statistics returned from the backend */
+interface AssetStats {
+    nft_count: number;
+    pinned: number;
+    failed: number;
+    failed_unavailable: number;
+    pending: number;
+    disk_usage_bytes: number;
+    total_size_bytes: number;
+}
+
 function App() {
     const [activeTab, setActiveTab] = useState("dashboard");
     const [wallets, setWallets] = useState<db.Wallet[]>([]);
-    const [stats, setStats] = useState<{ [key: string]: number }>({});
+    const [stats, setStats] = useState<Partial<AssetStats>>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -26,7 +37,7 @@ function App() {
         try {
             const newStats = await GetAssetStats();
             setStats(newStats || {});
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         }
     }, []);
@@ -35,7 +46,7 @@ function App() {
         try {
             const res = await GetWallets();
             setWallets(res || []);
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         }
     }, []);

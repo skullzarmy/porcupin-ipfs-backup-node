@@ -744,7 +744,10 @@ func (bm *BackupManager) UpdateDiskUsage() {
 		}
 		
 		var sizeKB int64
-		fmt.Sscanf(string(output), "%d", &sizeKB)
+		if _, err := fmt.Sscanf(string(output), "%d", &sizeKB); err != nil {
+			log.Printf("Failed to parse disk usage output: %v", err)
+			return
+		}
 		sizeBytes := sizeKB * 1024
 		
 		bm.db.SetSetting("disk_usage_bytes", fmt.Sprintf("%d", sizeBytes))

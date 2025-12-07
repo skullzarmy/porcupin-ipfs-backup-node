@@ -176,7 +176,10 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 		var resp *http.Response
 		var err error
 		for attempt := 0; attempt < 3; attempt++ {
-			req, _ := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+			req, reqErr := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+			if reqErr != nil {
+				return allTokens, fmt.Errorf("failed to create request: %w", reqErr)
+			}
 			resp, err = client.Do(req)
 			if err == nil && resp.StatusCode == http.StatusOK {
 				break
@@ -265,7 +268,10 @@ func (i *Indexer) SyncCreatedSince(ctx context.Context, address string, sinceLev
 		var resp *http.Response
 		var err error
 		for attempt := 0; attempt < 3; attempt++ {
-			req, _ := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+			req, reqErr := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+			if reqErr != nil {
+				return allTokens, fmt.Errorf("failed to create request: %w", reqErr)
+			}
 			resp, err = client.Do(req)
 			if err == nil && resp.StatusCode == http.StatusOK {
 				break

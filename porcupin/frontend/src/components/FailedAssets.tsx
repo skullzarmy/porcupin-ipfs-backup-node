@@ -20,7 +20,7 @@ export function FailedAssets({ onClose, onRetry }: FailedAssetsProps) {
         try {
             const failed = await GetFailedAssets();
             setAssets(failed || []);
-        } catch (err) {
+        } catch (err: unknown) {
             console.error("Failed to load failed assets:", err);
         } finally {
             setLoading(false);
@@ -38,7 +38,7 @@ export function FailedAssets({ onClose, onRetry }: FailedAssetsProps) {
             // Remove from list
             setAssets((prev) => prev.filter((a) => a.id !== assetId));
             onRetry();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error("Failed to retry asset:", err);
         } finally {
             setRetrying((prev) => {
@@ -55,7 +55,7 @@ export function FailedAssets({ onClose, onRetry }: FailedAssetsProps) {
             console.log(`Queued ${count} assets for retry`);
             setAssets([]);
             onRetry();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error("Failed to retry all:", err);
         }
     };
@@ -66,7 +66,7 @@ export function FailedAssets({ onClose, onRetry }: FailedAssetsProps) {
             await DeleteAsset(assetId);
             setAssets((prev) => prev.filter((a) => a.id !== assetId));
             onRetry();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error("Failed to delete asset:", err);
         } finally {
             setDeleting((prev) => {
@@ -88,7 +88,7 @@ export function FailedAssets({ onClose, onRetry }: FailedAssetsProps) {
             setAssets([]);
             setConfirmClearAll(false);
             onRetry();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error("Failed to clear:", err);
             setConfirmClearAll(false);
         }

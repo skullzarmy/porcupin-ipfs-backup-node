@@ -117,7 +117,7 @@ export function Assets({ onStatsChange }: AssetsProps) {
                 }
             }
             setAllAssets(assets);
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         } finally {
             setLoading(false);
@@ -223,7 +223,7 @@ export function Assets({ onStatsChange }: AssetsProps) {
             await RetryAsset(id);
             handleRefresh();
             onStatsChange();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         }
     };
@@ -234,7 +234,7 @@ export function Assets({ onStatsChange }: AssetsProps) {
             await UnpinAsset(id);
             handleRefresh();
             onStatsChange();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         }
     };
@@ -246,7 +246,7 @@ export function Assets({ onStatsChange }: AssetsProps) {
             await DeleteAsset(id);
             handleRefresh();
             onStatsChange();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         }
     };
@@ -254,7 +254,7 @@ export function Assets({ onStatsChange }: AssetsProps) {
     const handleShowInFinder = async () => {
         try {
             await ShowInFinder();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
         }
     };

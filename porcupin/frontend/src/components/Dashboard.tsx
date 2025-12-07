@@ -1,32 +1,26 @@
 import { useEffect, useState } from "react";
 import { GetSyncProgress, PauseBackup, ResumeBackup, IsBackupPaused } from "../../wailsjs/go/main/App";
+import type { core } from "../../wailsjs/go/models";
 import { formatBytes } from "../utils";
 import { FailedAssets } from "./FailedAssets";
 import { Pause, Play, RefreshCw, Activity, Loader, Square, Palette, Pin, HardDrive, AlertTriangle } from "lucide-react";
 
-interface ServiceStatus {
-    state: string;
-    message: string;
-    is_paused: boolean;
-    current_wallet: string;
-    wallets_total: number;
-    wallets_synced: number;
-    total_nfts: number;
-    processed_nfts: number;
-    total_assets: number;
-    pinned_assets: number;
-    failed_assets: number;
-    pending_retries: number;
-    current_item: string;
-    last_sync_at: string | null;
+/** Asset statistics from the database */
+interface AssetStats {
+    nft_count: number;
+    pinned: number;
+    failed: number;
+    failed_unavailable: number;
+    pending: number;
+    disk_usage_bytes: number;
 }
 
 interface DashboardProps {
-    stats: { [key: string]: number };
+    stats: Partial<AssetStats>;
 }
 
 export function Dashboard({ stats }: DashboardProps) {
-    const [status, setStatus] = useState<ServiceStatus | null>(null);
+    const [status, setStatus] = useState<core.ServiceStatus | null>(null);
     const [isPaused, setIsPaused] = useState(false);
     const [showFailedModal, setShowFailedModal] = useState(false);
 
@@ -34,9 +28,9 @@ export function Dashboard({ stats }: DashboardProps) {
         const fetchStatus = async () => {
             try {
                 const [serviceStatus, paused] = await Promise.all([GetSyncProgress(), IsBackupPaused()]);
-                setStatus(serviceStatus as unknown as ServiceStatus);
+                setStatus(serviceStatus);
                 setIsPaused(paused);
-            } catch (err) {
+            } catch (err: unknown) {
                 console.error("Failed to fetch status:", err);
             }
         };
@@ -55,7 +49,7 @@ export function Dashboard({ stats }: DashboardProps) {
                 await PauseBackup();
             }
             setIsPaused(!isPaused);
-        } catch (err) {
+        } catch (err: unknown) {
             console.error("Failed to toggle pause:", err);
         }
     };
