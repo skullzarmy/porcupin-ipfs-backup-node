@@ -3,8 +3,11 @@
 package storage
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -231,122 +234,9 @@ func TestSameDevice_TildeExpansion(t *testing.T) {
 	}
 }
 
-// =============================================================================
-// STORAGE TYPE TESTS
-// =============================================================================
-
-func TestStorageTypeConstants(t *testing.T) {
-	if StorageTypeLocal != "local" {
-		t.Errorf("StorageTypeLocal = %q, want 'local'", StorageTypeLocal)
-	}
-	if StorageTypeExternal != "external" {
-		t.Errorf("StorageTypeExternal = %q, want 'external'", StorageTypeExternal)
-	}
-	if StorageTypeNetwork != "network" {
-		t.Errorf("StorageTypeNetwork = %q, want 'network'", StorageTypeNetwork)
-	}
-}
-
-// =============================================================================
-// STORAGE LOCATION TESTS
-// =============================================================================
-
-func TestStorageLocation_Defaults(t *testing.T) {
-	loc := StorageLocation{}
-
-	if loc.Path != "" {
-		t.Errorf("Default Path should be empty, got %q", loc.Path)
-	}
-	if loc.Type != "" {
-		t.Errorf("Default Type should be empty, got %q", loc.Type)
-	}
-	if loc.TotalBytes != 0 {
-		t.Errorf("Default TotalBytes should be 0, got %d", loc.TotalBytes)
-	}
-	if loc.FreeBytes != 0 {
-		t.Errorf("Default FreeBytes should be 0, got %d", loc.FreeBytes)
-	}
-	if loc.IsWritable {
-		t.Error("Default IsWritable should be false")
-	}
-	if loc.IsMounted {
-		t.Error("Default IsMounted should be false")
-	}
-}
-
-func TestStorageLocation_Values(t *testing.T) {
-	loc := StorageLocation{
-		Path:       "/Volumes/External",
-		Type:       StorageTypeExternal,
-		Label:      "External Drive",
-		TotalBytes: 1000000000000, // 1TB
-		FreeBytes:  500000000000,  // 500GB
-		IsWritable: true,
-		IsMounted:  true,
-		MountPoint: "/Volumes/External",
-	}
-
-	if loc.Path != "/Volumes/External" {
-		t.Errorf("Path = %q, want '/Volumes/External'", loc.Path)
-	}
-	if loc.Type != StorageTypeExternal {
-		t.Errorf("Type = %q, want 'external'", loc.Type)
-	}
-	if loc.Label != "External Drive" {
-		t.Errorf("Label = %q, want 'External Drive'", loc.Label)
-	}
-	if !loc.IsWritable {
-		t.Error("IsWritable should be true")
-	}
-	if !loc.IsMounted {
-		t.Error("IsMounted should be true")
-	}
-}
-
-// =============================================================================
-// MIGRATION STATUS TESTS
-// =============================================================================
-
-func TestMigrationStatus_Defaults(t *testing.T) {
-	status := MigrationStatus{}
-
-	if status.InProgress {
-		t.Error("Default InProgress should be false")
-	}
-	if status.Progress != 0 {
-		t.Errorf("Default Progress should be 0, got %f", status.Progress)
-	}
-	if status.BytesCopied != 0 {
-		t.Errorf("Default BytesCopied should be 0, got %d", status.BytesCopied)
-	}
-}
-
-func TestMigrationStatus_InProgress(t *testing.T) {
-	status := MigrationStatus{
-		InProgress:  true,
-		SourcePath:  "/old/path",
-		DestPath:    "/new/path",
-		Progress:    45.5,
-		BytesCopied: 500000000, // 500MB
-		TotalBytes:  1000000000, // 1GB
-		CurrentFile: "data/blocks/1234",
-		Method:      "rsync",
-		Phase:       "copying",
-	}
-
-	if !status.InProgress {
-		t.Error("InProgress should be true")
-	}
-	if status.Progress != 45.5 {
-		t.Errorf("Progress = %f, want 45.5", status.Progress)
-	}
-	if status.Method != "rsync" {
-		t.Errorf("Method = %q, want 'rsync'", status.Method)
-	}
-	if status.Phase != "copying" {
-		t.Errorf("Phase = %q, want 'copying'", status.Phase)
-	}
-}
+// NOTE: Storage type constants and struct defaults tests were removed.
+// Testing that Go struct zero values are zero and constants equal their
+// defined values provides no value - these test the language, not our code.
 
 // =============================================================================
 // MANAGER TESTS
@@ -428,6 +318,404 @@ func TestCancelGlobalMigration_NoManager(t *testing.T) {
 	err := CancelGlobalMigration()
 	if err == nil {
 		t.Error("CancelGlobalMigration should error when no manager")
+	}
+}
+
+// =============================================================================
+// GET DIR SIZE TESTS
+// =============================================================================
+
+func TestGetDirSize_EmptyDir(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "dirsize-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	size, err := getDirSize(tmpDir)
+	if err != nil {
+		t.Fatalf("getDirSize error: %v", err)
+	}
+
+	// Empty directory should have minimal size (just directory entry)
+	// Usually a few KB at most
+	if size < 0 {
+		t.Errorf("getDirSize returned negative size: %d", size)
+	}
+}
+
+func TestGetDirSize_WithFiles(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "dirsize-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create some test files
+	testData := []byte("test data for size calculation")
+	for i := 0; i < 5; i++ {
+		filePath := filepath.Join(tmpDir, fmt.Sprintf("file%d.txt", i))
+		if err := os.WriteFile(filePath, testData, 0644); err != nil {
+			t.Fatalf("Failed to write test file: %v", err)
+		}
+	}
+
+	size, err := getDirSize(tmpDir)
+	if err != nil {
+		t.Fatalf("getDirSize error: %v", err)
+	}
+
+	// Size should be at least the sum of file sizes
+	minExpectedSize := int64(len(testData) * 5)
+	if size < minExpectedSize {
+		t.Errorf("getDirSize = %d bytes, want at least %d bytes", size, minExpectedSize)
+	}
+}
+
+func TestGetDirSize_NonexistentDir(t *testing.T) {
+	_, err := getDirSize("/nonexistent/path/that/does/not/exist")
+	if err == nil {
+		t.Error("getDirSize should error for nonexistent path")
+	}
+}
+
+func TestGetDirSize_NestedDirs(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "dirsize-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Create nested directory structure
+	subDir := filepath.Join(tmpDir, "sub1", "sub2", "sub3")
+	if err := os.MkdirAll(subDir, 0755); err != nil {
+		t.Fatalf("Failed to create subdirs: %v", err)
+	}
+
+	// Add files at various levels
+	testData := []byte("nested file data")
+	os.WriteFile(filepath.Join(tmpDir, "root.txt"), testData, 0644)
+	os.WriteFile(filepath.Join(tmpDir, "sub1", "level1.txt"), testData, 0644)
+	os.WriteFile(filepath.Join(subDir, "deep.txt"), testData, 0644)
+
+	size, err := getDirSize(tmpDir)
+	if err != nil {
+		t.Fatalf("getDirSize error: %v", err)
+	}
+
+	// Should include all nested files
+	minExpectedSize := int64(len(testData) * 3)
+	if size < minExpectedSize {
+		t.Errorf("getDirSize = %d bytes, want at least %d bytes for nested dirs", size, minExpectedSize)
+	}
+}
+
+// =============================================================================
+// MIGRATE TESTS
+// =============================================================================
+
+func TestManager_Migrate_AlreadyInProgress(t *testing.T) {
+	m := NewManager("/test/source")
+
+	// Set migration in progress
+	m.mu.Lock()
+	m.migrationStatus = &MigrationStatus{InProgress: true}
+	m.mu.Unlock()
+
+	err := m.Migrate(context.Background(), "/test/dest", nil)
+	if err == nil {
+		t.Error("Migrate should error when already in progress")
+	}
+	if !strings.Contains(err.Error(), "already in progress") {
+		t.Errorf("Error should mention 'already in progress', got: %v", err)
+	}
+}
+
+func TestManager_Migrate_SameDevice_Rename(t *testing.T) {
+	// Create temp source directory with content
+	tmpDir, err := os.MkdirTemp("", "migrate-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	sourceDir := filepath.Join(tmpDir, "source")
+	destDir := filepath.Join(tmpDir, "external_drive") // Simulate external drive mount point
+
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatalf("Failed to create source dir: %v", err)
+	}
+
+	// Create dest directory so isWritable check can work
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		t.Fatalf("Failed to create dest dir: %v", err)
+	}
+
+	// Create test file
+	testFile := filepath.Join(sourceDir, "test.txt")
+	if err := os.WriteFile(testFile, []byte("test data"), 0644); err != nil {
+		t.Fatalf("Failed to write test file: %v", err)
+	}
+
+	m := NewManager(sourceDir)
+
+	var progressCalls int
+	progressCallback := func(status MigrationStatus) {
+		progressCalls++
+	}
+
+	err = m.Migrate(context.Background(), destDir, progressCallback)
+	if err != nil {
+		t.Fatalf("Migrate failed: %v", err)
+	}
+
+	// The migrate creates a porcupin-ipfs subfolder
+	expectedDest := filepath.Join(destDir, "porcupin-ipfs")
+
+	// Check source no longer exists
+	if _, err := os.Stat(sourceDir); !os.IsNotExist(err) {
+		t.Error("Source directory should be renamed away")
+	}
+
+	// Check destination contains the file (in the porcupin-ipfs subfolder)
+	destFile := filepath.Join(expectedDest, "test.txt")
+	if _, err := os.Stat(destFile); os.IsNotExist(err) {
+		t.Errorf("Destination should contain migrated file at %s", destFile)
+	}
+
+	// Check progress was called
+	if progressCalls == 0 {
+		t.Error("Progress callback should have been called")
+	}
+
+	// Check manager's current path was updated to include porcupin-ipfs
+	if m.GetCurrentPath() != expectedDest {
+		t.Errorf("CurrentPath = %q, want %q", m.GetCurrentPath(), expectedDest)
+	}
+}
+
+func TestManager_Migrate_InsufficientSpace(t *testing.T) {
+	// This test is platform-dependent and may not work reliably
+	// We test the logic path instead by mocking
+	t.Skip("Skipping: insufficient space test requires large test files")
+}
+
+func TestManager_Migrate_NotWritable(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "migrate-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	sourceDir := filepath.Join(tmpDir, "source")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatalf("Failed to create source: %v", err)
+	}
+
+	m := NewManager(sourceDir)
+
+	// Try to migrate to a read-only location
+	// Note: /System is read-only on macOS
+	err = m.Migrate(context.Background(), "/System/test", nil)
+	if err == nil {
+		t.Error("Migrate should fail for unwritable destination")
+	}
+}
+
+func TestManager_Migrate_CreatesSubfolder(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "migrate-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	sourceDir := filepath.Join(tmpDir, "source")
+	if err := os.MkdirAll(sourceDir, 0755); err != nil {
+		t.Fatalf("Failed to create source: %v", err)
+	}
+	os.WriteFile(filepath.Join(sourceDir, "test.txt"), []byte("data"), 0644)
+
+	destBase := filepath.Join(tmpDir, "external_drive")
+	if err := os.MkdirAll(destBase, 0755); err != nil {
+		t.Fatalf("Failed to create dest base: %v", err)
+	}
+
+	m := NewManager(sourceDir)
+
+	// Pass just the base path - Migrate should create porcupin-ipfs subfolder
+	err = m.Migrate(context.Background(), destBase, nil)
+	if err != nil {
+		t.Fatalf("Migrate failed: %v", err)
+	}
+
+	// The actual destination should be destBase/porcupin-ipfs
+	expectedDest := filepath.Join(destBase, "porcupin-ipfs")
+	if m.GetCurrentPath() != expectedDest {
+		t.Errorf("CurrentPath = %q, want %q", m.GetCurrentPath(), expectedDest)
+	}
+}
+
+// =============================================================================
+// CANCEL MIGRATION TESTS (WITH MIGRATION)
+// =============================================================================
+
+func TestManager_CancelMigration_WithMigration(t *testing.T) {
+	m := NewManager("/test")
+
+	// Simulate migration in progress
+	m.mu.Lock()
+	m.migrationStatus = &MigrationStatus{
+		InProgress: true,
+		Phase:      "copying",
+	}
+	m.mu.Unlock()
+
+	err := m.CancelMigration()
+	if err != nil {
+		t.Errorf("CancelMigration should succeed: %v", err)
+	}
+
+	status := m.GetMigrationStatus()
+	if status.InProgress {
+		t.Error("Migration should be stopped after cancel")
+	}
+	if status.Phase != "cancelled" {
+		t.Errorf("Phase = %q, want 'cancelled'", status.Phase)
+	}
+}
+
+// =============================================================================
+// IS WRITABLE TESTS
+// =============================================================================
+
+func TestIsWritable_WritableDir(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "writable-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if !isWritable(tmpDir) {
+		t.Error("Temp directory should be writable")
+	}
+}
+
+func TestIsWritable_NonexistentDir(t *testing.T) {
+	// isWritable should return false for nonexistent paths
+	if isWritable("/nonexistent/path/12345") {
+		t.Error("Nonexistent path should not be writable")
+	}
+}
+
+// =============================================================================
+// IS NETWORK MOUNT TESTS (macOS specific)
+// =============================================================================
+
+func TestIsNetworkMount_LocalPath(t *testing.T) {
+	// Local paths should not be network mounts
+	home, _ := os.UserHomeDir()
+	if isNetworkMount(home) {
+		t.Error("Home directory should not be a network mount")
+	}
+}
+
+func TestIsNetworkMount_TempPath(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "network-test-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if isNetworkMount(tmpDir) {
+		t.Error("Temp directory should not be a network mount")
+	}
+}
+
+// =============================================================================
+// GENERATE LABEL TESTS
+// =============================================================================
+
+func TestGenerateLabel_LocalStorage(t *testing.T) {
+	label := generateLabel("/Users/test/.porcupin", StorageTypeLocal)
+	if label != "Local Storage" {
+		t.Errorf("label = %q, want 'Local Storage'", label)
+	}
+}
+
+func TestGenerateLabel_ExternalVolume(t *testing.T) {
+	label := generateLabel("/Volumes/MyDrive/data", StorageTypeExternal)
+	if label != "MyDrive (External)" {
+		t.Errorf("label = %q, want 'MyDrive (External)'", label)
+	}
+}
+
+func TestGenerateLabel_NetworkVolume(t *testing.T) {
+	label := generateLabel("/Volumes/NetworkShare/data", StorageTypeNetwork)
+	if label != "NetworkShare (Network)" {
+		t.Errorf("label = %q, want 'NetworkShare (Network)'", label)
+	}
+}
+
+func TestGenerateLabel_ExternalNonVolume(t *testing.T) {
+	label := generateLabel("/mnt/external", StorageTypeExternal)
+	if label != "External Drive" {
+		t.Errorf("label = %q, want 'External Drive'", label)
+	}
+}
+
+// =============================================================================
+// GET MOUNT POINT TESTS
+// =============================================================================
+
+func TestGetMountPoint_VolumePath(t *testing.T) {
+	mp := getMountPoint("/Volumes/MyDrive/some/nested/path")
+	if mp != "/Volumes/MyDrive" {
+		t.Errorf("mount point = %q, want '/Volumes/MyDrive'", mp)
+	}
+}
+
+func TestGetMountPoint_NonVolumePath(t *testing.T) {
+	path := "/usr/local/share"
+	mp := getMountPoint(path)
+	if mp != path {
+		t.Errorf("mount point = %q, want %q (original path)", mp, path)
+	}
+}
+
+// =============================================================================
+// GLOBAL MIGRATION MANAGER TESTS
+// =============================================================================
+
+func TestGetGlobalMigrationStatus_WithManager(t *testing.T) {
+	// Save current state
+	globalMigrationMu.Lock()
+	savedManager := globalMigrationManager
+	globalMigrationMu.Unlock()
+
+	defer func() {
+		globalMigrationMu.Lock()
+		globalMigrationManager = savedManager
+		globalMigrationMu.Unlock()
+	}()
+
+	// Set up a test manager
+	testManager := NewManager("/test")
+	testManager.migrationStatus = &MigrationStatus{
+		InProgress: true,
+		Progress:   50.0,
+		Phase:      "copying",
+	}
+
+	globalMigrationMu.Lock()
+	globalMigrationManager = testManager
+	globalMigrationMu.Unlock()
+
+	status := GetGlobalMigrationStatus()
+	if !status.InProgress {
+		t.Error("Global status should show in progress")
+	}
+	if status.Progress != 50.0 {
+		t.Errorf("Progress = %f, want 50.0", status.Progress)
 	}
 }
 

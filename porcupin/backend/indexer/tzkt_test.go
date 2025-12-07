@@ -267,27 +267,8 @@ func TestHasIPFSContent(t *testing.T) {
 	})
 }
 
-// TestKnownNFTContracts tests the knownNFTContracts map
-func TestKnownNFTContracts(t *testing.T) {
-	expectedContracts := []string{
-		"KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton", // HEN
-		"KT1U6EHmNxJTkvaWJ4ThczG4FSDaHC21ssvi", // fxhash GENTK v1
-		"KT1KEa8z6vWXDJrVqtMrAeDVzsvxat3kHaCE", // fxhash GENTK v2
-		"KT18pVpRXKPY2c4U2yFEGSH3ZnhB2kL8kwXS", // Rarible
-		"KT1LjmAdYQCLBjwv4S2oFkEzyHVkomAf5MrW", // Versum
-	}
-	
-	for _, addr := range expectedContracts {
-		if !knownNFTContracts[addr] {
-			t.Errorf("expected %s to be in knownNFTContracts", addr)
-		}
-	}
-	
-	// Check unknown contract is not in map
-	if knownNFTContracts["KT1unknown123456789"] {
-		t.Error("expected unknown contract to not be in map")
-	}
-}
+// NOTE: TestKnownNFTContracts was removed. Testing that a map contains
+// values that were just defined in the same file is tautological.
 
 // TestGetHead tests the GetHead function with a mock server
 func TestGetHead(t *testing.T) {
@@ -593,39 +574,5 @@ func TestPagination(t *testing.T) {
 	})
 }
 
-// TestTokenBalanceJSONParsing tests JSON unmarshaling of TokenBalance
-func TestTokenBalanceJSONParsing(t *testing.T) {
-	jsonData := `{
-		"token": {
-			"id": 999,
-			"contract": {"address": "KT1test"},
-			"tokenId": "42"
-		}
-	}`
-	
-	var tb TokenBalance
-	if err := json.Unmarshal([]byte(jsonData), &tb); err != nil {
-		t.Fatalf("failed to unmarshal: %v", err)
-	}
-	
-	if tb.Token.ID != 999 {
-		t.Errorf("expected token ID 999, got %d", tb.Token.ID)
-	}
-	if tb.Token.TokenID != "42" {
-		t.Errorf("expected tokenId '42', got '%s'", tb.Token.TokenID)
-	}
-}
-
-// TestHeadJSONParsing tests JSON unmarshaling of Head
-func TestHeadJSONParsing(t *testing.T) {
-	jsonData := `{"level": 5000000}`
-	
-	var head Head
-	if err := json.Unmarshal([]byte(jsonData), &head); err != nil {
-		t.Fatalf("failed to unmarshal: %v", err)
-	}
-	
-	if head.Level != 5000000 {
-		t.Errorf("expected level 5000000, got %d", head.Level)
-	}
-}
+// NOTE: TestHeadJSONParsing and TestTokenBalanceJSONParsing were removed.
+// Testing JSON unmarshal on simple structs tests the stdlib, not our code.
