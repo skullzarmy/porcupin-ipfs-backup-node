@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -643,16 +644,38 @@ func TestGenerateLabel_LocalStorage(t *testing.T) {
 }
 
 func TestGenerateLabel_ExternalVolume(t *testing.T) {
-	label := generateLabel("/Volumes/MyDrive/data", StorageTypeExternal)
-	if label != "MyDrive (External)" {
-		t.Errorf("label = %q, want 'MyDrive (External)'", label)
+	var path, expected string
+	switch runtime.GOOS {
+	case "darwin":
+		path = "/Volumes/MyDrive/data"
+		expected = "MyDrive (External)"
+	case "linux":
+		path = "/mnt/MyDrive/data"
+		expected = "MyDrive (External)"
+	default:
+		t.Skip("Test not implemented for this OS")
+	}
+	label := generateLabel(path, StorageTypeExternal)
+	if label != expected {
+		t.Errorf("label = %q, want %q", label, expected)
 	}
 }
 
 func TestGenerateLabel_NetworkVolume(t *testing.T) {
-	label := generateLabel("/Volumes/NetworkShare/data", StorageTypeNetwork)
-	if label != "NetworkShare (Network)" {
-		t.Errorf("label = %q, want 'NetworkShare (Network)'", label)
+	var path, expected string
+	switch runtime.GOOS {
+	case "darwin":
+		path = "/Volumes/NetworkShare/data"
+		expected = "NetworkShare (Network)"
+	case "linux":
+		path = "/mnt/NetworkShare/data"
+		expected = "NetworkShare (Network)"
+	default:
+		t.Skip("Test not implemented for this OS")
+	}
+	label := generateLabel(path, StorageTypeNetwork)
+	if label != expected {
+		t.Errorf("label = %q, want %q", label, expected)
 	}
 }
 
@@ -668,9 +691,20 @@ func TestGenerateLabel_ExternalNonVolume(t *testing.T) {
 // =============================================================================
 
 func TestGetMountPoint_VolumePath(t *testing.T) {
-	mp := getMountPoint("/Volumes/MyDrive/some/nested/path")
-	if mp != "/Volumes/MyDrive" {
-		t.Errorf("mount point = %q, want '/Volumes/MyDrive'", mp)
+	var path, expected string
+	switch runtime.GOOS {
+	case "darwin":
+		path = "/Volumes/MyDrive/some/nested/path"
+		expected = "/Volumes/MyDrive"
+	case "linux":
+		path = "/mnt/MyDrive/some/nested/path"
+		expected = "/mnt/MyDrive"
+	default:
+		t.Skip("Test not implemented for this OS")
+	}
+	mp := getMountPoint(path)
+	if mp != expected {
+		t.Errorf("mount point = %q, want %q", mp, expected)
 	}
 }
 

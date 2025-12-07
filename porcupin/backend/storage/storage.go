@@ -143,19 +143,45 @@ func GetStorageInfo(path string) (*StorageLocation, error) {
 
 // generateLabel creates a human-readable label for a storage location
 func generateLabel(path string, storageType StorageType) string {
-	// Extract volume name from path on macOS
-	if runtime.GOOS == "darwin" && strings.HasPrefix(path, "/Volumes/") {
-		parts := strings.Split(path, "/")
-		if len(parts) >= 3 {
-			volumeName := parts[2]
-			switch storageType {
-			case StorageTypeExternal:
-				return volumeName + " (External)"
-			case StorageTypeNetwork:
-				return volumeName + " (Network)"
-			default:
-				return volumeName
+	// Extract volume/mount name from path based on OS
+	var volumeName string
+	
+	switch runtime.GOOS {
+	case "darwin":
+		if strings.HasPrefix(path, "/Volumes/") {
+			parts := strings.Split(path, "/")
+			if len(parts) >= 3 {
+				volumeName = parts[2]
 			}
+		}
+	case "linux":
+		// Handle /mnt/name and /media/user/name patterns
+		if strings.HasPrefix(path, "/mnt/") {
+			parts := strings.Split(path, "/")
+			if len(parts) >= 3 {
+				volumeName = parts[2]
+			}
+		} else if strings.HasPrefix(path, "/media/") {
+			parts := strings.Split(path, "/")
+			if len(parts) >= 4 {
+				volumeName = parts[3] // /media/user/volumename
+			}
+		}
+	case "windows":
+		// Handle drive letters like D:\path
+		if len(path) >= 2 && path[1] == ':' {
+			volumeName = string(path[0]) + " Drive"
+		}
+	}
+	
+	if volumeName != "" {
+		switch storageType {
+		case StorageTypeExternal:
+			return volumeName + " (External)"
+		case StorageTypeNetwork:
+			return volumeName + " (Network)"
+		default:
+			return volumeName
 		}
 	}
 	
@@ -171,12 +197,29 @@ func generateLabel(path string, storageType StorageType) string {
 
 // getMountPoint finds the mount point for a path
 func getMountPoint(path string) string {
-	if runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "darwin":
 		if strings.HasPrefix(path, "/Volumes/") {
 			parts := strings.Split(path, "/")
 			if len(parts) >= 3 {
 				return "/Volumes/" + parts[2]
 			}
+		}
+	case "linux":
+		if strings.HasPrefix(path, "/mnt/") {
+			parts := strings.Split(path, "/")
+			if len(parts) >= 3 {
+				return "/mnt/" + parts[2]
+			}
+		} else if strings.HasPrefix(path, "/media/") {
+			parts := strings.Split(path, "/")
+			if len(parts) >= 4 {
+				return "/media/" + parts[2] + "/" + parts[3]
+			}
+		}
+	case "windows":
+		if len(path) >= 2 && path[1] == ':' {
+			return path[:2] + "\\"
 		}
 	}
 	return path
