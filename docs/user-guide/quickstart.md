@@ -87,9 +87,61 @@ porcupin --stats
 # Failed: 3
 ```
 
-### Step 4: Run as a Service
+### Step 4: Run as a Service (systemd)
 
-For production, run as a systemd service (see [Installation Guide](installation.md#running-as-a-service-systemd)).
+For production servers, run Porcupin as a systemd service:
+
+```bash
+# Create a dedicated user and data directory
+sudo useradd -r -s /bin/false porcupin
+sudo mkdir -p /var/lib/porcupin
+sudo chown porcupin:porcupin /var/lib/porcupin
+```
+
+Create `/etc/systemd/system/porcupin.service`:
+
+```ini
+[Unit]
+Description=Porcupin NFT Backup Node
+After=network.target
+
+[Service]
+Type=simple
+User=porcupin
+ExecStart=/usr/local/bin/porcupin --data /var/lib/porcupin
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable porcupin
+sudo systemctl start porcupin
+
+# Check status
+sudo systemctl status porcupin
+
+# View logs
+sudo journalctl -u porcupin -f
+```
+
+**Managing wallets with systemd:**
+
+```bash
+# Add a wallet (run as porcupin user to access the database)
+sudo -u porcupin porcupin --data /var/lib/porcupin --add-wallet tz1YourWallet
+
+# List wallets
+sudo -u porcupin porcupin --data /var/lib/porcupin --list-wallets
+
+# Check stats
+sudo -u porcupin porcupin --data /var/lib/porcupin --stats
+```
 
 ---
 

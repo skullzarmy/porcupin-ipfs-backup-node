@@ -18,7 +18,7 @@ import (
 	"porcupin/backend/indexer"
 	"porcupin/backend/ipfs"
 
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )

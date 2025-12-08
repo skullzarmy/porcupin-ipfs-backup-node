@@ -4,11 +4,11 @@ go 1.25
 
 require (
 	github.com/dipdup-net/go-lib v0.4.10
+	github.com/glebarez/sqlite v1.11.0
 	github.com/ipfs/boxo v0.35.2
 	github.com/ipfs/kubo v0.39.0
 	github.com/wailsapp/wails/v2 v2.11.0
 	gopkg.in/yaml.v3 v3.0.1
-	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.1
 )
 
@@ -57,6 +57,7 @@ require (
 	github.com/gammazero/chanqueue v1.1.1 // indirect
 	github.com/gammazero/deque v1.2.0 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
+	github.com/glebarez/go-sqlite v1.21.2 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -144,7 +145,6 @@ require (
 	github.com/marten-seemann/tcp v0.0.0-20210406111302-dfbc87cc63fd // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/mholt/acmez/v3 v3.1.2 // indirect
 	github.com/miekg/dns v1.1.68 // indirect
 	github.com/mikioh/tcpinfo v0.0.0-20190314235526-30a79bb1804b // indirect
@@ -199,6 +199,7 @@ require (
 	github.com/quic-go/qpack v0.5.1 // indirect
 	github.com/quic-go/quic-go v0.55.0 // indirect
 	github.com/quic-go/webtransport-go v0.9.0 // indirect
+	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
@@ -258,6 +259,10 @@ require (
 	google.golang.org/grpc v1.75.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
 	lukechampine.com/blake3 v1.4.1 // indirect
+	modernc.org/libc v1.22.5 // indirect
+	modernc.org/mathutil v1.5.0 // indirect
+	modernc.org/memory v1.5.0 // indirect
+	modernc.org/sqlite v1.23.1 // indirect
 )
 
 // replace github.com/wailsapp/wails/v2 v2.11.0 => /Users/joepeterson/go/pkg/mod

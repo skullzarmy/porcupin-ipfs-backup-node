@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
 	"porcupin/backend/config"
@@ -22,6 +22,9 @@ import (
 )
 
 func main() {
+	// Version info
+	const version = "0.1.2"
+
 	// Parse command line flags
 	configPath := flag.String("config", "", "Path to config file (default: ~/.porcupin/config.yaml)")
 	dataDir := flag.String("data", "", "Data directory (default: ~/.porcupin)")
@@ -29,7 +32,13 @@ func main() {
 	listWallets := flag.Bool("list-wallets", false, "List all tracked wallets and exit")
 	removeWallet := flag.String("remove-wallet", "", "Remove a wallet address and exit")
 	showStats := flag.Bool("stats", false, "Show current stats and exit")
+	showVersion := flag.Bool("version", false, "Show version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("porcupin %s\n", version)
+		return
+	}
 
 	// Determine data directory
 	var dataPath string
@@ -116,12 +125,13 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to get stats: %v", err)
 		}
+		totalAssets := stats["pending"] + stats["pinned"] + stats["failed"] + stats["failed_unavailable"]
 		fmt.Println("Porcupin Stats:")
-		fmt.Printf("  Total NFTs:     %d\n", stats["total_nfts"])
-		fmt.Printf("  Total Assets:   %d\n", stats["total_assets"])
-		fmt.Printf("  Pinned:         %d\n", stats["pinned_assets"])
-		fmt.Printf("  Pending:        %d\n", stats["pending_assets"])
-		fmt.Printf("  Failed:         %d\n", stats["failed_assets"])
+		fmt.Printf("  Total NFTs:     %d\n", stats["nft_count"])
+		fmt.Printf("  Total Assets:   %d\n", totalAssets)
+		fmt.Printf("  Pinned:         %d\n", stats["pinned"])
+		fmt.Printf("  Pending:        %d\n", stats["pending"])
+		fmt.Printf("  Failed:         %d\n", stats["failed"]+stats["failed_unavailable"])
 		fmt.Printf("  Storage Used:   %.2f GB\n", float64(stats["total_size_bytes"])/(1024*1024*1024))
 		return
 	}

@@ -133,7 +133,7 @@ After=network.target
 [Service]
 Type=simple
 User=porcupin
-ExecStart=/usr/local/bin/porcupin
+ExecStart=/usr/local/bin/porcupin --data /var/lib/porcupin
 Restart=always
 RestartSec=10
 
@@ -144,8 +144,10 @@ WantedBy=multi-user.target
 Then:
 
 ```bash
-# Create a dedicated user
+# Create a dedicated user and data directory
 sudo useradd -r -s /bin/false porcupin
+sudo mkdir -p /var/lib/porcupin
+sudo chown porcupin:porcupin /var/lib/porcupin
 
 # Enable and start
 sudo systemctl daemon-reload

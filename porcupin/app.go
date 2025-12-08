@@ -19,8 +19,8 @@ import (
 	"porcupin/backend/ipfs"
 	"porcupin/backend/storage"
 
+	"github.com/glebarez/sqlite"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 

@@ -6,9 +6,10 @@ Welcome to Porcupin! This guide will help you install, configure, and use Porcup
 
 1. **[Installation Guide](installation.md)** - Download and install Porcupin
 2. **[Quick Start](quickstart.md)** - Get up and running in 5 minutes
-3. **[Configuration](configuration.md)** - Customize storage, limits, and behavior
-4. **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
-5. **[FAQ](faq.md)** - Frequently asked questions
+3. **[CLI Reference](cli-reference.md)** - Command-line options for headless server
+4. **[Configuration](configuration.md)** - Customize storage, limits, and behavior
+5. **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
+6. **[FAQ](faq.md)** - Frequently asked questions
 
 ## What is Porcupin?
 
