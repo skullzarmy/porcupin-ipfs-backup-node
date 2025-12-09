@@ -105,7 +105,29 @@ porcupin --version
 Output:
 
 ```
-porcupin 0.1.2
+porcupin <VERSION>
+```
+
+### `--retry-pending`
+
+Process all assets stuck in "pending" status.
+
+```bash
+porcupin --retry-pending
+```
+
+This is useful when:
+
+-   A previous sync was interrupted (killed, crashed, etc.)
+-   Assets were created but never pinned
+-   You want to resume incomplete work
+
+**Note:** This starts the IPFS node, processes pending assets, then exits. It does not start the full daemon.
+
+Example with systemd:
+
+```bash
+sudo -u porcupin porcupin --data /var/lib/porcupin --retry-pending
 ```
 
 ---

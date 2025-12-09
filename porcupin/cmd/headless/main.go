@@ -19,11 +19,10 @@ import (
 	"porcupin/backend/db"
 	"porcupin/backend/indexer"
 	"porcupin/backend/ipfs"
+	"porcupin/backend/version"
 )
 
 func main() {
-	// Version info
-	const version = "0.1.2"
 
 	// Parse command line flags
 	configPath := flag.String("config", "", "Path to config file (default: ~/.porcupin/config.yaml)")
@@ -33,10 +32,11 @@ func main() {
 	removeWallet := flag.String("remove-wallet", "", "Remove a wallet address and exit")
 	showStats := flag.Bool("stats", false, "Show current stats and exit")
 	showVersion := flag.Bool("version", false, "Show version and exit")
+	retryPending := flag.Bool("retry-pending", false, "Process all pending assets and exit")
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("porcupin %s\n", version)
+		fmt.Printf("porcupin %s\n", version.Version)
 		return
 	}
 
@@ -133,6 +133,46 @@ func main() {
 		fmt.Printf("  Pending:        %d\n", stats["pending"])
 		fmt.Printf("  Failed:         %d\n", stats["failed"]+stats["failed_unavailable"])
 		fmt.Printf("  Storage Used:   %.2f GB\n", float64(stats["total_size_bytes"])/(1024*1024*1024))
+		return
+	}
+
+	// Handle --retry-pending (requires IPFS)
+	if *retryPending {
+		// Check if there are pending assets first
+		stats, err := database.GetAssetStats()
+		if err != nil {
+			log.Fatalf("Failed to get stats: %v", err)
+		}
+		pendingCount := stats["pending"]
+		if pendingCount == 0 {
+			fmt.Println("No pending assets to process")
+			return
+		}
+
+		fmt.Printf("Found %d pending assets, starting IPFS node...\n", pendingCount)
+
+		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
+		ipfsNode, err := ipfs.NewNode(ipfsRepoPath)
+		if err != nil {
+			log.Fatalf("Failed to create IPFS node: %v", err)
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		if err := ipfsNode.Start(ctx); err != nil {
+			log.Fatalf("Failed to start IPFS node: %v", err)
+		}
+		defer ipfsNode.Stop()
+
+		fmt.Println("IPFS node started, processing pending assets...")
+
+		// Create a minimal backup manager just for pinning
+		idx := indexer.NewIndexer(cfg.TZKT.BaseURL)
+		manager := core.NewBackupManager(ipfsNode, idx, database, cfg)
+
+		processed, pinned, failed := manager.ProcessPendingAssets(ctx, 0) // 0 = no limit
+		fmt.Printf("Processed %d assets: %d pinned, %d failed\n", processed, pinned, failed)
 		return
 	}
 

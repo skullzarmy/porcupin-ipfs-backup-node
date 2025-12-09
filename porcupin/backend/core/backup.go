@@ -915,3 +915,43 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	log.Printf("Successfully pinned asset: %s (CID: %s)", uri, cid)
 	return nil
 }
+
+// ProcessPendingAssets processes all assets stuck in pending status
+// This is used to resume interrupted syncs or manually retry pending work
+func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (processed int, pinned int, failed int) {
+	assets, err := bm.db.GetPendingAssets(limit)
+	if err != nil {
+		log.Printf("Failed to get pending assets: %v", err)
+		return 0, 0, 0
+	}
+
+	if len(assets) == 0 {
+		return 0, 0, 0
+	}
+
+	log.Printf("Processing %d pending assets", len(assets))
+
+	for _, asset := range assets {
+		select {
+		case <-ctx.Done():
+			return processed, pinned, failed
+		default:
+		}
+
+		if bm.IsPaused() {
+			log.Printf("Paused, stopping pending asset processing")
+			return processed, pinned, failed
+		}
+
+		processed++
+		err := bm.pinAssetDirect(ctx, &asset)
+		if err != nil {
+			failed++
+			log.Printf("Failed to pin pending asset %s: %v", asset.URI, err)
+		} else {
+			pinned++
+		}
+	}
+
+	return processed, pinned, failed
+}

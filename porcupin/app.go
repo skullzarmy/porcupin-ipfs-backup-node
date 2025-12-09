@@ -18,6 +18,7 @@ import (
 	"porcupin/backend/indexer"
 	"porcupin/backend/ipfs"
 	"porcupin/backend/storage"
+	"porcupin/backend/version"
 
 	"github.com/glebarez/sqlite"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -203,6 +204,11 @@ func (a *App) ResumeBackup() {
 // IsBackupPaused returns whether the backup service is paused
 func (a *App) IsBackupPaused() bool {
 	return a.backupService.IsPaused()
+}
+
+// GetVersion returns the current version of Porcupin
+func (a *App) GetVersion() string {
+	return version.Version
 }
 
 // GetWallets retrieves all tracked wallets

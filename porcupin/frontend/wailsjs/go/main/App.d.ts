@@ -43,6 +43,8 @@ export function GetStorageType(arg1:string):Promise<string>;
 
 export function GetSyncProgress():Promise<core.ServiceStatus>;
 
+export function GetVersion():Promise<string>;
+
 export function GetWallets():Promise<Array<db.Wallet>>;
 
 export function IsBackupPaused():Promise<boolean>;

@@ -1,16 +1,23 @@
+import { useState, useEffect } from "react";
 import { Github, AlertTriangle, Mail, ExternalLink, Heart } from "lucide-react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
+import { GetVersion } from "../../wailsjs/go/main/App";
 import { Logo } from "./Logo";
-import { VERSION } from "../lib/version";
 
 export function About() {
+    const [version, setVersion] = useState("");
+
+    useEffect(() => {
+        GetVersion().then(setVersion);
+    }, []);
+
     return (
         <div className="about-page">
             <div className="about-hero">
                 <Logo size={96} className="about-logo" />
                 <div className="about-info">
                     <h1>Porcupin</h1>
-                    <p className="version">Version {VERSION}</p>
+                    <p className="version">Version {version}</p>
                 </div>
             </div>
 

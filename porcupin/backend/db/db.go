@@ -150,9 +150,14 @@ func (d *Database) SaveWallet(wallet *Wallet) error {
 }
 
 // GetPendingAssets retrieves all assets with pending status
+// If limit is 0 or negative, returns all pending assets
 func (d *Database) GetPendingAssets(limit int) ([]Asset, error) {
 	var assets []Asset
-	err := d.Where("status = ?", StatusPending).Limit(limit).Find(&assets).Error
+	query := d.Where("status = ?", StatusPending)
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+	err := query.Find(&assets).Error
 	return assets, err
 }
 

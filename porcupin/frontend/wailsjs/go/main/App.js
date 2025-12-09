@@ -74,6 +74,10 @@ export function GetSyncProgress() {
   return window['go']['main']['App']['GetSyncProgress']();
 }
 
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
+}
+
 export function GetWallets() {
   return window['go']['main']['App']['GetWallets']();
 }

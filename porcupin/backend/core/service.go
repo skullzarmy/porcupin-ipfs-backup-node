@@ -319,7 +319,7 @@ func (s *BackupService) syncWallet(address string) {
 	})
 }
 
-// retryWorker periodically retries failed assets
+// retryWorker periodically retries failed and pending assets
 func (s *BackupService) retryWorker() {
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
@@ -333,7 +333,16 @@ func (s *BackupService) retryWorker() {
 				continue
 			}
 			s.retryFailedAssets()
+			s.processPendingAssets()
 		}
+	}
+}
+
+// processPendingAssets processes assets stuck in pending status
+func (s *BackupService) processPendingAssets() {
+	processed, pinned, failed := s.manager.ProcessPendingAssets(s.ctx, 50)
+	if processed > 0 {
+		log.Printf("Processed %d pending assets: %d pinned, %d failed", processed, pinned, failed)
 	}
 }
 
