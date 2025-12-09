@@ -9,8 +9,8 @@ import (
 	"os/exec"
 )
 
-// getDiskUsageBytes calculates directory size using du command (Unix)
-func getDiskUsageBytes(path string) (int64, error) {
+// GetDiskUsageBytes calculates directory size using du command (Unix)
+func GetDiskUsageBytes(path string) (int64, error) {
 	cmd := exec.Command("du", "-sk", path)
 	output, err := cmd.Output()
 	if err != nil {

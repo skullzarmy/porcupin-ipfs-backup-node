@@ -11,8 +11,8 @@ import (
 	"strings"
 )
 
-// getDiskUsageBytes calculates directory size using robocopy (Windows)
-func getDiskUsageBytes(path string) (int64, error) {
+// GetDiskUsageBytes calculates directory size using robocopy (Windows)
+func GetDiskUsageBytes(path string) (int64, error) {
 	// Use robocopy in list-only mode
 	cmd := exec.Command("robocopy", path, "NUL", "/L", "/S", "/NFL", "/NDL", "/NJH", "/BYTES")
 

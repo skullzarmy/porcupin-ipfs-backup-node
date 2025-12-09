@@ -735,7 +735,7 @@ func (bm *BackupManager) MarkDiskUsageDirty() {
 func (bm *BackupManager) UpdateDiskUsage() {
 	if atomic.CompareAndSwapInt32(&bm.diskUsageDirty, 1, 0) {
 		repoPath := bm.ipfs.GetRepoPath()
-		sizeBytes, err := getDiskUsageBytes(repoPath)
+		sizeBytes, err := GetDiskUsageBytes(repoPath)
 		if err != nil {
 			log.Printf("Failed to get disk usage: %v", err)
 			return
@@ -911,6 +911,9 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	now := time.Now()
 	asset.PinnedAt = &now
 	bm.db.SaveAsset(asset)
+	
+	// Mark disk usage for update
+	bm.MarkDiskUsageDirty()
 
 	log.Printf("Successfully pinned asset: %s (CID: %s)", uri, cid)
 	return nil
@@ -952,6 +955,9 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 			pinned++
 		}
 	}
+
+	// Update disk usage after processing
+	bm.UpdateDiskUsage()
 
 	return processed, pinned, failed
 }

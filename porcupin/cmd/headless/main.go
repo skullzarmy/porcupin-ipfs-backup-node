@@ -14,6 +14,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
+	"porcupin/backend/cli"
 	"porcupin/backend/config"
 	"porcupin/backend/core"
 	"porcupin/backend/db"
@@ -32,11 +33,18 @@ func main() {
 	removeWallet := flag.String("remove-wallet", "", "Remove a wallet address and exit")
 	showStats := flag.Bool("stats", false, "Show current stats and exit")
 	showVersion := flag.Bool("version", false, "Show version and exit")
+	showVersionShort := flag.Bool("v", false, "Show version and exit")
+	showAbout := flag.Bool("about", false, "Show about information and exit")
 	retryPending := flag.Bool("retry-pending", false, "Process all pending assets and exit")
 	flag.Parse()
 
-	if *showVersion {
-		fmt.Printf("porcupin %s\n", version.Version)
+	if *showVersion || *showVersionShort {
+		cli.PrintBannerWithVersion(version.Version)
+		return
+	}
+
+	if *showAbout {
+		cli.PrintAbout(version.Version)
 		return
 	}
 
@@ -126,13 +134,23 @@ func main() {
 			log.Fatalf("Failed to get stats: %v", err)
 		}
 		totalAssets := stats["pending"] + stats["pinned"] + stats["failed"] + stats["failed_unavailable"]
-		fmt.Println("Porcupin Stats:")
-		fmt.Printf("  Total NFTs:     %d\n", stats["nft_count"])
-		fmt.Printf("  Total Assets:   %d\n", totalAssets)
-		fmt.Printf("  Pinned:         %d\n", stats["pinned"])
-		fmt.Printf("  Pending:        %d\n", stats["pending"])
-		fmt.Printf("  Failed:         %d\n", stats["failed"]+stats["failed_unavailable"])
-		fmt.Printf("  Storage Used:   %.2f GB\n", float64(stats["total_size_bytes"])/(1024*1024*1024))
+		
+		// Get actual disk usage from IPFS repo directory
+		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
+		storageBytes, err := core.GetDiskUsageBytes(ipfsRepoPath)
+		if err != nil {
+			log.Printf("Warning: could not get disk usage: %v", err)
+			storageBytes = 0
+		}
+		
+		cli.PrintStats(
+			stats["nft_count"],
+			totalAssets,
+			stats["pinned"],
+			stats["pending"],
+			stats["failed"]+stats["failed_unavailable"],
+			float64(storageBytes)/(1024*1024*1024),
+		)
 		return
 	}
 

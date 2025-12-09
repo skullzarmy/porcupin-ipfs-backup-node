@@ -85,27 +85,34 @@ porcupin --stats
 Output:
 
 ```
-Porcupin Stats:
-  Total NFTs:     1,234
-  Total Assets:   5,678
-  Pinned:         5,500
-  Pending:        150
-  Failed:         28
-  Storage Used:   45.23 GB
+──────────────────────────────────────────
+Porcupin Stats
+
+  NFTs:          1,234
+  Assets:        5,678
+  Pinned:        5,500
+  Pending:       150
+  Failed:        28
+  Storage:       45.23 GB
+
+──────────────────────────────────────────
 ```
 
-### `--version`
+### `--version` / `-v`
 
-Show version information.
+Show version information with ASCII banner.
 
 ```bash
 porcupin --version
+porcupin -v
 ```
 
-Output:
+### `--about`
 
-```
-porcupin <VERSION>
+Show about information including project description and links.
+
+```bash
+porcupin --about
 ```
 
 ### `--retry-pending`
