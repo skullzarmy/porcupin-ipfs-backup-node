@@ -530,7 +530,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	}
 
 	// Extract CID from URI (if it's an IPFS URI)
-	cid := extractCIDFromURI(uri)
+	cid := ExtractCIDFromURI(uri)
 	if cid == "" {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Invalid IPFS URI - could not extract CID"
@@ -667,9 +667,9 @@ func (bm *BackupManager) isWithinStorageLimit() bool {
 	return true
 }
 
-// extractCIDFromURI extracts a CID from an IPFS URI
+// ExtractCIDFromURI extracts a CID from an IPFS URI
 // Handles: ipfs://CID, ipfs://CID/path, ipfs://CID?query, /ipfs/CID, etc.
-func extractCIDFromURI(uri string) string {
+func ExtractCIDFromURI(uri string) string {
 	var cid string
 
 	// Handle ipfs:// scheme
@@ -878,7 +878,7 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	}
 
 	// Extract CID from URI
-	cid := extractCIDFromURI(uri)
+	cid := ExtractCIDFromURI(uri)
 	if cid == "" {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Invalid IPFS URI - could not extract CID"

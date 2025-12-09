@@ -86,9 +86,9 @@ func TestExtractCIDFromURI(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractCIDFromURI(tt.uri)
+			result := ExtractCIDFromURI(tt.uri)
 			if result != tt.expected {
-				t.Errorf("extractCIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
+				t.Errorf("ExtractCIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
 			}
 		})
 	}
@@ -1427,9 +1427,9 @@ func TestExtractCIDFromURI_EdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractCIDFromURI(tt.uri)
+			result := ExtractCIDFromURI(tt.uri)
 			if result != tt.expected {
-				t.Errorf("extractCIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
+				t.Errorf("ExtractCIDFromURI(%q) = %q, want %q", tt.uri, result, tt.expected)
 			}
 		})
 	}

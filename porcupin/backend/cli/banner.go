@@ -47,7 +47,7 @@ func PrintBanner() {
 	if !shouldShowBanner() {
 		return
 	}
-	fmt.Println(logo)
+	fmt.Print(logo)
 }
 
 // PrintBannerWithVersion prints the logo and version info
@@ -57,7 +57,7 @@ func PrintBannerWithVersion(version string) {
 		return
 	}
 	
-	fmt.Println(logo)
+	fmt.Print(logo)
 	fmt.Println(hrule(logoWidth))
 	
 	// Center the version text
@@ -138,7 +138,7 @@ func PrintAbout(version string) {
 	useColor := showBanner
 	
 	if showBanner {
-		fmt.Println(logo)
+		fmt.Print(logo)
 		fmt.Println(hrule(logoWidth))
 	}
 	

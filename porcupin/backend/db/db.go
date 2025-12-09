@@ -225,3 +225,37 @@ func (d *Database) UpdateWalletSyncTime(address string, level int64) error {
 	}).Error
 }
 
+// GetAssetsByWallet retrieves all assets for NFTs owned by a wallet
+func (d *Database) GetAssetsByWallet(walletAddress string) ([]Asset, error) {
+	var assets []Asset
+	err := d.Joins("JOIN nfts ON nfts.id = assets.nft_id").
+		Where("nfts.wallet_address = ?", walletAddress).
+		Find(&assets).Error
+	return assets, err
+}
+
+// GetAssetByID retrieves an asset by its ID
+func (d *Database) GetAssetByID(id uint64) (*Asset, error) {
+	var asset Asset
+	err := d.First(&asset, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &asset, nil
+}
+
+// DeleteAssetsByWallet deletes all assets for NFTs owned by a wallet
+func (d *Database) DeleteAssetsByWallet(walletAddress string) error {
+	return d.Exec(`DELETE FROM assets WHERE nft_id IN (SELECT id FROM nfts WHERE wallet_address = ?)`, walletAddress).Error
+}
+
+// DeleteNFTsByWallet deletes all NFTs for a wallet
+func (d *Database) DeleteNFTsByWallet(walletAddress string) error {
+	return d.Where("wallet_address = ?", walletAddress).Delete(&NFT{}).Error
+}
+
+// DeleteAsset deletes an asset by ID
+func (d *Database) DeleteAsset(id uint64) error {
+	return d.Delete(&Asset{}, id).Error
+}
+

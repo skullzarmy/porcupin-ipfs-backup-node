@@ -31,6 +31,9 @@ func main() {
 	addWallet := flag.String("add-wallet", "", "Add a wallet address and exit")
 	listWallets := flag.Bool("list-wallets", false, "List all tracked wallets and exit")
 	removeWallet := flag.String("remove-wallet", "", "Remove a wallet address and exit")
+	unpinWallet := flag.String("unpin-wallet", "", "Unpin all assets for a wallet and exit")
+	deleteWallet := flag.String("delete-wallet", "", "Remove wallet and unpin all its assets, then exit")
+	runGC := flag.Bool("gc", false, "Run IPFS garbage collection and exit")
 	showStats := flag.Bool("stats", false, "Show current stats and exit")
 	showVersion := flag.Bool("version", false, "Show version and exit")
 	showVersionShort := flag.Bool("v", false, "Show version and exit")
@@ -104,8 +107,88 @@ func main() {
 		if err := database.DeleteWallet(*removeWallet); err != nil {
 			log.Fatalf("Failed to remove wallet: %v", err)
 		}
-		fmt.Printf("Removed wallet: %s\n", *removeWallet)
+		fmt.Printf("Removed wallet: %s (assets still pinned, use --unpin-wallet to unpin)\n", *removeWallet)
 		return
+	}
+
+	// Commands that require IPFS: unpin-wallet, delete-wallet, gc
+	if *unpinWallet != "" || *deleteWallet != "" || *runGC {
+		// Start IPFS node
+		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
+		ipfsNode, err := ipfs.NewNode(ipfsRepoPath)
+		if err != nil {
+			log.Fatalf("Failed to create IPFS node: %v", err)
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		if err := ipfsNode.Start(ctx); err != nil {
+			log.Fatalf("Failed to start IPFS node: %v", err)
+		}
+		defer ipfsNode.Stop()
+
+		if *unpinWallet != "" {
+			assets, err := database.GetAssetsByWallet(*unpinWallet)
+			if err != nil {
+				log.Fatalf("Failed to get assets: %v", err)
+			}
+			if len(assets) == 0 {
+				fmt.Printf("No assets found for wallet: %s\n", *unpinWallet)
+				return
+			}
+			fmt.Printf("Unpinning %d assets for wallet %s...\n", len(assets), *unpinWallet)
+			unpinned := 0
+			for _, asset := range assets {
+				cid := core.ExtractCIDFromURI(asset.URI)
+				if cid == "" {
+					continue
+				}
+				if err := ipfsNode.Unpin(ctx, cid); err != nil {
+					log.Printf("Warning: failed to unpin %s: %v", cid, err)
+				} else {
+					unpinned++
+				}
+			}
+			fmt.Printf("Unpinned %d/%d assets. Run --gc to reclaim disk space.\n", unpinned, len(assets))
+			return
+		}
+
+		if *deleteWallet != "" {
+			assets, err := database.GetAssetsByWallet(*deleteWallet)
+			if err != nil {
+				log.Fatalf("Failed to get assets: %v", err)
+			}
+			fmt.Printf("Deleting wallet %s: unpinning %d assets...\n", *deleteWallet, len(assets))
+			for _, asset := range assets {
+				cid := core.ExtractCIDFromURI(asset.URI)
+				if cid == "" {
+					continue
+				}
+				if err := ipfsNode.Unpin(ctx, cid); err != nil {
+					log.Printf("Warning: failed to unpin %s: %v", cid, err)
+				}
+			}
+			// Delete from database
+			if err := database.DeleteAssetsByWallet(*deleteWallet); err != nil {
+				log.Printf("Warning: failed to delete assets from DB: %v", err)
+			}
+			if err := database.DeleteNFTsByWallet(*deleteWallet); err != nil {
+				log.Printf("Warning: failed to delete NFTs from DB: %v", err)
+			}
+			if err := database.DeleteWallet(*deleteWallet); err != nil {
+				log.Fatalf("Failed to delete wallet: %v", err)
+			}
+			fmt.Printf("Deleted wallet %s and unpinned assets. Run --gc to reclaim disk space.\n", *deleteWallet)
+			return
+		}
+
+		if *runGC {
+			fmt.Println("Running IPFS garbage collection...")
+			if err := ipfsNode.GarbageCollect(ctx); err != nil {
+				log.Fatalf("Garbage collection failed: %v", err)
+			}
+			fmt.Println("Garbage collection complete.")
+			return
+		}
 	}
 
 	if *listWallets {
