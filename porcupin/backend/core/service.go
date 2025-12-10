@@ -517,3 +517,11 @@ func (s *BackupService) AddWallet(address string) {
 func (s *BackupService) PinAsset(ctx context.Context, assetID uint64) error {
 	return s.manager.PinAssetByID(ctx, assetID)
 }
+
+// UnpinAsset unpins an asset by CID
+func (s *BackupService) UnpinAsset(cid string) error {
+	if s.ipfs == nil {
+		return nil
+	}
+	return s.ipfs.Unpin(s.ctx, cid)
+}

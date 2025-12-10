@@ -5,9 +5,12 @@ go 1.25
 require (
 	github.com/dipdup-net/go-lib v0.4.10
 	github.com/glebarez/sqlite v1.11.0
+	github.com/go-chi/chi/v5 v5.2.3
+	github.com/grandcat/zeroconf v1.0.0
 	github.com/ipfs/boxo v0.35.2
 	github.com/ipfs/kubo v0.39.0
 	github.com/wailsapp/wails/v2 v2.11.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/term v0.38.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/gorm v1.31.1
@@ -28,6 +31,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/caddyserver/certmagic v0.23.0 // indirect
 	github.com/caddyserver/zerossl v0.1.3 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/ceramicnetwork/go-dag-jose v0.1.1 // indirect
@@ -243,7 +247,6 @@ require (
 	go.uber.org/zap/exp v0.3.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.47.0 // indirect

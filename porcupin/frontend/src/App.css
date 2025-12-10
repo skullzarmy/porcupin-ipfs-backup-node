@@ -11,6 +11,7 @@
 @import "./styles/failed-assets.css";
 @import "./styles/about.css";
 @import "./styles/assets.css";
+@import "./styles/modal.css";
 
 /* Additional utility styles */
 .empty-state {

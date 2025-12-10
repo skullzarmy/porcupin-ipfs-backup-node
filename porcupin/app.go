@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"porcupin/backend/api"
 	"porcupin/backend/config"
 	"porcupin/backend/core"
 	"porcupin/backend/db"
@@ -180,6 +181,66 @@ func (a *App) UpdateWalletSettings(address string, syncOwned bool, syncCreated b
 	}).Error
 }
 
+// UpdateWalletAlias updates the alias for a specific wallet
+func (a *App) UpdateWalletAlias(address string, alias string) error {
+	return a.database.Model(&db.Wallet{}).Where("address = ?", address).Update("alias", alias).Error
+}
+
+// DeleteWallet removes a wallet and optionally its associated data (DB only, no unpin)
+func (a *App) DeleteWallet(address string, deleteData bool) error {
+	if deleteData {
+		// Delete assets first (foreign key constraint)
+		if err := a.database.DeleteAssetsByWallet(address); err != nil {
+			return fmt.Errorf("failed to delete assets: %w", err)
+		}
+		// Delete NFTs
+		if err := a.database.DeleteNFTsByWallet(address); err != nil {
+			return fmt.Errorf("failed to delete NFTs: %w", err)
+		}
+	}
+	// Delete the wallet record
+	if err := a.database.DeleteWallet(address); err != nil {
+		return fmt.Errorf("failed to delete wallet: %w", err)
+	}
+	return nil
+}
+
+// DeleteWalletWithUnpin removes a wallet and unpins all its assets from IPFS
+func (a *App) DeleteWalletWithUnpin(address string) error {
+	// Get all assets for this wallet
+	assets, err := a.database.GetAssetsByWallet(address)
+	if err != nil {
+		return fmt.Errorf("failed to get assets: %w", err)
+	}
+
+	// Unpin each asset
+	ctx := context.Background()
+	for _, asset := range assets {
+		cid := core.ExtractCIDFromURI(asset.URI)
+		if cid == "" {
+			continue
+		}
+		// Ignore errors - asset may not be pinned or may have already been unpinned
+		_ = a.ipfsNode.Unpin(ctx, cid)
+	}
+
+	// Delete from database
+	if err := a.database.DeleteAssetsByWallet(address); err != nil {
+		return fmt.Errorf("failed to delete assets: %w", err)
+	}
+	if err := a.database.DeleteNFTsByWallet(address); err != nil {
+		return fmt.Errorf("failed to delete NFTs: %w", err)
+	}
+	if err := a.database.DeleteWallet(address); err != nil {
+		return fmt.Errorf("failed to delete wallet: %w", err)
+	}
+
+	// Mark disk usage dirty so it recalculates
+	a.backupService.GetManager().MarkDiskUsageDirty()
+
+	return nil
+}
+
 // SyncWallet synchronizes NFTs for a given wallet (manual trigger)
 func (a *App) SyncWallet(address string) error {
 	a.backupService.TriggerSync(address)
@@ -209,6 +270,13 @@ func (a *App) IsBackupPaused() bool {
 // GetVersion returns the current version of Porcupin
 func (a *App) GetVersion() string {
 	return version.Version
+}
+
+// DiscoverServers scans the local network for Porcupin servers via mDNS
+func (a *App) DiscoverServers() ([]api.DiscoveredServer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return api.DiscoverServers(ctx, 5*time.Second)
 }
 
 // GetWallets retrieves all tracked wallets
@@ -261,6 +329,21 @@ func (a *App) GetAssets(page int, limit int, status string) ([]db.Asset, error) 
 	}
 	
 	log.Printf("GetAssets fetched %d assets (page %d, limit %d, status %s)", len(assets), page, limit, status)
+	return assets, nil
+}
+
+// GetRecentActivity returns the most recently pinned assets
+func (a *App) GetRecentActivity(limit int) ([]db.Asset, error) {
+	var assets []db.Asset
+	err := a.database.DB.Model(&db.Asset{}).
+		Preload("NFT").
+		Where("status = ? AND pinned_at IS NOT NULL", db.StatusPinned).
+		Order("pinned_at desc").
+		Limit(limit).
+		Find(&assets).Error
+	if err != nil {
+		return nil, err
+	}
 	return assets, nil
 }
 

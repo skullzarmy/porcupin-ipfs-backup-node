@@ -22,6 +22,18 @@ export function DeleteAsset(arg1) {
   return window['go']['main']['App']['DeleteAsset'](arg1);
 }
 
+export function DeleteWallet(arg1, arg2) {
+  return window['go']['main']['App']['DeleteWallet'](arg1, arg2);
+}
+
+export function DeleteWalletWithUnpin(arg1) {
+  return window['go']['main']['App']['DeleteWalletWithUnpin'](arg1);
+}
+
+export function DiscoverServers() {
+  return window['go']['main']['App']['DiscoverServers']();
+}
+
 export function GetAssetGatewayURL(arg1) {
   return window['go']['main']['App']['GetAssetGatewayURL'](arg1);
 }
@@ -52,6 +64,10 @@ export function GetMigrationStatus() {
 
 export function GetNFTsWithAssets(arg1, arg2) {
   return window['go']['main']['App']['GetNFTsWithAssets'](arg1, arg2);
+}
+
+export function GetRecentActivity(arg1) {
+  return window['go']['main']['App']['GetRecentActivity'](arg1);
 }
 
 export function GetStatus() {
@@ -144,6 +160,10 @@ export function UnpinAsset(arg1) {
 
 export function UpdateSettings(arg1) {
   return window['go']['main']['App']['UpdateSettings'](arg1);
+}
+
+export function UpdateWalletAlias(arg1, arg2) {
+  return window['go']['main']['App']['UpdateWalletAlias'](arg1, arg2);
 }
 
 export function UpdateWalletSettings(arg1, arg2, arg3) {

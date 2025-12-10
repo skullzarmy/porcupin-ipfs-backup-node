@@ -15,6 +15,7 @@ type Config struct {
 	Server ServerConfig `yaml:"server"`
 	Backup BackupConfig `yaml:"backup"`
 	TZKT   TZKTConfig   `yaml:"tzkt"`
+	API    APIConfig    `yaml:"api"`
 }
 
 // IPFSConfig holds IPFS-specific configuration
@@ -49,6 +50,29 @@ type TZKTConfig struct {
 	BaseURL string `yaml:"base_url"`
 }
 
+// APIConfig holds REST API server configuration
+type APIConfig struct {
+	Enabled     bool           `yaml:"enabled" json:"enabled"`           // Set to true by --serve
+	Port        int            `yaml:"port" json:"port"`                 // Default 8085
+	Bind        string         `yaml:"bind" json:"bind"`                 // Default "0.0.0.0"
+	AllowPublic bool           `yaml:"allow_public" json:"allow_public"` // Override IP restrictions
+	TLS         APITLSConfig   `yaml:"tls" json:"tls"`
+	RateLimit   RateLimitConfig `yaml:"rate_limit" json:"rate_limit"`
+}
+
+// APITLSConfig holds TLS configuration for the API server
+type APITLSConfig struct {
+	Cert string `yaml:"cert" json:"cert"` // Path to TLS certificate
+	Key  string `yaml:"key" json:"key"`   // Path to TLS private key
+}
+
+// RateLimitConfig holds rate limiting configuration
+type RateLimitConfig struct {
+	PerIP  int `yaml:"per_ip" json:"per_ip"`   // Requests per second per IP
+	Global int `yaml:"global" json:"global"`   // Total requests per second
+	Burst  int `yaml:"burst" json:"burst"`     // Burst allowance
+}
+
 // DefaultConfig returns a configuration with secure defaults
 func DefaultConfig() *Config {
 	return &Config{
@@ -75,6 +99,21 @@ func DefaultConfig() *Config {
 		},
 		TZKT: TZKTConfig{
 			BaseURL: "https://api.tzkt.io",
+		},
+		API: APIConfig{
+			Enabled:     false,
+			Port:        8085,
+			Bind:        "0.0.0.0",
+			AllowPublic: false,
+			TLS: APITLSConfig{
+				Cert: "",
+				Key:  "",
+			},
+			RateLimit: RateLimitConfig{
+				PerIP:  10,  // 10 requests per second per IP
+				Global: 100, // 100 requests per second total
+				Burst:  20,  // Burst allowance
+			},
 		},
 	}
 }

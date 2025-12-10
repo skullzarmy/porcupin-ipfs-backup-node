@@ -123,6 +123,41 @@
     color: var(--text-primary);
 }
 
+.connection-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    width: 100%;
+    justify-content: center;
+}
+
+.connection-indicator.local {
+    color: var(--text-secondary);
+}
+
+.connection-indicator.remote {
+    color: var(--accent-primary);
+    background: rgba(74, 144, 226, 0.1);
+}
+
+.connection-label {
+    opacity: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+    transition: opacity 0.2s;
+}
+
+.sidebar.expanded .connection-label {
+    opacity: 1;
+}
+
 .sidebar-version {
     font-size: 11px;
     color: var(--text-muted);

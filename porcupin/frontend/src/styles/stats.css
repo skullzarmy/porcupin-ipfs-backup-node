@@ -119,3 +119,108 @@
     background: rgba(59, 130, 246, 0.2);
     color: var(--accent-info);
 }
+
+/* Secondary stats row */
+.stats-row-secondary {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 24px;
+    padding: 12px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.mini-stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.mini-stat svg {
+    opacity: 0.7;
+}
+
+.mini-stat-value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.mini-stat-label {
+    color: var(--text-muted);
+}
+
+.mini-stat.pending {
+    color: var(--accent-warning);
+}
+
+.mini-stat.pending .mini-stat-value {
+    color: var(--accent-warning);
+}
+
+/* Recent Activity */
+.recent-activity {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+}
+
+.recent-activity h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 0 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.recent-activity h3 svg {
+    opacity: 0.6;
+}
+
+.activity-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.activity-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--bg-hover);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+}
+
+.activity-type {
+    background: var(--accent-primary);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    min-width: 60px;
+    text-align: center;
+}
+
+.activity-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-primary);
+}
+
+.activity-time {
+    color: var(--text-muted);
+    font-size: 12px;
+    white-space: nowrap;
+}

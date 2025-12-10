@@ -8,6 +8,7 @@
 # Build outputs
 build/bin/
 porcupin/build/bin/
+porcupin/porcupin
 dist/
 *.app
 *.dmg

@@ -1,4 +1,102 @@
+export namespace api {
+	
+	export class DiscoveredServer {
+	    name: string;
+	    host: string;
+	    port: number;
+	    version: string;
+	    useTLS: boolean;
+	    ips: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DiscoveredServer(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.version = source["version"];
+	        this.useTLS = source["useTLS"];
+	        this.ips = source["ips"];
+	    }
+	}
+
+}
+
 export namespace config {
+	
+	export class RateLimitConfig {
+	    per_ip: number;
+	    global: number;
+	    burst: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new RateLimitConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.per_ip = source["per_ip"];
+	        this.global = source["global"];
+	        this.burst = source["burst"];
+	    }
+	}
+	export class APITLSConfig {
+	    cert: string;
+	    key: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new APITLSConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.cert = source["cert"];
+	        this.key = source["key"];
+	    }
+	}
+	export class APIConfig {
+	    enabled: boolean;
+	    port: number;
+	    bind: string;
+	    allow_public: boolean;
+	    tls: APITLSConfig;
+	    rate_limit: RateLimitConfig;
+	
+	    static createFrom(source: any = {}) {
+	        return new APIConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.port = source["port"];
+	        this.bind = source["bind"];
+	        this.allow_public = source["allow_public"];
+	        this.tls = this.convertValues(source["tls"], APITLSConfig);
+	        this.rate_limit = this.convertValues(source["rate_limit"], RateLimitConfig);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	
 	export class BackupConfig {
 	    max_concurrency: number;
@@ -77,6 +175,7 @@ export namespace config {
 	    Server: ServerConfig;
 	    Backup: BackupConfig;
 	    TZKT: TZKTConfig;
+	    API: APIConfig;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -88,6 +187,7 @@ export namespace config {
 	        this.Server = this.convertValues(source["Server"], ServerConfig);
 	        this.Backup = this.convertValues(source["Backup"], BackupConfig);
 	        this.TZKT = this.convertValues(source["TZKT"], TZKTConfig);
+	        this.API = this.convertValues(source["API"], APIConfig);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -108,6 +208,7 @@ export namespace config {
 		    return a;
 		}
 	}
+	
 	
 	
 

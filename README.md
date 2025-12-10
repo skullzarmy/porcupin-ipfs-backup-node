@@ -45,6 +45,7 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 -   📌 **IPFS Pinning** — Embedded Kubo node, no external services needed
 -   🔄 **Real-time Sync** — Watches for new NFTs via TZKT
 -   💻 **Cross-Platform** — macOS, Windows, Linux, Raspberry Pi, Docker
+-   🌐 **Remote Server Mode** — Run headless on NAS/Pi, manage from desktop app
 -   📊 **Dashboard** — Track sync status, storage usage, failed assets
 -   🔒 **Self-Sovereign** — Your data stays on your machine
 
@@ -71,7 +72,7 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 | macOS (Apple Silicon) |      ✅       |       ✅       |   ✅   |
 | Windows x64           |      ✅       |       —        |   —    |
 | Windows ARM64         |      ✅       |       —        |   —    |
-| Linux x64             |      ✅       |       ✅       |   ✅   |
+| Linux x64             |       —       |       ✅       |   ✅   |
 | Linux ARM64 (Pi)      |       —       |       ✅       |   ✅   |
 
 ---

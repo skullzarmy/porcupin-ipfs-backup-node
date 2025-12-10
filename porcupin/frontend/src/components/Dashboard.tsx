@@ -1,9 +1,29 @@
 import { useEffect, useState } from "react";
-import { GetSyncProgress, PauseBackup, ResumeBackup, IsBackupPaused } from "../../wailsjs/go/main/App";
-import type { core } from "../../wailsjs/go/models";
+import {
+    GetSyncProgress,
+    PauseBackup,
+    ResumeBackup,
+    IsBackupPaused,
+    GetRecentActivity,
+} from "../../wailsjs/go/main/App";
+import type { core, db } from "../../wailsjs/go/models";
 import { formatBytes } from "../utils";
 import { FailedAssets } from "./FailedAssets";
-import { Pause, Play, RefreshCw, Activity, Loader, Square, Palette, Pin, HardDrive, AlertTriangle } from "lucide-react";
+import {
+    Pause,
+    Play,
+    RefreshCw,
+    Activity,
+    Loader,
+    Square,
+    Palette,
+    Pin,
+    HardDrive,
+    AlertTriangle,
+    Clock,
+    Wallet,
+    Hourglass,
+} from "lucide-react";
 
 /** Asset statistics from the database */
 interface AssetStats {
@@ -17,19 +37,26 @@ interface AssetStats {
 
 interface DashboardProps {
     stats: Partial<AssetStats>;
+    walletCount: number;
 }
 
-export function Dashboard({ stats }: DashboardProps) {
+export function Dashboard({ stats, walletCount }: DashboardProps) {
     const [status, setStatus] = useState<core.ServiceStatus | null>(null);
     const [isPaused, setIsPaused] = useState(false);
     const [showFailedModal, setShowFailedModal] = useState(false);
+    const [recentActivity, setRecentActivity] = useState<db.Asset[]>([]);
 
     useEffect(() => {
         const fetchStatus = async () => {
             try {
-                const [serviceStatus, paused] = await Promise.all([GetSyncProgress(), IsBackupPaused()]);
+                const [serviceStatus, paused, recent] = await Promise.all([
+                    GetSyncProgress(),
+                    IsBackupPaused(),
+                    GetRecentActivity(5),
+                ]);
                 setStatus(serviceStatus);
                 setIsPaused(paused);
+                setRecentActivity(recent || []);
             } catch (err: unknown) {
                 console.error("Failed to fetch status:", err);
             }
@@ -234,6 +261,51 @@ export function Dashboard({ stats }: DashboardProps) {
                 </div>
             </div>
 
+            {/* Secondary stats row */}
+            <div className="stats-row-secondary">
+                <div className="mini-stat">
+                    <Wallet size={16} />
+                    <span className="mini-stat-value">{walletCount}</span>
+                    <span className="mini-stat-label">Wallet{walletCount !== 1 ? "s" : ""} Tracked</span>
+                </div>
+                {(stats.pending || 0) > 0 && (
+                    <div className="mini-stat pending">
+                        <Hourglass size={16} />
+                        <span className="mini-stat-value">{stats.pending}</span>
+                        <span className="mini-stat-label">Pending</span>
+                    </div>
+                )}
+                {status?.pending_retries && status.pending_retries > 0 && (
+                    <div className="mini-stat">
+                        <RefreshCw size={16} />
+                        <span className="mini-stat-value">{status.pending_retries}</span>
+                        <span className="mini-stat-label">Retries Queued</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Recent Activity */}
+            {recentActivity.length > 0 && (
+                <div className="recent-activity">
+                    <h3>
+                        <Clock size={16} /> Recent Activity
+                    </h3>
+                    <div className="activity-list">
+                        {recentActivity.map((asset) => (
+                            <div key={asset.id} className="activity-item">
+                                <span className="activity-type">{asset.type}</span>
+                                <span className="activity-name" title={asset.nft?.name || asset.uri}>
+                                    {asset.nft?.name || "Unknown NFT"}
+                                </span>
+                                <span className="activity-time">
+                                    {asset.pinned_at && formatTimeAgo(new Date(asset.pinned_at))}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Show failed count as a clickable notice if there are any */}
             {failedCount > 0 && (
                 <button type="button" className="failed-notice clickable" onClick={() => setShowFailedModal(true)}>
@@ -253,4 +325,16 @@ export function Dashboard({ stats }: DashboardProps) {
             )}
         </div>
     );
+}
+
+// Helper to format time ago
+function formatTimeAgo(date: Date): string {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (seconds < 60) return "just now";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
 }

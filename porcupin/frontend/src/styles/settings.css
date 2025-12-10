@@ -379,3 +379,232 @@
     color: var(--text-primary);
     font-size: 13px;
 }
+
+/* Remote Server Section */
+.settings-section h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.remote-connected {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    background: rgba(74, 144, 226, 0.1);
+    border: 1px solid rgba(74, 144, 226, 0.3);
+    border-radius: var(--radius-md);
+}
+
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.connection-status.connected {
+    color: var(--accent-primary);
+}
+
+.connection-status .server-version {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 2px 8px;
+    background: var(--bg-hover);
+    border-radius: var(--radius-sm);
+    margin-left: 8px;
+}
+
+.remote-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-row {
+    display: flex;
+    gap: 16px;
+}
+
+.form-row .form-group {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.form-row .form-group-small {
+    flex: 0 0 100px;
+}
+
+.remote-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--accent-danger);
+    font-size: 13px;
+}
+
+.remote-success {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--accent-success);
+    font-size: 13px;
+}
+
+.remote-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.remote-actions button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Discovery Section */
+.discovery-section {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.discovery-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.discovery-header button {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.discovered-servers {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.discovered-server {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+    width: 100%;
+}
+
+.discovered-server:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+}
+
+.discovered-server .server-name {
+    font-weight: 500;
+    flex: 1;
+}
+
+.discovered-server .server-host {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.discovered-server .server-version {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-card);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+
+/* Saved Profiles */
+.saved-profiles {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.saved-profiles h4 {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.profile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.saved-profile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.profile-select {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+}
+
+.profile-select:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+}
+
+.profile-name {
+    font-weight: 500;
+    flex: 1;
+}
+
+.profile-host {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.profile-remove {
+    padding: 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.profile-remove:hover {
+    background: var(--bg-hover);
+    border-color: var(--danger);
+    color: var(--danger);
+}

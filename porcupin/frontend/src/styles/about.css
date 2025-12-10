@@ -1,10 +1,8 @@
 .about-page {
-    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 48px 32px;
     text-align: center;
     max-width: 560px;
     margin: 0 auto;

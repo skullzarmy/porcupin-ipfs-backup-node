@@ -106,12 +106,28 @@
     margin-top: 4px;
 }
 
+/* Unified page container styles */
+.page {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 32px 32px;
+}
+
+/* Legacy class names - use .page instead for new components */
 .dashboard-page,
+.assets-page,
 .wallets,
 .settings {
     flex: 1;
     overflow-y: auto;
     padding: 0 32px 32px;
+}
+
+/* About page is centered and has different layout */
+.about-page {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 32px 32px;
 }
 
 .error-banner {

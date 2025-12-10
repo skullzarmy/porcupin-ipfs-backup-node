@@ -1,6 +1,17 @@
 import { useState } from "react";
-import { LayoutDashboard, Wallet, Image, Settings, HelpCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+    LayoutDashboard,
+    Wallet,
+    Image,
+    Settings,
+    HelpCircle,
+    ChevronLeft,
+    ChevronRight,
+    Monitor,
+    Server,
+} from "lucide-react";
 import { Logo } from "./Logo";
+import { useConnectionStatus } from "../lib/connection";
 
 interface SidebarProps {
     activeTab: string;
@@ -17,6 +28,7 @@ const navItems = [
 
 export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const connectionStatus = useConnectionStatus();
 
     return (
         <aside className={`sidebar ${isExpanded ? "expanded" : ""}`}>
@@ -43,6 +55,13 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             </nav>
 
             <div className="sidebar-footer">
+                <div
+                    className={`connection-indicator ${connectionStatus.icon === "remote" ? "remote" : "local"}`}
+                    title={connectionStatus.label}
+                >
+                    {connectionStatus.icon === "remote" ? <Server size={14} /> : <Monitor size={14} />}
+                    <span className="connection-label">{connectionStatus.label}</span>
+                </div>
                 <button
                     type="button"
                     className="sidebar-toggle"

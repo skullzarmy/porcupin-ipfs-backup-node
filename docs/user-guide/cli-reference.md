@@ -29,6 +29,78 @@ Running `porcupin` without any one-off command flags starts the daemon, which:
 
 ---
 
+## API Server Mode
+
+The headless server can expose a REST API for remote management by the desktop app or other clients.
+
+### `--serve`
+
+Start the API server for remote access.
+
+```bash
+porcupin --serve
+```
+
+**First run output:**
+
+```text
+API server starting on http://192.168.1.50:8085
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  NEW API TOKEN GENERATED - SAVE THIS NOW
+    Token: prcpn_a7Bx9kL2mN4pQ6rS8tU0vW2xY4zA6bC8dE0fG2hI4j
+
+    This token will not be shown again.
+    Store it securely. Use --regenerate-token to create a new one.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Subsequent runs:** The token is never shown again.
+
+### API Server Options
+
+| Flag                 | Description                                               | Default   |
+| -------------------- | --------------------------------------------------------- | --------- |
+| `--api-port <port>`  | API server port                                           | `8085`    |
+| `--api-bind <addr>`  | API server bind address                                   | `0.0.0.0` |
+| `--allow-public`     | Allow connections from public IPs (default: private only) |           |
+| `--tls-cert <path>`  | Path to TLS certificate file                              |           |
+| `--tls-key <path>`   | Path to TLS private key file                              |           |
+| `--regenerate-token` | Regenerate API token and exit                             |           |
+
+### API Token Handling
+
+The API token is **shown only once** when first generated. It cannot be retrieved afterward.
+
+-   **File storage:** `~/.porcupin/.api-token-hash` (stores bcrypt hash, not plaintext)
+-   **Environment override:** Set `PORCUPIN_API_TOKEN` to use a specific token
+-   **Flag override:** `--api-token <token>` (WARNING: visible in `ps`, prefer env var)
+
+To get a new token:
+
+```bash
+porcupin --regenerate-token
+```
+
+### API Server Examples
+
+```bash
+# Start API server with defaults (port 8085, private IPs only)
+porcupin --serve
+
+# Use custom port
+porcupin --serve --api-port 9090
+
+# Enable TLS
+porcupin --serve --tls-cert /path/to/cert.pem --tls-key /path/to/key.pem
+
+# Allow public IPs (use with caution, requires TLS for security)
+porcupin --serve --allow-public --tls-cert cert.pem --tls-key key.pem
+```
+
+See [Remote Server Guide](remote-server.md) for complete setup instructions including systemd configuration.
+
+---
+
 ## One-Off Commands
 
 These commands execute immediately and exit (they don't start the daemon).

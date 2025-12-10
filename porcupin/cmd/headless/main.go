@@ -14,6 +14,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 
+	"porcupin/backend/api"
 	"porcupin/backend/cli"
 	"porcupin/backend/config"
 	"porcupin/backend/core"
@@ -29,6 +30,8 @@ func main() {
 	configPath := flag.String("config", "", "Path to config file (default: ~/.porcupin/config.yaml)")
 	dataDir := flag.String("data", "", "Data directory (default: ~/.porcupin)")
 	addWallet := flag.String("add-wallet", "", "Add a wallet address and exit")
+	walletAlias := flag.String("alias", "", "Alias for wallet (use with --add-wallet or --rename-wallet)")
+	renameWallet := flag.String("rename-wallet", "", "Rename a wallet (set alias), use with --alias")
 	listWallets := flag.Bool("list-wallets", false, "List all tracked wallets and exit")
 	removeWallet := flag.String("remove-wallet", "", "Remove a wallet address and exit")
 	unpinWallet := flag.String("unpin-wallet", "", "Unpin all assets for a wallet and exit")
@@ -39,7 +42,24 @@ func main() {
 	showVersionShort := flag.Bool("v", false, "Show version and exit")
 	showAbout := flag.Bool("about", false, "Show about information and exit")
 	retryPending := flag.Bool("retry-pending", false, "Process all pending assets and exit")
+
+	// API server flags
+	serveAPI := flag.Bool("serve", false, "Start API server for remote access")
+	apiPort := flag.Int("api-port", 8085, "API server port (use with --serve)")
+	apiBind := flag.String("api-bind", "0.0.0.0", "API server bind address (use with --serve)")
+	apiToken := flag.String("api-token", "", "Set API token (WARNING: visible in ps, prefer env var)")
+	allowPublic := flag.Bool("allow-public", false, "Allow public IP connections (use with --serve)")
+	tlsCert := flag.String("tls-cert", "", "Path to TLS certificate file (use with --serve)")
+	tlsKey := flag.String("tls-key", "", "Path to TLS private key file (use with --serve)")
+	regenerateToken := flag.Bool("regenerate-token", false, "Regenerate API token and exit")
+
 	flag.Parse()
+
+	// Warn if --api-token flag is used (visible in ps)
+	if *apiToken != "" {
+		log.Println("⚠️  WARNING: --api-token flag is visible in process list.")
+		log.Println("   Consider using PORCUPIN_API_TOKEN env var instead.")
+	}
 
 	if *showVersion || *showVersionShort {
 		cli.PrintBannerWithVersion(version.Version)
@@ -66,6 +86,21 @@ func main() {
 	// Ensure data directory exists
 	if err := os.MkdirAll(dataPath, 0755); err != nil {
 		log.Fatalf("Failed to create data directory: %v", err)
+	}
+
+	// Handle token management commands (before other initialization)
+	if *regenerateToken {
+		token, err := api.RegenerateToken(dataPath)
+		if err != nil {
+			log.Fatalf("Failed to regenerate token: %v", err)
+		}
+		fmt.Println("New API token generated:")
+		fmt.Println()
+		fmt.Printf("  %s\n", token)
+		fmt.Println()
+		fmt.Println("⚠️  Save this token securely - it will not be shown again!")
+		fmt.Println("   Token hash stored at:", filepath.Join(dataPath, api.TokenFileName))
+		return
 	}
 
 	// Load configuration
@@ -95,11 +130,27 @@ func main() {
 
 	// Handle one-off commands
 	if *addWallet != "" {
-		wallet := &db.Wallet{Address: *addWallet, Alias: ""}
+		wallet := &db.Wallet{Address: *addWallet, Alias: *walletAlias}
 		if err := database.SaveWallet(wallet); err != nil {
 			log.Fatalf("Failed to add wallet: %v", err)
 		}
-		fmt.Printf("Added wallet: %s\n", *addWallet)
+		if *walletAlias != "" {
+			fmt.Printf("Added wallet: %s (%s)\n", *walletAlias, *addWallet)
+		} else {
+			fmt.Printf("Added wallet: %s\n", *addWallet)
+		}
+		return
+	}
+
+	if *renameWallet != "" {
+		if err := database.Model(&db.Wallet{}).Where("address = ?", *renameWallet).Update("alias", *walletAlias).Error; err != nil {
+			log.Fatalf("Failed to rename wallet: %v", err)
+		}
+		if *walletAlias != "" {
+			fmt.Printf("Renamed wallet %s to: %s\n", *renameWallet, *walletAlias)
+		} else {
+			fmt.Printf("Cleared alias for wallet: %s\n", *renameWallet)
+		}
 		return
 	}
 
@@ -310,13 +361,95 @@ func main() {
 	wallets, _ := database.GetAllWallets()
 	fmt.Printf("Tracking %d wallet(s)\n", len(wallets))
 
-	// Status ticker
-	statusTicker := time.NewTicker(30 * time.Second)
-	defer statusTicker.Stop()
-
 	// Handle shutdown signals
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	// Start API server if requested
+	if *serveAPI {
+		var plainToken string  // Used for env var or flag (direct comparison)
+		var tokenHash string   // Used for file-based auth (bcrypt comparison)
+		var isNew bool
+
+		if *apiToken != "" {
+			// Token from flag (already warned above)
+			plainToken = *apiToken
+			fmt.Println("Using API token from --api-token flag")
+		} else if envToken := api.GetTokenFromEnv(); envToken != "" {
+			// Token from environment variable
+			if !api.ValidateTokenFormat(envToken) {
+				log.Fatalf("PORCUPIN_API_TOKEN has invalid format")
+			}
+			plainToken = envToken
+			fmt.Println("Using API token from PORCUPIN_API_TOKEN environment variable")
+		} else {
+			// Check for existing token hash in file, or create new token
+			var err error
+			tokenHash, err = api.GetTokenHashFromFile(dataPath)
+			if err != nil {
+				log.Fatalf("Failed to read token file: %v", err)
+			}
+
+			if tokenHash == "" {
+				// No token exists - generate new one
+				var newToken string
+				newToken, isNew, err = api.GetOrCreateToken(dataPath)
+				if err != nil {
+					log.Fatalf("Failed to create API token: %v", err)
+				}
+
+				if isNew {
+					fmt.Println()
+					fmt.Println("═══════════════════════════════════════════════════════════════")
+					fmt.Println("  NEW API TOKEN GENERATED - SAVE THIS NOW!")
+					fmt.Println("═══════════════════════════════════════════════════════════════")
+					fmt.Println()
+					fmt.Printf("  %s\n", newToken)
+					fmt.Println()
+					fmt.Println("  ⚠️  This token will NOT be displayed again!")
+					fmt.Println("  Token hash stored at:", filepath.Join(dataPath, api.TokenFileName))
+					fmt.Println("═══════════════════════════════════════════════════════════════")
+					fmt.Println()
+
+					// Re-read the hash we just created
+					tokenHash, err = api.GetTokenHashFromFile(dataPath)
+					if err != nil {
+						log.Fatalf("Failed to read token hash: %v", err)
+					}
+				}
+			} else {
+				fmt.Println("Using API token from file (hash-based authentication)")
+			}
+		}
+
+		// Create API server config
+		serverCfg := api.ServerConfig{
+			Port:            *apiPort,
+			BindAddress:     *apiBind,
+			Token:           plainToken,
+			TokenHash:       tokenHash,
+			AllowPublic:     *allowPublic,
+			DataDir:         dataPath,
+			Version:         version.Version,
+			PerIPRateLimit:  10,
+			GlobalRateLimit: 100,
+			TLSCert:         *tlsCert,
+			TLSKey:          *tlsKey,
+		}
+
+		// Create and start API server in a goroutine
+		apiServer := api.NewServer(serverCfg, database, service)
+		apiServer.SetIPFS(ipfsNode)
+		go func() {
+			if err := apiServer.Start(ctx); err != nil {
+				log.Printf("API server error: %v", err)
+			}
+		}()
+	}
+
+	// Status ticker
+	statusTicker := time.NewTicker(30 * time.Second)
+	defer statusTicker.Stop()
 
 	for {
 		select {

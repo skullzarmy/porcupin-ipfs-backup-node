@@ -176,28 +176,48 @@ For Docker or advanced setups, you can use environment variables:
 | `PORCUPIN_DATA_DIR`       | Override data directory (default: `~/.porcupin`) |
 | `PORCUPIN_IPFS_PATH`      | Override IPFS repo path                          |
 | `PORCUPIN_MAX_STORAGE_GB` | Override max storage limit                       |
+| `PORCUPIN_API_TOKEN`      | Set API token for remote server mode             |
 
-Example Docker usage:
+### API Token via Environment
+
+When running in server mode (`--serve`), you can set the API token via environment variable instead of using the auto-generated token:
+
+```bash
+export PORCUPIN_API_TOKEN="prcpn_your_secure_token_here"
+porcupin --serve
+```
+
+This is the recommended approach for Docker and systemd deployments because:
+
+-   The token isn't visible in `ps` output (unlike `--api-token` flag)
+-   You can rotate the token without regenerating and restarting
+
+**Note:** When `PORCUPIN_API_TOKEN` is set, it takes precedence over the auto-generated token file.
+
+### Example Docker Usage
 
 ```bash
 docker run -d \
   -e PORCUPIN_MAX_STORAGE_GB=50 \
+  -e PORCUPIN_API_TOKEN=prcpn_your_token \
+  -p 8085:8085 \
   -v /mnt/data:/home/porcupin/.porcupin \
-  ghcr.io/skullzarmy/porcupin:latest
+  ghcr.io/skullzarmy/porcupin:latest --serve
 ```
 
 ---
 
 ## Data Directory Structure
 
-```
+```text
 ~/.porcupin/
-├── config.yaml      # Configuration file
-├── porcupin.db      # SQLite database (wallets, NFTs, asset status)
-└── ipfs/            # IPFS repository
-    ├── blocks/      # Pinned content (this is the big folder)
-    ├── datastore/   # IPFS internal data
-    └── config       # IPFS node configuration
+├── config.yaml        # Configuration file
+├── porcupin.db        # SQLite database (wallets, NFTs, asset status)
+├── .api-token-hash    # API token hash (only when using --serve)
+└── ipfs/              # IPFS repository
+    ├── blocks/        # Pinned content (this is the big folder)
+    ├── datastore/     # IPFS internal data
+    └── config         # IPFS node configuration
 ```
 
 ---

@@ -12,7 +12,9 @@ import {
     ValidateStoragePath,
     GetMigrationStatus,
     CancelMigration,
-} from "../../wailsjs/go/main/App";
+    DiscoverServers,
+} from "../lib/backend";
+import { useConnection } from "../lib/connection";
 import { EventsOn } from "../../wailsjs/runtime/runtime";
 import {
     AlertTriangle,
@@ -26,8 +28,12 @@ import {
     Sun,
     Moon,
     Monitor,
+    Server,
+    Plug,
+    Unplug,
+    Search,
 } from "lucide-react";
-import type { main, storage } from "../../wailsjs/go/models";
+import type { api, main, storage } from "../../wailsjs/go/models";
 import { formatBytes } from "../utils";
 
 interface SettingsProps {
@@ -73,6 +79,32 @@ export function Settings({ onStatsChange }: SettingsProps) {
         unpinned_count: number;
     } | null>(null);
 
+    // Remote server state
+    const {
+        state: connectionState,
+        connect,
+        disconnect,
+        testRemoteConnection,
+        isRemote: isRemoteConnected,
+        getSavedConfigs,
+        saveConfig,
+        removeConfig,
+    } = useConnection();
+    const [remoteHost, setRemoteHost] = useState("");
+    const [remotePort, setRemotePort] = useState("8085");
+    const [remoteToken, setRemoteToken] = useState("");
+    const [remoteUseTLS, setRemoteUseTLS] = useState(false);
+    const [remoteLabel, setRemoteLabel] = useState("");
+    const [remoteTesting, setRemoteTesting] = useState(false);
+    const [remoteConnecting, setRemoteConnecting] = useState(false);
+    const [remoteError, setRemoteError] = useState("");
+    const [remoteTestResult, setRemoteTestResult] = useState<string | null>(null);
+    const [savedProfiles, setSavedProfiles] = useState<ReturnType<typeof getSavedConfigs>>([]);
+
+    // Discovery state
+    const [discoveredServers, setDiscoveredServers] = useState<api.DiscoveredServer[]>([]);
+    const [scanning, setScanning] = useState(false);
+
     const loadSettings = useCallback(async () => {
         try {
             const [cfgRes, storageRes, pathRes, locationRes, locationsRes] = await Promise.all([
@@ -110,6 +142,11 @@ export function Settings({ onStatsChange }: SettingsProps) {
     const handleThemeChange = (newTheme: "light" | "dark" | "system") => {
         setTheme(newTheme);
     };
+
+    // Load saved connection profiles
+    useEffect(() => {
+        setSavedProfiles(getSavedConfigs());
+    }, [getSavedConfigs]);
 
     useEffect(() => {
         loadSettings();
@@ -315,7 +352,14 @@ export function Settings({ onStatsChange }: SettingsProps) {
 
     return (
         <div className="settings">
-            <h2>Settings</h2>
+            <div className="page-header">
+                <div className="page-header-row">
+                    <div>
+                        <h1>Settings</h1>
+                        <p className="page-subtitle">Configure backup and storage options</p>
+                    </div>
+                </div>
+            </div>
 
             {/* Storage Info */}
             <div className="settings-section">
@@ -620,6 +664,286 @@ export function Settings({ onStatsChange }: SettingsProps) {
                     </label>
                     <span className="hint">Backup NFTs this wallet minted (even if sold)</span>
                 </div>
+            </div>
+
+            {/* Remote Server */}
+            <div className="settings-section">
+                <h3>
+                    <Server size={18} />
+                    Remote Server
+                </h3>
+                <p className="section-description">
+                    Connect to a remote Porcupin server instead of using the local embedded backend.
+                </p>
+
+                {isRemoteConnected ? (
+                    <div className="remote-connected">
+                        <div className="connection-status connected">
+                            <Plug size={16} />
+                            <span>
+                                Connected to {connectionState.remoteConfig?.host}:{connectionState.remoteConfig?.port}
+                            </span>
+                            {connectionState.serverVersion && (
+                                <span className="server-version">v{connectionState.serverVersion}</span>
+                            )}
+                        </div>
+                        <button type="button" onClick={() => disconnect()} className="btn-secondary">
+                            <Unplug size={14} />
+                            Disconnect
+                        </button>
+                    </div>
+                ) : (
+                    <div className="remote-form">
+                        {/* Network Discovery */}
+                        <div className="discovery-section">
+                            <div className="discovery-header">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setScanning(true);
+                                        setDiscoveredServers([]);
+                                        try {
+                                            const servers = await DiscoverServers();
+                                            setDiscoveredServers(servers || []);
+                                        } catch (err) {
+                                            console.error("Discovery failed:", err);
+                                        } finally {
+                                            setScanning(false);
+                                        }
+                                    }}
+                                    disabled={scanning}
+                                    className="btn-secondary"
+                                >
+                                    <Search size={14} />
+                                    {scanning ? "Scanning..." : "Scan Network"}
+                                </button>
+                            </div>
+                            {discoveredServers.length > 0 && (
+                                <div className="discovered-servers">
+                                    {discoveredServers.map((server, idx) => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            className="discovered-server"
+                                            onClick={() => {
+                                                setRemoteHost(server.host);
+                                                setRemotePort(String(server.port));
+                                                setRemoteUseTLS(server.useTLS);
+                                                setRemoteError("");
+                                                setRemoteTestResult(null);
+                                            }}
+                                        >
+                                            <Server size={14} />
+                                            <span className="server-name">{server.name}</span>
+                                            <span className="server-host">
+                                                {server.host}:{server.port}
+                                            </span>
+                                            {server.version && (
+                                                <span className="server-version">v{server.version}</span>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {!scanning && discoveredServers.length === 0 && (
+                                <p className="hint">Click "Scan Network" to find Porcupin servers on your LAN</p>
+                            )}
+                        </div>
+
+                        {/* Saved Profiles */}
+                        {savedProfiles.length > 0 && (
+                            <div className="saved-profiles">
+                                <h4>Saved Servers</h4>
+                                <div className="profile-list">
+                                    {savedProfiles.map((profile) => (
+                                        <div key={`${profile.host}:${profile.port}`} className="saved-profile">
+                                            <button
+                                                type="button"
+                                                className="profile-select"
+                                                onClick={() => {
+                                                    setRemoteHost(profile.host);
+                                                    setRemotePort(String(profile.port));
+                                                    setRemoteToken(profile.token);
+                                                    setRemoteUseTLS(profile.useTLS);
+                                                    setRemoteLabel(profile.label || "");
+                                                    setRemoteError("");
+                                                    setRemoteTestResult(null);
+                                                }}
+                                            >
+                                                <Server size={14} />
+                                                <span className="profile-name">
+                                                    {profile.label || `${profile.host}:${profile.port}`}
+                                                </span>
+                                                {profile.label && (
+                                                    <span className="profile-host">
+                                                        {profile.host}:{profile.port}
+                                                    </span>
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="profile-remove"
+                                                onClick={() => {
+                                                    removeConfig(profile.host, profile.port);
+                                                    setSavedProfiles(getSavedConfigs());
+                                                }}
+                                                title="Remove saved server"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="form-row">
+                            <div className="form-group">
+                                <label htmlFor="remoteHost">Host</label>
+                                <input
+                                    id="remoteHost"
+                                    type="text"
+                                    value={remoteHost}
+                                    onChange={(e) => {
+                                        setRemoteHost(e.target.value);
+                                        setRemoteError("");
+                                        setRemoteTestResult(null);
+                                    }}
+                                    placeholder="192.168.1.100 or hostname"
+                                />
+                            </div>
+                            <div className="form-group form-group-small">
+                                <label htmlFor="remotePort">Port</label>
+                                <input
+                                    id="remotePort"
+                                    type="text"
+                                    value={remotePort}
+                                    onChange={(e) => {
+                                        setRemotePort(e.target.value);
+                                        setRemoteError("");
+                                        setRemoteTestResult(null);
+                                    }}
+                                    placeholder="8085"
+                                />
+                            </div>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="remoteToken">API Token</label>
+                            <input
+                                id="remoteToken"
+                                type="password"
+                                value={remoteToken}
+                                onChange={(e) => {
+                                    setRemoteToken(e.target.value);
+                                    setRemoteError("");
+                                    setRemoteTestResult(null);
+                                }}
+                                placeholder="prcpn_..."
+                            />
+                        </div>
+                        <div className="form-group toggle-group">
+                            <label htmlFor="remoteUseTLS">
+                                <input
+                                    id="remoteUseTLS"
+                                    type="checkbox"
+                                    checked={remoteUseTLS}
+                                    onChange={(e) => setRemoteUseTLS(e.target.checked)}
+                                />
+                                <span>Use TLS (HTTPS)</span>
+                            </label>
+                        </div>
+                        <div className="form-group">
+                            <label htmlFor="remoteLabel">Label (optional)</label>
+                            <input
+                                id="remoteLabel"
+                                type="text"
+                                value={remoteLabel}
+                                onChange={(e) => setRemoteLabel(e.target.value)}
+                                placeholder="My Home Server"
+                            />
+                            <span className="hint">A friendly name for this server</span>
+                        </div>
+
+                        {remoteError && (
+                            <div className="remote-error">
+                                <AlertTriangle size={14} />
+                                {remoteError}
+                            </div>
+                        )}
+
+                        {remoteTestResult && (
+                            <div className="remote-success">
+                                <Check size={14} />
+                                {remoteTestResult}
+                            </div>
+                        )}
+
+                        <div className="remote-actions">
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    if (!remoteHost || !remoteToken) {
+                                        setRemoteError("Host and token are required");
+                                        return;
+                                    }
+                                    setRemoteTesting(true);
+                                    setRemoteError("");
+                                    setRemoteTestResult(null);
+                                    try {
+                                        const health = await testRemoteConnection({
+                                            host: remoteHost,
+                                            port: parseInt(remotePort) || 8085,
+                                            token: remoteToken,
+                                            useTLS: remoteUseTLS,
+                                        });
+                                        setRemoteTestResult(`Connection OK - Server v${health.version}`);
+                                    } catch (err) {
+                                        setRemoteError(err instanceof Error ? err.message : "Connection failed");
+                                    } finally {
+                                        setRemoteTesting(false);
+                                    }
+                                }}
+                                disabled={remoteTesting || remoteConnecting || !remoteHost || !remoteToken}
+                                className="btn-secondary"
+                            >
+                                {remoteTesting ? "Testing..." : "Test Connection"}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    if (!remoteHost || !remoteToken) {
+                                        setRemoteError("Host and token are required");
+                                        return;
+                                    }
+                                    setRemoteConnecting(true);
+                                    setRemoteError("");
+                                    try {
+                                        const config = {
+                                            host: remoteHost,
+                                            port: parseInt(remotePort) || 8085,
+                                            token: remoteToken,
+                                            useTLS: remoteUseTLS,
+                                            label: remoteLabel || undefined,
+                                        };
+                                        await connect(config);
+                                        // Save profile on successful connection
+                                        saveConfig(config);
+                                        setSavedProfiles(getSavedConfigs());
+                                    } catch (err) {
+                                        setRemoteError(err instanceof Error ? err.message : "Connection failed");
+                                    } finally {
+                                        setRemoteConnecting(false);
+                                    }
+                                }}
+                                disabled={remoteTesting || remoteConnecting || !remoteHost || !remoteToken}
+                                className="btn-primary"
+                            >
+                                <Plug size={14} />
+                                {remoteConnecting ? "Connecting..." : "Connect"}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Actions */}

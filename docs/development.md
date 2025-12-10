@@ -236,6 +236,8 @@ porcupin-ipfs-backup-node/
 | TZKT API integration   | `porcupin/backend/indexer/tzkt.go`            |
 | Wails bindings (Go↔JS) | `porcupin/app.go`                             |
 | Database models        | `porcupin/backend/db/db.go`                   |
+| REST API endpoints     | `porcupin/backend/api/handlers.go`            |
+| API middleware         | `porcupin/backend/api/middleware.go`          |
 | Platform-specific code | See [Cross-Platform Guide](cross-platform.md) |
 
 ---
@@ -257,6 +259,32 @@ go test ./backend/core/...
 # Verbose
 go test -v ./...
 ```
+
+### Testing the REST API
+
+The API can be tested manually with curl:
+
+```bash
+# Start server with a known token
+export PORCUPIN_API_TOKEN="test_token_12345"
+porcupin --serve
+
+# In another terminal:
+
+# Health check (no auth required)
+curl http://localhost:8085/api/v1/health
+
+# Get stats (auth required)
+curl -H "Authorization: Bearer test_token_12345" http://localhost:8085/api/v1/stats
+
+# Add wallet
+curl -X POST -H "Authorization: Bearer test_token_12345" \
+  -H "Content-Type: application/json" \
+  -d '{"address":"tz1abc123"}' \
+  http://localhost:8085/api/v1/wallets
+```
+
+API tests are in `porcupin/backend/api/api_test.go`.
 
 ---
 

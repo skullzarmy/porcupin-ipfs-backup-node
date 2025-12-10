@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import "./App.css";
-import { GetWallets, GetAssetStats } from "../wailsjs/go/main/App";
+import { GetWallets, GetAssetStats } from "./lib/backend";
 import type { db } from "../wailsjs/go/models";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -8,6 +8,7 @@ import { Wallets } from "./components/Wallets";
 import { Assets } from "./components/Assets";
 import { Settings } from "./components/Settings";
 import { About } from "./components/About";
+import { ConnectionProvider } from "./lib/connection";
 
 /** Asset statistics returned from the backend */
 interface AssetStats {
@@ -59,42 +60,44 @@ function App() {
     }, [loadWallets, updateStats]);
 
     return (
-        <div className="app-layout">
-            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+        <ConnectionProvider>
+            <div className="app-layout">
+                <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
-            <main className="main-content">
-                {/* Drag region for window - macOS/Windows title bar area */}
-                <div className="drag-region" style={{ "--wails-draggable": "drag" } as React.CSSProperties}></div>
+                <main className="main-content">
+                    {/* Drag region for window - macOS/Windows title bar area */}
+                    <div className="drag-region" style={{ "--wails-draggable": "drag" } as React.CSSProperties}></div>
 
-                {error && (
-                    <div className="error-banner">
-                        <span>{error}</span>
-                        <button type="button" onClick={() => setError("")}>
-                            ×
-                        </button>
-                    </div>
-                )}
+                    {error && (
+                        <div className="error-banner">
+                            <span>{error}</span>
+                            <button type="button" onClick={() => setError("")}>
+                                ×
+                            </button>
+                        </div>
+                    )}
 
-                {activeTab === "dashboard" && <Dashboard stats={stats} />}
+                    {activeTab === "dashboard" && <Dashboard stats={stats} walletCount={wallets.length} />}
 
-                {activeTab === "wallets" && (
-                    <Wallets
-                        wallets={wallets}
-                        loading={loading}
-                        setLoading={setLoading}
-                        setError={setError}
-                        onWalletsChange={loadWallets}
-                        onStatsChange={updateStats}
-                    />
-                )}
+                    {activeTab === "wallets" && (
+                        <Wallets
+                            wallets={wallets}
+                            loading={loading}
+                            setLoading={setLoading}
+                            setError={setError}
+                            onWalletsChange={loadWallets}
+                            onStatsChange={updateStats}
+                        />
+                    )}
 
-                {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
+                    {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
 
-                {activeTab === "settings" && <Settings onStatsChange={updateStats} />}
+                    {activeTab === "settings" && <Settings onStatsChange={updateStats} />}
 
-                {activeTab === "about" && <About />}
-            </main>
-        </div>
+                    {activeTab === "about" && <About />}
+                </main>
+            </div>
+        </ConnectionProvider>
     );
 }
 

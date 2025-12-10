@@ -29,6 +29,44 @@
     font-size: 15px;
     font-weight: 600;
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wallet-address .btn-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 12px;
+    opacity: 0.5;
+    transition: opacity 0.15s;
+}
+
+.wallet-address .btn-icon:hover {
+    opacity: 1;
+}
+
+.wallet-edit-alias {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.wallet-edit-alias input {
+    padding: 6px 10px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 14px;
+    width: 200px;
+}
+
+.wallet-edit-alias input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
 }
 
 .wallet-meta {
@@ -60,6 +98,21 @@
 
 .wallet-toggles .toggle-label:hover {
     color: var(--text-primary);
+}
+
+.wallet-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.wallet-actions .btn-danger {
+    padding: 8px 12px;
+    font-size: 13px;
+}
+
+.wallet-actions .btn-secondary {
+    padding: 8px 12px;
+    font-size: 13px;
 }
 
 .asset-table-container {

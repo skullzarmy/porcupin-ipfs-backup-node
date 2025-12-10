@@ -12,8 +12,7 @@ This guide covers installing Porcupin on all supported platforms.
 | **macOS (Apple Silicon)** | ARM64        | `porcupin-macos.zip`           | Universal binary works on M1/M2/M3 |
 | **Windows (x64)**         | x64          | `porcupin-windows-amd64.zip`   | Windows 10/11                      |
 | **Windows (ARM)**         | ARM64        | `porcupin-windows-arm64.zip`   | Surface Pro X, etc.                |
-| **Linux Desktop (x64)**   | x64          | `porcupin-linux-amd64.tar.gz`  | Ubuntu, Fedora, etc. with GUI      |
-| **Linux Server (x64)**    | x64          | `porcupin-server-linux-amd64`  | Headless Ubuntu/Debian, no GUI     |
+| **Linux Server (x64)**    | x64          | `porcupin-server-linux-amd64`  | Headless Ubuntu/Debian             |
 | **Linux Server (ARM64)**  | ARM64        | `porcupin-server-linux-arm64`  | Headless, Raspberry Pi 4/5         |
 | **macOS Server (Intel)**  | x64          | `porcupin-server-darwin-amd64` | Headless macOS Intel               |
 | **macOS Server (ARM)**    | ARM64        | `porcupin-server-darwin-arm64` | Headless macOS M1/M2/M3            |
@@ -47,35 +46,6 @@ All downloads available at [Releases](https://github.com/skullzarmy/porcupin-ipf
 **System Requirements:**
 
 -   Windows 10/11 (64-bit)
--   4GB RAM minimum
--   10GB+ free disk space
-
-### Linux Desktop (Ubuntu, Fedora, etc.)
-
-**Requires:** GTK 3 and WebKit2GTK (installed by default on most desktop distros)
-
-```bash
-# Download and extract
-wget https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases/latest/download/porcupin-linux-amd64.tar.gz
-tar -xzvf porcupin-linux-amd64.tar.gz
-
-# Make executable
-chmod +x porcupin
-
-# Run
-./porcupin
-```
-
-**Optional: Install system-wide**
-
-```bash
-sudo mv porcupin /usr/local/bin/
-porcupin
-```
-
-**System Requirements:**
-
--   GTK 3 and WebKit2GTK
 -   4GB RAM minimum
 -   10GB+ free disk space
 
