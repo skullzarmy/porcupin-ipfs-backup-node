@@ -1,10 +1,12 @@
 name: CI
 
 on:
-    push:
-        branches: [main]
-    pull_request:
-        branches: [main]
+    workflow_dispatch:
+    # Disabled automatic triggers to save Actions minutes
+    # push:
+    #     branches: [main]
+    # pull_request:
+    #     branches: [main]
 
 env:
     GO_VERSION: "1.25"
