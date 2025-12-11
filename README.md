@@ -70,8 +70,8 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 | --------------------- | :-----------: | :------------: | :----: |
 | macOS (Intel)         |      ✅       |       ✅       |   ✅   |
 | macOS (Apple Silicon) |      ✅       |       ✅       |   ✅   |
-| Windows x64           |      ✅       |       —        |   —    |
-| Windows ARM64         |      ✅       |       —        |   —    |
+| Windows x64           |      ✅       |       —        |   ✅   |
+| Windows ARM64         |      ✅       |       —        |   ✅   |
 | Linux x64             |      ✅       |       ✅       |   ✅   |
 | Linux ARM64 (Pi)      |       —       |       ✅       |   ✅   |
 
