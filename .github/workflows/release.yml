@@ -49,14 +49,8 @@ jobs:
             package_file: porcupin-windows-arm64.zip
             build_tags: ""
 
-          # Linux x64
-          - os: ubuntu-latest
-            platform: linux/amd64
-            artifact: porcupin-linux-amd64
-            output: porcupin
-            package_cmd: tar -czvf porcupin-linux-amd64.tar.gz porcupin
-            package_file: porcupin-linux-amd64.tar.gz
-            build_tags: "webkit2_41"
+          # Linux desktop removed - GTK WebView has compatibility issues
+          # Linux users should use the headless server instead
 
     runs-on: ${{ matrix.os }}
 
