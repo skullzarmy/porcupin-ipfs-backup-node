@@ -12,6 +12,7 @@ This guide covers installing Porcupin on all supported platforms.
 | **macOS (Apple Silicon)** | ARM64        | `porcupin-macos.zip`           | Universal binary works on M1/M2/M3 |
 | **Windows (x64)**         | x64          | `porcupin-windows-amd64.zip`   | Windows 10/11                      |
 | **Windows (ARM)**         | ARM64        | `porcupin-windows-arm64.zip`   | Surface Pro X, etc.                |
+| **Linux (x64)**           | x64          | `porcupin-linux-amd64.tar.gz`  | Ubuntu/Debian with GUI             |
 | **Linux Server (x64)**    | x64          | `porcupin-server-linux-amd64`  | Headless Ubuntu/Debian             |
 | **Linux Server (ARM64)**  | ARM64        | `porcupin-server-linux-arm64`  | Headless, Raspberry Pi 4/5         |
 | **macOS Server (Intel)**  | x64          | `porcupin-server-darwin-amd64` | Headless macOS Intel               |
@@ -48,6 +49,22 @@ All downloads available at [Releases](https://github.com/skullzarmy/porcupin-ipf
 -   Windows 10/11 (64-bit)
 -   4GB RAM minimum
 -   10GB+ free disk space
+
+### Linux (x64)
+
+1. Download `porcupin-linux-amd64.tar.gz` from [Releases](https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases/latest)
+2. Extract: `tar -xzf porcupin-linux-amd64.tar.gz`
+3. Run: `./porcupin`
+4. Add your wallet addresses and you're done!
+
+**System Requirements:**
+
+-   Ubuntu 22.04+ / Debian 12+ (or equivalent with WebKit2GTK 4.1)
+-   `libwebkit2gtk-4.1` installed (`sudo apt install libwebkit2gtk-4.1-0`)
+-   4GB RAM minimum
+-   10GB+ free disk space
+
+**Note:** If you prefer a headless server (no GUI), see the [Headless Server](#headless-server-no-gui) section below.
 
 ---
 
