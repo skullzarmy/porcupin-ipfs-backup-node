@@ -18,6 +18,24 @@ const (
 	ContextKeyClientIP contextKey = "clientIP"
 )
 
+// CORSMiddleware adds CORS headers to allow cross-origin requests.
+// Required for browser-based clients and future web UIs.
+func CORSMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // AuthMiddleware creates middleware that validates API tokens.
 // Health endpoint is exempt from authentication.
 // If plainToken is provided, uses constant-time comparison.

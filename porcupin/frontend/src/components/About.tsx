@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Github, AlertTriangle, Mail, ExternalLink, Heart } from "lucide-react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import { GetVersion } from "../../wailsjs/go/main/App";
+import { GetVersion } from "../lib/backend";
 import { Logo } from "./Logo";
 
 export function About() {

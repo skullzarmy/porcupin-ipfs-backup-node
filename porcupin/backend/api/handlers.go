@@ -499,6 +499,108 @@ func (h *Handlers) SyncWallet(w http.ResponseWriter, r *http.Request) {
 }
 
 // =============================================================================
+// NFT Endpoints
+// =============================================================================
+
+// NFTResponse is a single NFT in the response
+type NFTResponse struct {
+	ID              uint64          `json:"id"`
+	TokenID         string          `json:"token_id"`
+	ContractAddress string          `json:"contract_address"`
+	WalletAddress   string          `json:"wallet_address"`
+	Name            string          `json:"name"`
+	Description     string          `json:"description"`
+	CreatorAddress  string          `json:"creator"`
+	ArtifactURI     string          `json:"artifact_uri"`
+	DisplayURI      string          `json:"display_uri"`
+	ThumbnailURI    string          `json:"thumbnail_uri"`
+	Assets          []AssetResponse `json:"assets,omitempty"`
+}
+
+// NFTsListResponse is the paginated response for NFTs
+type NFTsListResponse struct {
+	NFTs  []NFTResponse `json:"nfts"`
+	Total int64         `json:"total"`
+	Page  int           `json:"page"`
+	Limit int           `json:"limit"`
+}
+
+// GetNFTs returns paginated NFTs with their assets
+// GET /api/v1/nfts?page=N&limit=N
+func (h *Handlers) GetNFTs(w http.ResponseWriter, r *http.Request) {
+	pageStr := r.URL.Query().Get("page")
+	limitStr := r.URL.Query().Get("limit")
+
+	page := 1
+	if pageStr != "" {
+		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	limit := 50
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 500 {
+			limit = l
+		}
+	}
+
+	offset := (page - 1) * limit
+
+	// Get total count
+	var total int64
+	h.db.Model(&db.NFT{}).Count(&total)
+
+	// Get paginated results with assets
+	var nfts []db.NFT
+	h.db.Preload("Assets").Order("id DESC").Offset(offset).Limit(limit).Find(&nfts)
+
+	// Build response
+	resp := NFTsListResponse{
+		NFTs:  make([]NFTResponse, 0, len(nfts)),
+		Total: total,
+		Page:  page,
+		Limit: limit,
+	}
+
+	for _, nft := range nfts {
+		nr := NFTResponse{
+			ID:              nft.ID,
+			TokenID:         nft.TokenID,
+			ContractAddress: nft.ContractAddress,
+			WalletAddress:   nft.WalletAddress,
+			Name:            nft.Name,
+			Description:     nft.Description,
+			CreatorAddress:  nft.CreatorAddress,
+			ArtifactURI:     nft.ArtifactURI,
+			DisplayURI:      nft.DisplayURI,
+			ThumbnailURI:    nft.ThumbnailURI,
+			Assets:          make([]AssetResponse, 0, len(nft.Assets)),
+		}
+		for _, asset := range nft.Assets {
+			ar := AssetResponse{
+				ID:        asset.ID,
+				URI:       asset.URI,
+				Type:      asset.Type,
+				MimeType:  asset.MimeType,
+				Status:    asset.Status,
+				ErrorMsg:  asset.ErrorMsg,
+				SizeBytes: asset.SizeBytes,
+				NFTID:     asset.NFTID,
+			}
+			if asset.PinnedAt != nil {
+				t := asset.PinnedAt.UTC().Format(time.RFC3339)
+				ar.PinnedAt = &t
+			}
+			nr.Assets = append(nr.Assets, ar)
+		}
+		resp.NFTs = append(resp.NFTs, nr)
+	}
+
+	WriteJSON(w, http.StatusOK, resp)
+}
+
+// =============================================================================
 // Asset Endpoints
 // =============================================================================
 
@@ -653,6 +755,88 @@ func (h *Handlers) RetryAsset(w http.ResponseWriter, r *http.Request) {
 
 	WriteAccepted(w, map[string]interface{}{
 		"message":  "retry queued",
+		"asset_id": id,
+	})
+}
+
+// RetryAllFailed retries all failed assets
+// POST /api/v1/assets/retry-failed
+func (h *Handlers) RetryAllFailed(w http.ResponseWriter, r *http.Request) {
+	// Get all failed assets
+	var assets []db.Asset
+	h.db.Where("status IN ?", []string{db.StatusFailed, db.StatusFailedUnavailable}).Find(&assets)
+
+	count := len(assets)
+	if count == 0 {
+		WriteJSON(w, http.StatusOK, map[string]interface{}{
+			"message": "no failed assets to retry",
+			"count":   0,
+		})
+		return
+	}
+
+	// Reset all to pending
+	h.db.Model(&db.Asset{}).
+		Where("status IN ?", []string{db.StatusFailed, db.StatusFailedUnavailable}).
+		Updates(map[string]interface{}{
+			"status":      db.StatusPending,
+			"error_msg":   "",
+			"retry_count": 0,
+		})
+
+	// Trigger pins if service available
+	if h.service != nil {
+		for _, asset := range assets {
+			go func(id uint64) {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				defer cancel()
+				h.service.PinAsset(ctx, id)
+			}(asset.ID)
+		}
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "retry queued for all failed assets",
+		"count":   count,
+	})
+}
+
+// ClearFailed removes all failed assets from the database
+// DELETE /api/v1/assets/failed
+func (h *Handlers) ClearFailed(w http.ResponseWriter, r *http.Request) {
+	result := h.db.Where("status IN ?", []string{db.StatusFailed, db.StatusFailedUnavailable}).Delete(&db.Asset{})
+	
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "cleared failed assets",
+		"count":   result.RowsAffected,
+	})
+}
+
+// DeleteAsset removes a single asset from the database
+// DELETE /api/v1/assets/{id}
+func (h *Handlers) DeleteAsset(w http.ResponseWriter, r *http.Request) {
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		WriteBadRequest(w, "invalid asset ID")
+		return
+	}
+
+	// Check if asset exists
+	var asset db.Asset
+	if err := h.db.First(&asset, id).Error; err != nil {
+		WriteNotFound(w, "asset not found")
+		return
+	}
+
+	// Delete the asset
+	if err := h.db.Delete(&asset).Error; err != nil {
+		WriteInternalError(w, "failed to delete asset: "+err.Error())
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"message":  "asset deleted",
 		"asset_id": id,
 	})
 }

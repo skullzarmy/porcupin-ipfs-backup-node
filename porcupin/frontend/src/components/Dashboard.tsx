@@ -1,11 +1,5 @@
 import { useEffect, useState } from "react";
-import {
-    GetSyncProgress,
-    PauseBackup,
-    ResumeBackup,
-    IsBackupPaused,
-    GetRecentActivity,
-} from "../../wailsjs/go/main/App";
+import { GetSyncProgress, PauseBackup, ResumeBackup, IsBackupPaused, GetRecentActivity } from "../lib/backend";
 import type { core, db } from "../../wailsjs/go/models";
 import { formatBytes } from "../utils";
 import { FailedAssets } from "./FailedAssets";
@@ -294,8 +288,17 @@ export function Dashboard({ stats, walletCount }: DashboardProps) {
                         {recentActivity.map((asset) => (
                             <div key={asset.id} className="activity-item">
                                 <span className="activity-type">{asset.type}</span>
-                                <span className="activity-name" title={asset.nft?.name || asset.uri}>
-                                    {asset.nft?.name || "Unknown NFT"}
+                                <span
+                                    className="activity-name"
+                                    title={
+                                        (asset as unknown as { nft_name?: string }).nft_name ||
+                                        asset.nft?.name ||
+                                        asset.uri
+                                    }
+                                >
+                                    {(asset as unknown as { nft_name?: string }).nft_name ||
+                                        asset.nft?.name ||
+                                        "Unknown NFT"}
                                 </span>
                                 <span className="activity-time">
                                     {asset.pinned_at && formatTimeAgo(new Date(asset.pinned_at))}

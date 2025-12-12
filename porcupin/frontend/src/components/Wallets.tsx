@@ -7,7 +7,7 @@ import {
     DeleteWallet,
     DeleteWalletWithUnpin,
     UpdateWalletAlias,
-} from "../../wailsjs/go/main/App";
+} from "../lib/backend";
 import type { db } from "../../wailsjs/go/models";
 import { ConfirmModal } from "./ConfirmModal";
 
@@ -178,7 +178,6 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
                                         value={editAlias}
                                         onChange={(e) => setEditAlias(e.target.value)}
                                         placeholder="Enter alias"
-                                        autoFocus
                                         onKeyDown={(e) => {
                                             if (e.key === "Enter") handleSaveAlias(wallet.address);
                                             if (e.key === "Escape") handleCancelEdit();

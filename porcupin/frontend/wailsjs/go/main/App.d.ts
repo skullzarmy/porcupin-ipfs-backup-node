@@ -66,6 +66,8 @@ export function PauseBackup():Promise<void>;
 
 export function PreviewAsset(arg1:number,arg2:number):Promise<Record<string, any>>;
 
+export function RemoteProxy(arg1:main.RemoteProxyRequest):Promise<main.RemoteProxyResponse>;
+
 export function RepinAsset(arg1:number):Promise<void>;
 
 export function RepinZeroSizeAssets():Promise<number>;
@@ -83,6 +85,8 @@ export function RetryAsset(arg1:number):Promise<void>;
 export function ShowInFinder():Promise<void>;
 
 export function SyncWallet(arg1:string):Promise<void>;
+
+export function TestRemoteConnection(arg1:main.RemoteServerConfig):Promise<main.RemoteHealthResponse>;
 
 export function UnpinAsset(arg1:number):Promise<void>;
 

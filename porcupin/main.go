@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	_ "embed"
+	"os"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
@@ -20,6 +21,9 @@ var assets embed.FS
 var icon []byte
 
 func main() {
+	// Check for debug mode via environment variable
+	debugMode := os.Getenv("PORCUPIN_DEBUG") == "1"
+
 	// Create an instance of the app structure
 	app := NewApp()
 
@@ -69,6 +73,10 @@ func main() {
 				Message: "Version 1.0.0\n\nTezos NFT Backup to IPFS\n\nDeveloped by skllzrmy.tez\n\nGitHub: github.com/skllzrmy/porcupin\n\nSupport: joe@poundfit.com",
 				Icon:    icon,
 			},
+		},
+		// Enable DevTools in debug mode (set PORCUPIN_DEBUG=1 env var)
+		Debug: options.Debug{
+			OpenInspectorOnStartup: debugMode,
 		},
 	})
 

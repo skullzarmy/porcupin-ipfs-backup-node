@@ -118,6 +118,10 @@ export function PreviewAsset(arg1, arg2) {
   return window['go']['main']['App']['PreviewAsset'](arg1, arg2);
 }
 
+export function RemoteProxy(arg1) {
+  return window['go']['main']['App']['RemoteProxy'](arg1);
+}
+
 export function RepinAsset(arg1) {
   return window['go']['main']['App']['RepinAsset'](arg1);
 }
@@ -152,6 +156,10 @@ export function ShowInFinder() {
 
 export function SyncWallet(arg1) {
   return window['go']['main']['App']['SyncWallet'](arg1);
+}
+
+export function TestRemoteConnection(arg1) {
+  return window['go']['main']['App']['TestRemoteConnection'](arg1);
 }
 
 export function UnpinAsset(arg1) {

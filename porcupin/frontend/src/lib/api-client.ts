@@ -95,6 +95,8 @@ export class PorcupinAPIClient {
     private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
         const url = `${this.baseURL}${path}`;
 
+        console.log(`[API] ${method} ${url}`);
+
         const init: RequestInit = {
             method,
             headers: this.headers,
@@ -104,7 +106,15 @@ export class PorcupinAPIClient {
             init.body = JSON.stringify(body);
         }
 
-        const response = await fetch(url, init);
+        let response: Response;
+        try {
+            response = await fetch(url, init);
+        } catch (err) {
+            console.error(`[API] Network error for ${method} ${url}:`, err);
+            throw new Error(`Network error: ${err instanceof Error ? err.message : "Failed to connect"}`);
+        }
+
+        console.log(`[API] Response: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
             let errorMsg = `API request failed: ${response.status} ${response.statusText}`;
@@ -116,6 +126,7 @@ export class PorcupinAPIClient {
             } catch {
                 // Ignore JSON parse errors
             }
+            console.error(`[API] Error:`, errorMsg);
             throw new Error(errorMsg);
         }
 
@@ -548,4 +559,28 @@ export async function discoverServers(config: APIConfig, timeout = 5): Promise<D
 export function isWailsEnvironment(): boolean {
     // @ts-expect-error Wails runtime is injected globally
     return typeof window !== "undefined" && typeof window.go !== "undefined";
+}
+
+/**
+ * Wait for Wails runtime to be available
+ * Returns immediately if already available, otherwise polls until ready
+ */
+export async function waitForWails(timeoutMs = 5000): Promise<boolean> {
+    if (isWailsEnvironment()) {
+        return true;
+    }
+
+    const startTime = Date.now();
+    return new Promise((resolve) => {
+        const check = () => {
+            if (isWailsEnvironment()) {
+                resolve(true);
+            } else if (Date.now() - startTime > timeoutMs) {
+                resolve(false);
+            } else {
+                setTimeout(check, 50);
+            }
+        };
+        check();
+    });
 }

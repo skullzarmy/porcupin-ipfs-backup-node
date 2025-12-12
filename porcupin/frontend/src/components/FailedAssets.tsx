@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { GetFailedAssets, RetryAsset, RetryAllFailed, ClearFailed, DeleteAsset } from "../../wailsjs/go/main/App";
+import { GetFailedAssets, RetryAsset, RetryAllFailed, ClearFailed, DeleteAsset } from "../lib/backend";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { RefreshCw, Trash2, ExternalLink, PartyPopper } from "lucide-react";
 import type { db } from "../../wailsjs/go/models";

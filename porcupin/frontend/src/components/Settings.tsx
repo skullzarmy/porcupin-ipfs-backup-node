@@ -13,9 +13,10 @@ import {
     GetMigrationStatus,
     CancelMigration,
     DiscoverServers,
+    TestRemoteConnection,
 } from "../lib/backend";
 import { useConnection } from "../lib/connection";
-import { EventsOn } from "../../wailsjs/runtime/runtime";
+import { EventsOn, LogInfo, LogError } from "../../wailsjs/runtime/runtime";
 import {
     AlertTriangle,
     HardDrive,
@@ -720,9 +721,9 @@ export function Settings({ onStatsChange }: SettingsProps) {
                             </div>
                             {discoveredServers.length > 0 && (
                                 <div className="discovered-servers">
-                                    {discoveredServers.map((server, idx) => (
+                                    {discoveredServers.map((server) => (
                                         <button
-                                            key={idx}
+                                            key={`${server.host}:${server.port}`}
                                             type="button"
                                             className="discovered-server"
                                             onClick={() => {
@@ -882,23 +883,29 @@ export function Settings({ onStatsChange }: SettingsProps) {
                             <button
                                 type="button"
                                 onClick={async () => {
+                                    LogInfo("[Settings] Test Connection button clicked");
                                     if (!remoteHost || !remoteToken) {
                                         setRemoteError("Host and token are required");
                                         return;
                                     }
+                                    LogInfo(`[Settings] Testing connection to ${remoteHost}:${remotePort}`);
                                     setRemoteTesting(true);
                                     setRemoteError("");
                                     setRemoteTestResult(null);
                                     try {
-                                        const health = await testRemoteConnection({
+                                        // Use Go binding directly to bypass WebView fetch restrictions
+                                        const health = await TestRemoteConnection({
                                             host: remoteHost,
                                             port: parseInt(remotePort) || 8085,
                                             token: remoteToken,
                                             useTLS: remoteUseTLS,
                                         });
+                                        LogInfo(`[Settings] Test Connection success: ${health.version}`);
                                         setRemoteTestResult(`Connection OK - Server v${health.version}`);
                                     } catch (err) {
-                                        setRemoteError(err instanceof Error ? err.message : "Connection failed");
+                                        const errMsg = err instanceof Error ? err.message : "Connection failed";
+                                        LogError(`[Settings] Test Connection error: ${errMsg}`);
+                                        setRemoteError(errMsg);
                                     } finally {
                                         setRemoteTesting(false);
                                     }

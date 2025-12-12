@@ -54,22 +54,25 @@ func NewRouterWithConfig(handlers *Handlers, cfg RouterConfig) *chi.Mux {
 	// 2. RealIP (extracts real IP from headers)
 	r.Use(middleware.RealIP)
 
-	// 3. Logging (if enabled)
+	// 3. CORS (must be before auth to handle OPTIONS preflight)
+	r.Use(CORSMiddleware)
+
+	// 4. Logging (if enabled)
 	if cfg.EnableLogging {
 		r.Use(func(next http.Handler) http.Handler {
 			return LoggingMiddleware(next)
 		})
 	}
 
-	// 4. Rate Limiting (if configured)
+	// 5. Rate Limiting (if configured)
 	if cfg.RateLimiter != nil {
 		r.Use(RateLimitMiddleware(cfg.RateLimiter))
 	}
 
-	// 5. IP Filtering
+	// 6. IP Filtering
 	r.Use(IPFilterMiddleware(cfg.AllowPublic))
 
-	// 6. Authentication
+	// 7. Authentication
 	r.Use(AuthMiddleware(cfg.Token, cfg.TokenHash))
 
 	// Mount routes AFTER middleware
@@ -99,10 +102,16 @@ func mountRoutes(r *chi.Mux, handlers *Handlers) {
 		r.Delete("/wallets/{address}", handlers.DeleteWallet)
 		r.Post("/wallets/{address}/sync", handlers.SyncWallet)
 
+		// NFTs
+		r.Get("/nfts", handlers.GetNFTs)
+
 		// Assets
 		r.Get("/assets", handlers.GetAssets)
 		r.Get("/assets/failed", handlers.GetFailedAssets)
+		r.Post("/assets/retry-failed", handlers.RetryAllFailed)
+		r.Delete("/assets/failed", handlers.ClearFailed)
 		r.Post("/assets/{id}/retry", handlers.RetryAsset)
+		r.Delete("/assets/{id}", handlers.DeleteAsset)
 
 		// Control
 		r.Post("/sync", handlers.TriggerSync)

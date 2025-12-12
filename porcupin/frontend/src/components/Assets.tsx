@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { GetNFTsWithAssets, RetryAsset, UnpinAsset, DeleteAsset, ShowInFinder } from "../../wailsjs/go/main/App";
+import { GetNFTsWithAssets, RetryAsset, UnpinAsset, DeleteAsset, ShowInFinder } from "../lib/backend";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import {
     Search,

@@ -8,7 +8,7 @@ import { Wallets } from "./components/Wallets";
 import { Assets } from "./components/Assets";
 import { Settings } from "./components/Settings";
 import { About } from "./components/About";
-import { ConnectionProvider } from "./lib/connection";
+import { ConnectionProvider, useConnection } from "./lib/connection";
 
 /** Asset statistics returned from the backend */
 interface AssetStats {
@@ -21,12 +21,16 @@ interface AssetStats {
     total_size_bytes: number;
 }
 
-function App() {
+function AppContent() {
     const [activeTab, setActiveTab] = useState("dashboard");
     const [wallets, setWallets] = useState<db.Wallet[]>([]);
     const [stats, setStats] = useState<Partial<AssetStats>>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+
+    // Get connection state to trigger reloads when it changes
+    const { state } = useConnection();
+    const isConnected = state.status === "connected";
 
     // Apply saved theme on mount
     useEffect(() => {
@@ -37,21 +41,33 @@ function App() {
     const updateStats = useCallback(async () => {
         try {
             const newStats = await GetAssetStats();
+            console.log("[App] GetAssetStats returned:", newStats);
             setStats(newStats || {});
         } catch (err: unknown) {
-            console.error(err);
+            console.error("[App] GetAssetStats error:", err);
         }
     }, []);
 
     const loadWallets = useCallback(async () => {
         try {
             const res = await GetWallets();
+            console.log("[App] GetWallets returned:", res?.length, "wallets");
             setWallets(res || []);
         } catch (err: unknown) {
             console.error(err);
         }
     }, []);
 
+    // Reload data when connection status changes to connected
+    useEffect(() => {
+        if (isConnected) {
+            console.log("[App] Connection status changed to connected, reloading data...");
+            loadWallets();
+            updateStats();
+        }
+    }, [isConnected, loadWallets, updateStats]);
+
+    // Initial load and polling
     useEffect(() => {
         loadWallets();
         updateStats();
@@ -60,43 +76,49 @@ function App() {
     }, [loadWallets, updateStats]);
 
     return (
+        <div className="app-layout">
+            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+
+            <main className="main-content">
+                {/* Drag region for window - macOS/Windows title bar area */}
+                <div className="drag-region" style={{ "--wails-draggable": "drag" } as React.CSSProperties}></div>
+
+                {error && (
+                    <div className="error-banner">
+                        <span>{error}</span>
+                        <button type="button" onClick={() => setError("")}>
+                            ×
+                        </button>
+                    </div>
+                )}
+
+                {activeTab === "dashboard" && <Dashboard stats={stats} walletCount={wallets.length} />}
+
+                {activeTab === "wallets" && (
+                    <Wallets
+                        wallets={wallets}
+                        loading={loading}
+                        setLoading={setLoading}
+                        setError={setError}
+                        onWalletsChange={loadWallets}
+                        onStatsChange={updateStats}
+                    />
+                )}
+
+                {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
+
+                {activeTab === "settings" && <Settings onStatsChange={updateStats} />}
+
+                {activeTab === "about" && <About />}
+            </main>
+        </div>
+    );
+}
+
+function App() {
+    return (
         <ConnectionProvider>
-            <div className="app-layout">
-                <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
-
-                <main className="main-content">
-                    {/* Drag region for window - macOS/Windows title bar area */}
-                    <div className="drag-region" style={{ "--wails-draggable": "drag" } as React.CSSProperties}></div>
-
-                    {error && (
-                        <div className="error-banner">
-                            <span>{error}</span>
-                            <button type="button" onClick={() => setError("")}>
-                                ×
-                            </button>
-                        </div>
-                    )}
-
-                    {activeTab === "dashboard" && <Dashboard stats={stats} walletCount={wallets.length} />}
-
-                    {activeTab === "wallets" && (
-                        <Wallets
-                            wallets={wallets}
-                            loading={loading}
-                            setLoading={setLoading}
-                            setError={setError}
-                            onWalletsChange={loadWallets}
-                            onStatsChange={updateStats}
-                        />
-                    )}
-
-                    {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
-
-                    {activeTab === "settings" && <Settings onStatsChange={updateStats} />}
-
-                    {activeTab === "about" && <About />}
-                </main>
-            </div>
+            <AppContent />
         </ConnectionProvider>
     );
 }

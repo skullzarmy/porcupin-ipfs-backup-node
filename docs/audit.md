@@ -70,7 +70,61 @@ This document outlines potential security and reliability risks identified durin
 
 ---
 
-## 4. Architecture & Resilience
+## 4. REST API Security (Headless Server)
+
+### Authentication & Token Security
+
+**Risk**: Weak token handling could allow brute-force attacks or token theft.
+
+**Mitigation**:
+
+-   Tokens are hashed with bcrypt before storage (plaintext never persisted)
+-   Constant-time comparison to prevent timing attacks
+-   Tokens shown only once at generation time
+
+### Rate Limiting
+
+**Risk**: Without rate limiting, attackers could exhaust server resources or brute-force tokens.
+
+**Mitigation**: Dual-layer rate limiting implemented:
+
+-   Per-IP: 10 requests/second
+-   Global: 100 requests/second
+-   Rate limit headers returned (`X-RateLimit-*`) for client visibility
+
+### IP Spoofing via Proxies
+
+**Risk**: Behind reverse proxies, `X-Forwarded-For` headers could be spoofed to bypass IP-based rate limiting.
+
+**Mitigation**: Header trust is disabled by default. The `--trust-proxy` flag must be explicitly set when running behind a trusted reverse proxy that sets real client IPs.
+
+### CORS Misconfiguration
+
+**Risk**: Wildcard CORS (`*`) would allow any website to make authenticated requests if a token is leaked.
+
+**Mitigation**: CORS allows only localhost origins by default (`http://localhost:*`, `http://127.0.0.1:*`). Additional origins can be configured via `--cors-origins` flag.
+
+### Request Body Attacks
+
+**Risk**: Large request bodies could exhaust memory or be used for DoS.
+
+**Mitigation**: All requests are limited to 1MB maximum body size. Requests exceeding this limit are rejected immediately.
+
+### Input Validation
+
+**Risk**: Malformed input could cause unexpected behavior or injection attacks.
+
+**Mitigation**: Tezos addresses are validated against the proper format regex (`^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$`). Invalid addresses are rejected with clear error messages.
+
+### Error Information Leakage
+
+**Risk**: Detailed error messages in API responses could reveal internal implementation details to attackers.
+
+**Mitigation**: Internal errors are logged server-side with full details, but API responses return only generic "Internal server error" messages to clients.
+
+---
+
+## 5. Architecture & Resilience
 
 ### Queue State Persistence
 

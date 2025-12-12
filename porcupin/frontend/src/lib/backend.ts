@@ -3,7 +3,7 @@
  *
  * This module provides a unified interface that routes calls to either:
  * - Local Wails bindings (when running as desktop app)
- * - Remote API client (when connected to headless server)
+ * - Remote API client via Go proxy (when connected to headless server)
  *
  * Components should import from this module instead of directly from
  * wailsjs/go/main/App to enable seamless local/remote switching.
@@ -16,7 +16,7 @@
 
 import * as WailsApp from "../../wailsjs/go/main/App";
 import type { config, core, db, ipfs, main, storage } from "../../wailsjs/go/models";
-import type { PorcupinAPIClient } from "./api-client";
+import type { ProxyAPIClient } from "./proxy-api-client";
 
 // =============================================================================
 // Types
@@ -90,16 +90,18 @@ export interface Backend {
 // Connection State (module-level singleton)
 // =============================================================================
 
-let apiClient: PorcupinAPIClient | null = null;
+let apiClient: ProxyAPIClient | null = null;
 let isRemoteMode = false;
 
 /**
  * Set the API client for remote mode
  * Called by ConnectionProvider when connecting to remote server
  */
-export function setAPIClient(client: PorcupinAPIClient | null): void {
+export function setAPIClient(client: ProxyAPIClient | null): void {
+    console.log("[Backend] setAPIClient called with:", client ? "ProxyAPIClient instance" : "null");
     apiClient = client;
     isRemoteMode = client !== null;
+    console.log("[Backend] isRemoteMode now:", isRemoteMode);
 }
 
 /**
@@ -183,10 +185,10 @@ const localBackend: Backend = {
 };
 
 // =============================================================================
-// Remote Backend (API Client wrapper)
+// Remote Backend (Proxy API Client wrapper)
 // =============================================================================
 
-function createRemoteBackend(client: PorcupinAPIClient): Backend {
+function createRemoteBackend(client: ProxyAPIClient): Backend {
     return {
         // Wallet operations
         AddWallet: (address, alias) => client.addWallet(address, alias),
@@ -258,9 +260,12 @@ function createRemoteBackend(client: PorcupinAPIClient): Backend {
  * Returns remote backend if connected to remote server, otherwise local Wails backend
  */
 export function getBackend(): Backend {
+    console.log("[Backend] getBackend called, isRemoteMode:", isRemoteMode, "apiClient:", apiClient ? "set" : "null");
     if (isRemoteMode && apiClient) {
+        console.log("[Backend] Returning REMOTE backend");
         return createRemoteBackend(apiClient);
     }
+    console.log("[Backend] Returning LOCAL backend");
     return localBackend;
 }
 
@@ -329,5 +334,6 @@ export const ShowInFinder = () => getBackend().ShowInFinder();
 export const ValidateStoragePath = (...args: Parameters<Backend["ValidateStoragePath"]>) =>
     getBackend().ValidateStoragePath(...args);
 
-// Discovery - only works in local/desktop mode
+// Discovery and remote connection - only works in local/desktop mode
 export const DiscoverServers = WailsApp.DiscoverServers;
+export const TestRemoteConnection = WailsApp.TestRemoteConnection;

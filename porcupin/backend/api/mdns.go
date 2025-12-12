@@ -15,7 +15,7 @@ const (
 	// MDNSServiceType is the mDNS service type for Porcupin
 	MDNSServiceType = "_porcupin._tcp"
 
-	// MDNSDomain is the mDNS domain
+	// MDNSDomain is the mDNS domain (trailing dot for proper DNS format)
 	MDNSDomain = "local."
 )
 
@@ -107,11 +107,48 @@ type DiscoveredServer struct {
 // DiscoverServers scans for Porcupin servers on the local network via mDNS
 // timeout specifies how long to scan (e.g., 5*time.Second)
 func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredServer, error) {
-	// Create resolver
-	resolver, err := zeroconf.NewResolver(nil)
+	log.Printf("mDNS: Starting discovery scan for service=%q domain=%q (timeout: %v)", MDNSServiceType, MDNSDomain, timeout)
+	
+	// Find interfaces with IPv4 addresses for multicast
+	var ipv4Ifaces []net.Interface
+	interfaces, _ := net.Interfaces()
+	for _, iface := range interfaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if iface.Flags&net.FlagMulticast == 0 {
+			continue
+		}
+		addrs, _ := iface.Addrs()
+		hasIPv4 := false
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok {
+				if ipnet.IP.To4() != nil && !ipnet.IP.IsLoopback() {
+					hasIPv4 = true
+					break
+				}
+			}
+		}
+		if hasIPv4 {
+			ipv4Ifaces = append(ipv4Ifaces, iface)
+			log.Printf("mDNS: Using interface %s for discovery", iface.Name)
+		}
+	}
+	
+	if len(ipv4Ifaces) == 0 {
+		log.Printf("mDNS: WARNING - No interfaces with IPv4 addresses found!")
+	}
+	
+	// Create resolver with IPv4 only and specific interfaces
+	resolver, err := zeroconf.NewResolver(
+		zeroconf.SelectIPTraffic(zeroconf.IPv4),
+		zeroconf.SelectIfaces(ipv4Ifaces),
+	)
 	if err != nil {
+		log.Printf("mDNS: Failed to create resolver: %v", err)
 		return nil, fmt.Errorf("failed to create mDNS resolver: %w", err)
 	}
+	log.Printf("mDNS: Resolver created successfully (IPv4 only, %d interfaces)", len(ipv4Ifaces))
 
 	// Channel to receive entries
 	entries := make(chan *zeroconf.ServiceEntry)
@@ -124,6 +161,7 @@ func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredSe
 	go func() {
 		defer close(done)
 		for entry := range entries {
+			log.Printf("mDNS: Found entry: %s at %s:%d", entry.Instance, entry.HostName, entry.Port)
 			server := parseServiceEntry(entry)
 			if server != nil {
 				servers = append(servers, *server)
@@ -135,18 +173,23 @@ func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredSe
 	scanCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Browse for services - this blocks until context times out
+	// Browse for services - this starts async browsing
+	log.Printf("mDNS: Calling Browse() for %s in %s", MDNSServiceType, MDNSDomain)
 	err = resolver.Browse(scanCtx, MDNSServiceType, MDNSDomain, entries)
 	if err != nil {
+		log.Printf("mDNS: Browse() returned error: %v", err)
 		return nil, fmt.Errorf("failed to browse mDNS services: %w", err)
 	}
+	log.Printf("mDNS: Browse() started successfully, waiting %v for results...", timeout)
 
 	// Wait for scan to complete
 	<-scanCtx.Done()
+	log.Printf("mDNS: Context done (reason: %v), waiting for goroutine to finish", scanCtx.Err())
 
 	// Wait for goroutine to finish processing all entries
 	<-done
 
+	log.Printf("mDNS: Scan complete, found %d servers", len(servers))
 	return servers, nil
 }
 

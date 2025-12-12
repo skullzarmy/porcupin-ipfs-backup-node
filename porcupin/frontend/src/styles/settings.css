@@ -511,6 +511,7 @@
     transition: all 0.15s ease;
     text-align: left;
     width: 100%;
+    color: var(--text-primary);
 }
 
 .discovered-server:hover {
@@ -521,6 +522,7 @@
 .discovered-server .server-name {
     font-weight: 500;
     flex: 1;
+    color: var(--text-primary);
 }
 
 .discovered-server .server-host {
@@ -585,6 +587,7 @@
 .profile-name {
     font-weight: 500;
     flex: 1;
+    color: var(--text-primary);
 }
 
 .profile-host {

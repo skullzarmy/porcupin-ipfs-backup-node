@@ -469,6 +469,82 @@ export namespace ipfs {
 
 export namespace main {
 	
+	export class RemoteHealthResponse {
+	    status: string;
+	    version: string;
+	    timestamp: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteHealthResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.version = source["version"];
+	        this.timestamp = source["timestamp"];
+	    }
+	}
+	export class RemoteProxyRequest {
+	    host: string;
+	    port: number;
+	    token: string;
+	    useTLS: boolean;
+	    method: string;
+	    path: string;
+	    headers?: Record<string, string>;
+	    body?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteProxyRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.token = source["token"];
+	        this.useTLS = source["useTLS"];
+	        this.method = source["method"];
+	        this.path = source["path"];
+	        this.headers = source["headers"];
+	        this.body = source["body"];
+	    }
+	}
+	export class RemoteProxyResponse {
+	    statusCode: number;
+	    headers: Record<string, string>;
+	    body: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteProxyResponse(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.statusCode = source["statusCode"];
+	        this.headers = source["headers"];
+	        this.body = source["body"];
+	    }
+	}
+	export class RemoteServerConfig {
+	    host: string;
+	    port: number;
+	    token: string;
+	    useTLS: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new RemoteServerConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.token = source["token"];
+	        this.useTLS = source["useTLS"];
+	    }
+	}
 	export class StorageInfo {
 	    used_bytes: number;
 	    used_gb: number;
