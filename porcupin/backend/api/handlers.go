@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -13,6 +14,17 @@ import (
 	"porcupin/backend/db"
 	"porcupin/backend/ipfs"
 )
+
+// MaxRequestBodySize is the maximum allowed request body size (1MB)
+const MaxRequestBodySize = 1 << 20 // 1MB
+
+// tezosAddressPattern validates Tezos wallet addresses (tz1, tz2, tz3, KT1)
+var tezosAddressPattern = regexp.MustCompile(`^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$`)
+
+// IsValidTezosAddress checks if an address matches the Tezos address format
+func IsValidTezosAddress(addr string) bool {
+	return tezosAddressPattern.MatchString(addr)
+}
 
 // Handlers holds the API handlers and their dependencies
 type Handlers struct {
@@ -245,6 +257,9 @@ type AddWalletRequest struct {
 // AddWallet adds a new wallet to track
 // POST /api/v1/wallets
 func (h *Handlers) AddWallet(w http.ResponseWriter, r *http.Request) {
+	// Limit request body size to prevent DoS
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodySize)
+
 	var req AddWalletRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteBadRequest(w, "invalid JSON: "+err.Error())
@@ -253,6 +268,12 @@ func (h *Handlers) AddWallet(w http.ResponseWriter, r *http.Request) {
 
 	if req.Address == "" {
 		WriteBadRequest(w, "address is required")
+		return
+	}
+
+	// Validate Tezos address format
+	if !IsValidTezosAddress(req.Address) {
+		WriteBadRequest(w, "invalid Tezos address format (expected tz1/tz2/tz3/KT1 followed by 33 alphanumeric characters)")
 		return
 	}
 
@@ -349,6 +370,9 @@ type UpdateWalletRequest struct {
 // UpdateWallet updates a wallet's settings
 // PUT /api/v1/wallets/{address}
 func (h *Handlers) UpdateWallet(w http.ResponseWriter, r *http.Request) {
+	// Limit request body size to prevent DoS
+	r.Body = http.MaxBytesReader(w, r.Body, MaxRequestBodySize)
+
 	address := chi.URLParam(r, "address")
 	if address == "" {
 		WriteBadRequest(w, "address is required")

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -153,8 +154,16 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 	return false
 }
 
+// tezosAddressPattern validates Tezos wallet addresses (tz1, tz2, tz3, KT1)
+var tezosAddressPattern = regexp.MustCompile(`^(tz[1-3]|KT1)[a-zA-Z0-9]{33}$`)
+
 // AddWallet adds a wallet to be tracked
 func (a *App) AddWallet(address string, alias string) error {
+	// Validate Tezos address format
+	if !tezosAddressPattern.MatchString(address) {
+		return fmt.Errorf("invalid Tezos address format (expected tz1/tz2/tz3/KT1 followed by 33 alphanumeric characters)")
+	}
+
 	// Use global defaults for sync settings
 	wallet := &db.Wallet{
 		Address:     address,
