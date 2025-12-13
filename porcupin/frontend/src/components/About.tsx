@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Github, AlertTriangle, Mail, ExternalLink, Heart } from "lucide-react";
+import { Github, AlertTriangle, Mail, ExternalLink, Heart, Globe } from "lucide-react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
 import { GetVersion } from "../lib/backend";
 import { Logo } from "./Logo";
@@ -29,6 +29,14 @@ export function About() {
             </p>
 
             <div className="about-links">
+                <button type="button" className="about-link" onClick={() => BrowserOpenURL("https://porcupin.xyz")}>
+                    <Globe size={18} />
+                    <span className="link-text">
+                        <span className="link-title">porcupin.xyz</span>
+                        <span className="link-subtitle">Homepage, docs, and latest releases</span>
+                    </span>
+                    <ExternalLink size={14} />
+                </button>
                 <button
                     type="button"
                     className="about-link"

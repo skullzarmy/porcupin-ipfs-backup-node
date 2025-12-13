@@ -31,6 +31,7 @@ function AppContent() {
     // Get connection state to trigger reloads when it changes
     const { state } = useConnection();
     const isConnected = state.status === "connected";
+    const connectionMode = state.mode;
 
     // Apply saved theme on mount
     useEffect(() => {
@@ -45,6 +46,8 @@ function AppContent() {
             setStats(newStats || {});
         } catch (err: unknown) {
             console.error("[App] GetAssetStats error:", err);
+            // Clear stats on error to avoid showing stale data
+            setStats({});
         }
     }, []);
 
@@ -54,9 +57,21 @@ function AppContent() {
             console.log("[App] GetWallets returned:", res?.length, "wallets");
             setWallets(res || []);
         } catch (err: unknown) {
-            console.error(err);
+            console.error("[App] GetWallets error:", err);
+            // Clear wallets on error to avoid showing stale data
+            setWallets([]);
         }
     }, []);
+
+    // Clear data when connection mode changes (switching between local/remote)
+    useEffect(() => {
+        console.log("[App] Connection mode changed to:", connectionMode, "status:", state.status);
+        // Clear stale data when switching modes
+        if (state.status === "connecting" || state.status === "disconnected") {
+            setWallets([]);
+            setStats({});
+        }
+    }, [connectionMode, state.status]);
 
     // Reload data when connection status changes to connected
     useEffect(() => {

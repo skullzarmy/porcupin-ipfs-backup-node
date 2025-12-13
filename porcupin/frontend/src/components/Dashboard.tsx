@@ -269,7 +269,7 @@ export function Dashboard({ stats, walletCount }: DashboardProps) {
                         <span className="mini-stat-label">Pending</span>
                     </div>
                 )}
-                {status?.pending_retries && status.pending_retries > 0 && (
+                {status?.pending_retries != null && status.pending_retries > 0 && (
                     <div className="mini-stat">
                         <RefreshCw size={16} />
                         <span className="mini-stat-value">{status.pending_retries}</span>
