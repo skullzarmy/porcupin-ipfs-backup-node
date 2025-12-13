@@ -6,7 +6,7 @@
         "build": "bun run build:all",
         "build:all": "bun run build:desktop && bun run build:headless",
         "build:desktop": "bun run build:macos && bun run build:windows",
-        "build:macos": "cd porcupin && wails build -platform darwin/universal",
+        "build:macos": "cd porcupin && wails build -platform darwin/universal && codesign --force --deep --sign - --entitlements build/darwin/entitlements.plist build/bin/Porcupin.app",
         "build:windows": "bun run build:windows:amd64 && bun run build:windows:arm64",
         "build:windows:amd64": "cd porcupin && wails build -platform windows/amd64",
         "build:windows:arm64": "cd porcupin && wails build -platform windows/arm64",

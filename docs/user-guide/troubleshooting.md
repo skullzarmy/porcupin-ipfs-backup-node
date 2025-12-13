@@ -205,6 +205,39 @@ The SQLite database may be corrupted. Try:
 
 ## Network Issues
 
+### macOS: "Connection failed" when connecting to remote server
+
+**Symptom:** Remote server connection works when app is launched from Terminal, but fails when launched from Finder/Applications.
+
+**Cause:** Missing network entitlements. macOS sandboxes apps launched from Finder and requires explicit entitlements for network access.
+
+**Solution for users:** This is a bug in the app build. Please report it. As a workaround, launch from Terminal:
+
+```bash
+/Applications/Porcupin.app/Contents/MacOS/porcupin
+```
+
+**Solution for developers:** Ensure `build/darwin/entitlements.plist` includes:
+
+```xml
+<key>com.apple.security.network.client</key>
+<true/>
+<key>com.apple.security.network.server</key>
+<true/>
+```
+
+Then rebuild with `wails build`.
+
+### Windows: Remote connections not working
+
+**Cause:** Windows Firewall blocked the app on first launch.
+
+**Solution:**
+
+1. Open Windows Security → Firewall & network protection → Allow an app through firewall
+2. Find Porcupin and ensure both Private and Public are checked
+3. Or when the firewall prompt appears on first launch, click "Allow access"
+
 ### "Failed to fetch from TZKT API"
 
 **Cause 1: TZKT is down**

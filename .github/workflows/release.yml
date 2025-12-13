@@ -101,6 +101,15 @@ jobs:
                   fi
               shell: bash
 
+            - name: Sign macOS app with entitlements
+              if: runner.os == 'macOS'
+              working-directory: porcupin
+              run: |
+                  # Sign the app with entitlements for network access
+                  # This allows the app to make network connections when launched from Finder
+                  codesign --force --deep --sign - --entitlements ./build/darwin/entitlements.plist "./build/bin/Porcupin.app"
+              shell: bash
+
             - name: Package app
               working-directory: porcupin/build/bin
               run: ${{ matrix.package_cmd }}

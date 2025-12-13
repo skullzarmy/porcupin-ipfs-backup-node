@@ -310,3 +310,69 @@ path := baseDir + "/" + filename
 // GOOD
 path := filepath.Join(baseDir, filename)
 ```
+
+---
+
+## Platform Permissions & Entitlements
+
+### macOS Entitlements
+
+macOS apps require entitlements for certain operations when launched from Finder (not from Terminal). Without proper entitlements, network operations will silently fail.
+
+**Location:** `porcupin/build/darwin/entitlements.plist`
+
+**Required entitlements for Porcupin:**
+
+| Entitlement                                         | Purpose                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------- |
+| `com.apple.security.network.client`                 | Outbound connections (TZKT API, IPFS network, remote servers) |
+| `com.apple.security.network.server`                 | Inbound connections (embedded IPFS node, mDNS discovery)      |
+| `com.apple.security.files.user-selected.read-write` | Storage migration to user-selected folders                    |
+| `com.apple.security.files.downloads.read-write`     | Access to Downloads folder                                    |
+
+**Symptoms of missing entitlements:**
+
+-   App works when launched from Terminal but not from Finder
+-   Network connections fail silently with generic "Connection failed" errors
+-   Remote server connections don't work
+
+**Debugging tip:** If a feature works from Terminal but not Finder, it's almost certainly a missing entitlement.
+
+### Windows
+
+Windows does not have an entitlements system. However:
+
+-   **Windows Firewall** will prompt on first launch asking to allow network access. Users must click "Allow" for IPFS to function.
+-   The app manifest (`build/windows/wails.exe.manifest`) only contains DPI settings, no permission requests.
+
+### Linux
+
+Linux desktop apps have no permission system by default. However:
+
+-   **Firewall (ufw/firewalld)** may block IPFS ports (4001) and API port (8085)
+-   **Flatpak/Snap** (if used for distribution) have their own sandboxing that requires manifest declarations
+
+**Firewall rules for headless server:**
+
+```bash
+# ufw
+sudo ufw allow 4001/tcp   # IPFS swarm
+sudo ufw allow 4001/udp   # IPFS QUIC
+sudo ufw allow 8085/tcp   # API (if remote access enabled)
+
+# firewalld
+sudo firewall-cmd --permanent --add-port=4001/tcp
+sudo firewall-cmd --permanent --add-port=4001/udp
+sudo firewall-cmd --permanent --add-port=8085/tcp
+sudo firewall-cmd --reload
+```
+
+### Permission Matrix
+
+| Feature                   | macOS                | Windows                | Linux                        |
+| ------------------------- | -------------------- | ---------------------- | ---------------------------- |
+| Outbound network (APIs)   | Entitlement required | Auto (firewall prompt) | Auto                         |
+| Inbound network (IPFS)    | Entitlement required | Firewall prompt        | Firewall rules may be needed |
+| File system (~/.porcupin) | Auto                 | Auto                   | Auto                         |
+| User-selected files       | Entitlement required | Auto                   | Auto                         |
+| Unsigned app warnings     | Gatekeeper bypass    | SmartScreen bypass     | None                         |

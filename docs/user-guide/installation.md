@@ -38,17 +38,22 @@ All downloads available at [Releases](https://github.com/skullzarmy/porcupin-ipf
 -   4GB RAM minimum
 -   10GB+ free disk space (more = more NFTs)
 
+> **Security Note:** On first launch, macOS may show "porcupin cannot be opened because the developer cannot be verified." Right-click the app and select "Open" to bypass this, or go to System Settings → Privacy & Security and click "Open Anyway".
+
 ### Windows
 
 1. Download `porcupin-windows-amd64.zip` (or `arm64` for ARM devices) from [Releases](https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases/latest)
 2. Extract and run `porcupin.exe`
-3. Add your wallet addresses and you're done!
+3. Allow network access when Windows Firewall prompts
+4. Add your wallet addresses and you're done!
 
 **System Requirements:**
 
 -   Windows 10/11 (64-bit)
 -   4GB RAM minimum
 -   10GB+ free disk space
+
+> **Firewall Note:** On first launch, Windows Firewall will ask "Allow porcupin to communicate on networks?" Click **Allow** for both private and public networks. This is required for IPFS to connect to peers and for remote server connections.
 
 ### Linux (x64)
 
@@ -63,6 +68,19 @@ All downloads available at [Releases](https://github.com/skullzarmy/porcupin-ipf
 -   `libwebkit2gtk-4.1` installed (`sudo apt install libwebkit2gtk-4.1-0`)
 -   4GB RAM minimum
 -   10GB+ free disk space
+
+> **Firewall Note:** If using `ufw`, you may need to allow IPFS ports:
+>
+> ```bash
+> sudo ufw allow 4001/tcp  # IPFS swarm
+> sudo ufw allow 4001/udp  # IPFS swarm (QUIC)
+> ```
+>
+> If running the headless server with remote access enabled, also allow the API port:
+>
+> ```bash
+> sudo ufw allow 8085/tcp  # Porcupin API (only if using remote access)
+> ```
 
 **Note:** If you prefer a headless server (no GUI), see the [Headless Server](#headless-server-no-gui) section below.
 
