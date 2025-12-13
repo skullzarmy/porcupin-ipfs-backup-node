@@ -65,7 +65,6 @@
 }
 
 .wallet-edit-alias input:focus {
-    outline: none;
     border-color: var(--accent-primary);
 }
 

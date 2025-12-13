@@ -100,6 +100,7 @@ export class PorcupinAPIClient {
         const init: RequestInit = {
             method,
             headers: this.headers,
+            mode: "cors", // Explicitly enable CORS for WebView compatibility
         };
 
         if (body !== undefined) {

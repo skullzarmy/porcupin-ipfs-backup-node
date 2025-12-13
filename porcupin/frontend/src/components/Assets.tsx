@@ -486,20 +486,22 @@ export function Assets({ onStatsChange }: AssetsProps) {
             {/* Toolbar */}
             <div className="assets-toolbar">
                 <div className="search-box">
-                    <Search size={18} />
+                    <Search size={18} aria-hidden="true" />
                     <input
                         type="text"
                         placeholder="Search assets..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        aria-label="Search assets"
                     />
                 </div>
 
-                <div className="status-filters">
+                <fieldset className="status-filters" aria-label="Filter by status">
                     <button
                         type="button"
                         className={statusFilter === "all" ? "active" : ""}
                         onClick={() => setStatusFilter("all")}
+                        aria-pressed={statusFilter === "all"}
                     >
                         All
                     </button>
@@ -507,8 +509,9 @@ export function Assets({ onStatsChange }: AssetsProps) {
                         type="button"
                         className={statusFilter === "pinned" ? "active" : ""}
                         onClick={() => setStatusFilter("pinned")}
+                        aria-pressed={statusFilter === "pinned"}
                     >
-                        <CheckCircle size={14} />
+                        <CheckCircle size={14} aria-hidden="true" />
                         Pinned
                         <span className="count">{statusCounts.pinned}</span>
                     </button>
@@ -516,8 +519,9 @@ export function Assets({ onStatsChange }: AssetsProps) {
                         type="button"
                         className={statusFilter === "pending" ? "active" : ""}
                         onClick={() => setStatusFilter("pending")}
+                        aria-pressed={statusFilter === "pending"}
                     >
-                        <Clock size={14} />
+                        <Clock size={14} aria-hidden="true" />
                         Pending
                         <span className="count">{statusCounts.pending}</span>
                     </button>
@@ -525,48 +529,52 @@ export function Assets({ onStatsChange }: AssetsProps) {
                         type="button"
                         className={statusFilter === "failed" ? "active" : ""}
                         onClick={() => setStatusFilter("failed")}
+                        aria-pressed={statusFilter === "failed"}
                     >
-                        <XCircle size={14} />
+                        <XCircle size={14} aria-hidden="true" />
                         Failed
                         <span className="count">{statusCounts.failed}</span>
                     </button>
-                </div>
+                </fieldset>
 
-                <div className="layout-toggle">
+                <fieldset className="layout-toggle" aria-label="View layout">
                     <button
                         type="button"
                         className={layout === "grid" ? "active" : ""}
                         onClick={() => setLayout("grid")}
-                        title="Grid View"
+                        aria-label="Grid view"
+                        aria-pressed={layout === "grid"}
                     >
-                        <Grid3X3 size={18} />
+                        <Grid3X3 size={18} aria-hidden="true" />
                     </button>
                     <button
                         type="button"
                         className={layout === "list" ? "active" : ""}
                         onClick={() => setLayout("list")}
-                        title="List View"
+                        aria-label="List view"
+                        aria-pressed={layout === "list"}
                     >
-                        <List size={18} />
+                        <List size={18} aria-hidden="true" />
                     </button>
                     <button
                         type="button"
                         className={layout === "compact" ? "active" : ""}
                         onClick={() => setLayout("compact")}
-                        title="Compact View"
+                        aria-label="Compact view"
+                        aria-pressed={layout === "compact"}
                     >
-                        <LayoutList size={18} />
+                        <LayoutList size={18} aria-hidden="true" />
                     </button>
-                </div>
+                </fieldset>
             </div>
 
             {/* Content */}
             <div className="assets-content">
                 {loading && allAssets.length === 0 ? (
-                    <div className="assets-loading">
-                        <RefreshCw size={24} className="spin" />
+                    <output className="assets-loading" aria-live="polite">
+                        <RefreshCw size={24} className="spin" aria-hidden="true" />
                         <span>Loading assets...</span>
-                    </div>
+                    </output>
                 ) : layout === "grid" ? (
                     <div className="assets-grid">
                         {filteredNfts.map(renderGridCard)}

@@ -37,16 +37,17 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
                 <span className="sidebar-title">Porcupin</span>
             </div>
 
-            <nav className="sidebar-nav">
+            <nav className="sidebar-nav" aria-label="Main navigation">
                 {navItems.map((item) => (
                     <button
                         key={item.id}
                         type="button"
                         className={`sidebar-item ${activeTab === item.id ? "active" : ""}`}
                         onClick={() => onTabChange(item.id)}
-                        title={item.label}
+                        aria-label={item.label}
+                        aria-current={activeTab === item.id ? "page" : undefined}
                     >
-                        <span className="sidebar-icon">
+                        <span className="sidebar-icon" aria-hidden="true">
                             <item.icon size={20} />
                         </span>
                         <span className="sidebar-label">{item.label}</span>
@@ -55,20 +56,29 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
             </nav>
 
             <div className="sidebar-footer">
-                <div
+                <output
                     className={`connection-indicator ${connectionStatus.icon === "remote" ? "remote" : "local"}`}
-                    title={connectionStatus.label}
+                    aria-label={`Connection: ${connectionStatus.label}`}
                 >
-                    {connectionStatus.icon === "remote" ? <Server size={14} /> : <Monitor size={14} />}
+                    {connectionStatus.icon === "remote" ? (
+                        <Server size={14} aria-hidden="true" />
+                    ) : (
+                        <Monitor size={14} aria-hidden="true" />
+                    )}
                     <span className="connection-label">{connectionStatus.label}</span>
-                </div>
+                </output>
                 <button
                     type="button"
                     className="sidebar-toggle"
                     onClick={() => setIsExpanded(!isExpanded)}
-                    title={isExpanded ? "Collapse" : "Expand"}
+                    aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+                    aria-expanded={isExpanded}
                 >
-                    {isExpanded ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
+                    {isExpanded ? (
+                        <ChevronLeft size={16} aria-hidden="true" />
+                    ) : (
+                        <ChevronRight size={16} aria-hidden="true" />
+                    )}
                 </button>
             </div>
         </aside>

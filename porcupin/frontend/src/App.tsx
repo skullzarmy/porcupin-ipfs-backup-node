@@ -77,16 +77,21 @@ function AppContent() {
 
     return (
         <div className="app-layout">
+            {/* Skip link for keyboard navigation - WCAG 2.4.1 */}
+            <a href="#main-content" className="skip-link">
+                Skip to main content
+            </a>
+
             <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
-            <main className="main-content">
+            <main className="main-content" id="main-content" tabIndex={-1}>
                 {/* Drag region for window - macOS/Windows title bar area */}
                 <div className="drag-region" style={{ "--wails-draggable": "drag" } as React.CSSProperties}></div>
 
                 {error && (
-                    <div className="error-banner">
+                    <div className="error-banner" role="alert">
                         <span>{error}</span>
-                        <button type="button" onClick={() => setError("")}>
+                        <button type="button" onClick={() => setError("")} aria-label="Dismiss error">
                             ×
                         </button>
                     </div>

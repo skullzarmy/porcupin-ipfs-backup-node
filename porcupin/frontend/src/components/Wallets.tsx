@@ -155,12 +155,14 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
                     placeholder="Enter Tezos Address (tz1...)"
                     value={newAddress}
                     onChange={(e) => setNewAddress(e.target.value)}
+                    aria-label="Tezos wallet address"
                 />
                 <input
                     type="text"
                     placeholder="Alias (Optional)"
                     value={newAlias}
                     onChange={(e) => setNewAlias(e.target.value)}
+                    aria-label="Wallet alias (optional)"
                 />
                 <button type="button" onClick={handleAddWallet} disabled={loading} className="btn-primary">
                     {loading ? "Adding..." : "Add Wallet"}

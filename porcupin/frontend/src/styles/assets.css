@@ -38,7 +38,6 @@
     color: var(--text-primary);
     font-size: 14px;
     width: 100%;
-    outline: none;
 }
 
 .search-box input::placeholder {

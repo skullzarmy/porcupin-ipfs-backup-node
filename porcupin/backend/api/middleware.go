@@ -5,7 +5,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -19,36 +18,17 @@ const (
 	ContextKeyClientIP contextKey = "clientIP"
 )
 
-// allowedOriginPattern matches localhost and 127.0.0.1 with any port
-var allowedOriginPattern = regexp.MustCompile(`^https?://(localhost|127\.0\.0\.1)(:\d+)?$`)
-
 // CORSMiddleware adds CORS headers to allow cross-origin requests.
-// Only allows localhost origins by default for security.
 // Required for browser-based clients and future web UIs.
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := r.Header.Get("Origin")
-
-		// Only allow localhost origins
-		if origin != "" && allowedOriginPattern.MatchString(origin) {
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-		} else if origin == "" {
-			// No origin header (same-origin request or non-browser client)
-			w.Header().Set("Access-Control-Allow-Origin", "http://localhost")
-		}
-		// If origin doesn't match, we don't set CORS headers (browser will block)
-
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 
 		if r.Method == "OPTIONS" {
-			if origin != "" && allowedOriginPattern.MatchString(origin) {
-				w.WriteHeader(http.StatusNoContent)
-			} else {
-				w.WriteHeader(http.StatusForbidden)
-			}
+			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 

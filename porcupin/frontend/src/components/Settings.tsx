@@ -14,6 +14,7 @@ import {
     CancelMigration,
     DiscoverServers,
     TestRemoteConnection,
+    isRemote,
 } from "../lib/backend";
 import { useConnection } from "../lib/connection";
 import { EventsOn, LogInfo, LogError } from "../../wailsjs/runtime/runtime";
@@ -108,17 +109,25 @@ export function Settings({ onStatsChange }: SettingsProps) {
 
     const loadSettings = useCallback(async () => {
         try {
-            const [cfgRes, storageRes, pathRes, locationRes, locationsRes] = await Promise.all([
-                GetConfig(),
-                GetStorageInfo(),
-                GetIPFSRepoPath(),
-                GetStorageLocation(),
-                ListStorageLocations(),
-            ]);
+            // Core settings that work in both local and remote mode
+            const [cfgRes, storageRes, pathRes] = await Promise.all([GetConfig(), GetStorageInfo(), GetIPFSRepoPath()]);
             setStorageInfo(storageRes);
             setRepoPath(pathRes);
-            setCurrentLocation(locationRes);
-            setAvailableLocations(locationsRes || []);
+
+            // Desktop-only: storage location management (not available in remote mode)
+            if (!isRemote()) {
+                try {
+                    const [locationRes, locationsRes] = await Promise.all([
+                        GetStorageLocation(),
+                        ListStorageLocations(),
+                    ]);
+                    setCurrentLocation(locationRes);
+                    setAvailableLocations(locationsRes || []);
+                } catch (err) {
+                    // Storage location features not available - that's ok
+                    console.log("Storage location features not available:", err);
+                }
+            }
 
             // Populate form - note: Config uses PascalCase from Go struct
             if (cfgRes?.Backup) {

@@ -12,7 +12,7 @@
     --bg-input: #1a1a24;
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
-    --text-muted: #64748b;
+    --text-muted: #8b95a5; /* Improved contrast ratio for WCAG 1.4.3 */
     --accent-primary: #6366f1;
     --accent-hover: #4f46e5;
     --accent-success: #22c55e;
@@ -40,7 +40,7 @@
     --bg-input: #ffffff;
     --text-primary: #0f172a;
     --text-secondary: #475569;
-    --text-muted: #64748b;
+    --text-muted: #5c6578; /* Improved contrast ratio for WCAG 1.4.3 */
     --accent-primary: #4f46e5;
     --accent-hover: #4338ca;
     --accent-success: #16a34a;
@@ -65,7 +65,7 @@
         --bg-input: #ffffff;
         --text-primary: #0f172a;
         --text-secondary: #475569;
-        --text-muted: #64748b;
+        --text-muted: #5c6578; /* Improved contrast ratio for WCAG 1.4.3 */
         --accent-primary: #4f46e5;
         --accent-hover: #4338ca;
         --accent-success: #16a34a;
@@ -138,4 +138,58 @@ a:hover {
     to {
         transform: rotate(360deg);
     }
+}
+
+/* ==========================================
+   WCAG 2.2 AA Accessibility Enhancements
+   ========================================== */
+
+/* Visible focus indicators for keyboard navigation (2.4.7) */
+:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
+/* Remove default outline only when focus-visible is supported */
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+/* Screen reader only content (1.3.1) */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Skip link for keyboard navigation (2.4.1) */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    z-index: 9999;
+    padding: 8px 16px;
+    background: var(--accent-primary);
+    color: white;
+    text-decoration: none;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+}
+
+.skip-link:focus {
+    left: 16px;
+    top: 8px;
+}
+
+/* Minimum touch/click target size (2.5.8) */
+button,
+[role="button"],
+input[type="checkbox"],
+input[type="radio"] {
+    min-height: 24px;
 }
