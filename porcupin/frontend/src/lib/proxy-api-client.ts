@@ -314,13 +314,37 @@ export class ProxyAPIClient {
     // =========================================================================
 
     async getStorageInfo(): Promise<main.StorageInfo> {
-        const resp = await this.get<{ data: main.StorageInfo }>("/api/v1/storage");
-        return resp.data;
+        // The remote API doesn't have a dedicated /storage endpoint
+        // Storage info is included in the /stats response
+        interface StatsResponse {
+            data: {
+                storage_used_gb: number;
+            };
+        }
+        const response = await this.get<StatsResponse>("/api/v1/stats");
+        const storageUsedGB = response.data?.storage_used_gb || 0;
+        const storageUsedBytes = Math.round(storageUsedGB * 1024 * 1024 * 1024);
+
+        // Convert stats response to StorageInfo format
+        // Most fields aren't available from remote API, but we provide what we can
+        return {
+            used_bytes: storageUsedBytes,
+            used_gb: storageUsedGB,
+            disk_usage_bytes: storageUsedBytes,
+            disk_usage_gb: storageUsedGB,
+            max_storage_gb: 0, // Not available from remote API
+            warning_pct: 80, // Default
+            usage_pct: 0, // Can't calculate without max
+            is_warning: false,
+            is_limit_reached: false,
+            free_disk_space_gb: 0, // Not available from remote API
+            repo_path: "", // Not available from remote API
+        } as main.StorageInfo;
     }
 
     async getIPFSRepoPath(): Promise<string> {
-        const info = await this.getStorageInfo();
-        return (info as unknown as { repo_path: string }).repo_path || "";
+        // Not available in remote mode - return empty string
+        return "";
     }
 
     // =========================================================================

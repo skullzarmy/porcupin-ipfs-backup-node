@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"porcupin/backend/core"
@@ -78,6 +79,8 @@ type Server struct {
 	rateLimiter *RateLimiter
 	handlers    *Handlers
 	mdns        *MDNSServer
+	listenAddr  string
+	mu          sync.RWMutex
 }
 
 // NewServer creates a new API server
@@ -148,6 +151,11 @@ func (s *Server) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to listen on %s: %w", addr, err)
 	}
+
+	// Store listen address for GetListenAddress (thread-safe)
+	s.mu.Lock()
+	s.listenAddr = listener.Addr().String()
+	s.mu.Unlock()
 
 	protocol := "http"
 	if s.httpServer.TLSConfig != nil {
@@ -235,8 +243,7 @@ func (s *Server) printStartupWarnings() {
 
 // GetListenAddress returns the address the server is listening on
 func (s *Server) GetListenAddress() string {
-	if s.httpServer == nil {
-		return ""
-	}
-	return s.httpServer.Addr
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.listenAddr
 }

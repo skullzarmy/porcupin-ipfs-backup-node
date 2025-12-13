@@ -972,7 +972,7 @@ func TestAddWallet_Success(t *testing.T) {
 	database := setupTestDB(t)
 	h := NewHandlers(database, nil, t.TempDir(), "test")
 
-	body := bytes.NewBufferString(`{"address": "tz1test123", "alias": "Test Wallet"}`)
+	body := bytes.NewBufferString(`{"address": "tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb", "alias": "Test Wallet"}`)
 	req := httptest.NewRequest("POST", "/api/v1/wallets", body)
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -984,7 +984,7 @@ func TestAddWallet_Success(t *testing.T) {
 	}
 
 	// Verify wallet was actually saved
-	wallet, err := database.GetWallet("tz1test123")
+	wallet, err := database.GetWallet("tz1VSUr8wwNhLAzempoch5d6hLRiTh8Cjcjb")
 	if err != nil {
 		t.Fatalf("Failed to get wallet from DB: %v", err)
 	}
@@ -1001,13 +1001,13 @@ func TestAddWallet_Duplicate(t *testing.T) {
 	h := NewHandlers(database, nil, t.TempDir(), "test")
 
 	// Add first wallet
-	wallet := &db.Wallet{Address: "tz1duplicate", Alias: "First"}
+	wallet := &db.Wallet{Address: "tz1aSkwEot3L2kmUvcoxzjMomb9mvBNuzFK6", Alias: "First"}
 	if err := database.SaveWallet(wallet); err != nil {
 		t.Fatalf("Failed to create initial wallet: %v", err)
 	}
 
 	// Try to add duplicate
-	body := bytes.NewBufferString(`{"address": "tz1duplicate", "alias": "Second"}`)
+	body := bytes.NewBufferString(`{"address": "tz1aSkwEot3L2kmUvcoxzjMomb9mvBNuzFK6", "alias": "Second"}`)
 	req := httptest.NewRequest("POST", "/api/v1/wallets", body)
 	req.Header.Set("Content-Type", "application/json")
 	rr := httptest.NewRecorder()
@@ -1548,7 +1548,7 @@ func TestFullWalletCRUD(t *testing.T) {
 	baseURL := "http://" + addr
 
 	// CREATE wallet
-	createBody := bytes.NewBufferString(`{"address": "tz1crud", "alias": "CRUD Test"}`)
+	createBody := bytes.NewBufferString(`{"address": "tz1burnburnburnburnburnburnburjAYjjX", "alias": "CRUD Test"}`)
 	req, _ := http.NewRequest("POST", baseURL+"/api/v1/wallets", createBody)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
@@ -1562,7 +1562,7 @@ func TestFullWalletCRUD(t *testing.T) {
 	}
 
 	// READ wallet
-	req, _ = http.NewRequest("GET", baseURL+"/api/v1/wallets/tz1crud", nil)
+	req, _ = http.NewRequest("GET", baseURL+"/api/v1/wallets/tz1burnburnburnburnburnburnburjAYjjX", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err = client.Do(req)
 	if err != nil {
@@ -1575,7 +1575,7 @@ func TestFullWalletCRUD(t *testing.T) {
 
 	// UPDATE wallet
 	updateBody := bytes.NewBufferString(`{"alias": "Updated Name"}`)
-	req, _ = http.NewRequest("PUT", baseURL+"/api/v1/wallets/tz1crud", updateBody)
+	req, _ = http.NewRequest("PUT", baseURL+"/api/v1/wallets/tz1burnburnburnburnburnburnburjAYjjX", updateBody)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err = client.Do(req)
@@ -1588,13 +1588,13 @@ func TestFullWalletCRUD(t *testing.T) {
 	}
 
 	// Verify update
-	wallet, _ := database.GetWallet("tz1crud")
+	wallet, _ := database.GetWallet("tz1burnburnburnburnburnburnburjAYjjX")
 	if wallet.Alias != "Updated Name" {
 		t.Errorf("Wallet alias after update = %q, want %q", wallet.Alias, "Updated Name")
 	}
 
 	// DELETE wallet
-	req, _ = http.NewRequest("DELETE", baseURL+"/api/v1/wallets/tz1crud", nil)
+	req, _ = http.NewRequest("DELETE", baseURL+"/api/v1/wallets/tz1burnburnburnburnburnburnburjAYjjX", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err = client.Do(req)
 	if err != nil {
@@ -1606,7 +1606,7 @@ func TestFullWalletCRUD(t *testing.T) {
 	}
 
 	// Verify deletion
-	wallet, _ = database.GetWallet("tz1crud")
+	wallet, _ = database.GetWallet("tz1burnburnburnburnburnburnburjAYjjX")
 	if wallet != nil {
 		t.Error("Wallet still exists after delete")
 	}
