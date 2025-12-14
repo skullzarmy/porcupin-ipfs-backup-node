@@ -24,6 +24,10 @@ ipfs:
     # Change this to use external storage
     repo_path: ~/.porcupin/ipfs
 
+    # IPFS swarm port for peer-to-peer connections (default: 4001)
+    # Change if port 4001 is already in use or blocked by firewall
+    swarm_port: 4001
+
     # Timeout for pinning a single asset (default: 2 minutes)
     # Increase if you have slow internet
     pin_timeout: 2m

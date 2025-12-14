@@ -91,7 +91,7 @@ func (a *App) startup(ctx context.Context) {
 		repoPath = filepath.Join(homeDir, repoPath[2:])
 	}
 	
-	ipfsNode, err := ipfs.NewNode(repoPath)
+	ipfsNode, err := ipfs.NewNode(repoPath, cfg.IPFS.SwarmPort)
 	if err != nil {
 		log.Fatalf("Failed to create IPFS node: %v", err)
 	}
@@ -703,6 +703,13 @@ func (a *App) UpdateSettings(settings map[string]interface{}) error {
 	if v, ok := settings["sync_created"].(bool); ok {
 		a.config.Backup.SyncCreated = v
 	}
+	// Note: ipfs_swarm_port is saved but requires app restart to take effect
+	if v, ok := settings["ipfs_swarm_port"].(float64); ok {
+		port := int(v)
+		if port >= 1024 && port <= 65535 {
+			a.config.IPFS.SwarmPort = port
+		}
+	}
 
 	// Save config to file
 	homeDir, _ := os.UserHomeDir()
@@ -1059,7 +1066,7 @@ func (a *App) MigrateStorage(destPath string) error {
 		log.Printf("Migration failed, attempting to restart with old path: %v", err)
 		wailsRuntime.EventsEmit(a.ctx, "storage:migration:error", err.Error())
 		
-		newNode, nodeErr := ipfs.NewNode(currentPath)
+		newNode, nodeErr := ipfs.NewNode(currentPath, a.config.IPFS.SwarmPort)
 		if nodeErr == nil {
 			nodeErr = newNode.Start(a.ctx)
 			if nodeErr == nil {
@@ -1080,7 +1087,7 @@ func (a *App) MigrateStorage(destPath string) error {
 
 	// Start IPFS node with new path
 	log.Printf("Starting IPFS node at new location: %s", expandedDest)
-	newNode, err := ipfs.NewNode(expandedDest)
+	newNode, err := ipfs.NewNode(expandedDest, a.config.IPFS.SwarmPort)
 	if err != nil {
 		wailsRuntime.EventsEmit(a.ctx, "storage:migration:error", err.Error())
 		return fmt.Errorf("failed to create node at new location: %w", err)
@@ -1128,7 +1135,7 @@ func (a *App) CancelMigration() error {
 	log.Println("Restarting services after cancellation...")
 	currentPath := a.ipfsNode.GetRepoPath()
 	
-	newNode, err := ipfs.NewNode(currentPath)
+	newNode, err := ipfs.NewNode(currentPath, a.config.IPFS.SwarmPort)
 	if err != nil {
 		log.Printf("Failed to create node after cancel: %v", err)
 		return fmt.Errorf("failed to restart IPFS: %w", err)

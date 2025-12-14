@@ -53,6 +53,9 @@ func main() {
 	tlsKey := flag.String("tls-key", "", "Path to TLS private key file (use with --serve)")
 	regenerateToken := flag.Bool("regenerate-token", false, "Regenerate API token and exit")
 
+	// IPFS flags
+	ipfsPort := flag.Int("ipfs-port", 0, "IPFS swarm port (default 4001, 0 = use config)")
+
 	flag.Parse()
 
 	// Warn if --api-token flag is used (visible in ps)
@@ -117,6 +120,12 @@ func main() {
 		cfg = config.DefaultConfig()
 	}
 
+	// Apply CLI overrides to config
+	if *ipfsPort > 0 {
+		cfg.IPFS.SwarmPort = *ipfsPort
+		log.Printf("Using CLI-specified IPFS swarm port: %d", *ipfsPort)
+	}
+
 	// Initialize database
 	dbPath := filepath.Join(dataPath, "porcupin.db")
 	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
@@ -166,7 +175,7 @@ func main() {
 	if *unpinWallet != "" || *deleteWallet != "" || *runGC {
 		// Start IPFS node
 		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
-		ipfsNode, err := ipfs.NewNode(ipfsRepoPath)
+		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
 		if err != nil {
 			log.Fatalf("Failed to create IPFS node: %v", err)
 		}
@@ -304,7 +313,7 @@ func main() {
 		fmt.Printf("Found %d pending assets, starting IPFS node...\n", pendingCount)
 
 		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
-		ipfsNode, err := ipfs.NewNode(ipfsRepoPath)
+		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
 		if err != nil {
 			log.Fatalf("Failed to create IPFS node: %v", err)
 		}
@@ -333,7 +342,7 @@ func main() {
 	fmt.Println("Starting IPFS node...")
 
 	ipfsRepoPath := filepath.Join(dataPath, "ipfs")
-	ipfsNode, err := ipfs.NewNode(ipfsRepoPath)
+	ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
 	if err != nil {
 		log.Fatalf("Failed to create IPFS node: %v", err)
 	}

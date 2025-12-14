@@ -33,6 +33,16 @@
     margin: 0;
 }
 
+.about-hero .version-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.about-hero .version-info .version {
+    font-size: 13px;
+}
+
 .about-tagline {
     font-size: 18px;
     font-weight: 500;

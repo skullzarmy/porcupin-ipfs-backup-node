@@ -18,6 +18,7 @@ import (
 	"github.com/ipfs/kubo/core/corerepo"
 	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/plugin/loader"
+	"github.com/ipfs/kubo/repo"
 	"github.com/ipfs/kubo/repo/fsrepo"
 
 	// Boxo imports
@@ -30,18 +31,23 @@ import (
 // ShutdownTimeout is the maximum time to wait for IPFS node to shut down gracefully
 const ShutdownTimeout = 30 * time.Second
 
+// DefaultSwarmPort is the default port for IPFS swarm connections
+const DefaultSwarmPort = 4001
+
 // Node represents an embedded IPFS node
 type Node struct {
-	api      iface.CoreAPI
-	node     *core.IpfsNode
-	repoPath string
-	mu       sync.RWMutex
-	cancel   context.CancelFunc
-	ctx      context.Context
+	api       iface.CoreAPI
+	node      *core.IpfsNode
+	repoPath  string
+	swarmPort int
+	mu        sync.RWMutex
+	cancel    context.CancelFunc
+	ctx       context.Context
 }
 
 // NewNode creates a new IPFS node instance
-func NewNode(repoPath string) (*Node, error) {
+// swarmPort specifies the port for p2p connections (0 uses default 4001)
+func NewNode(repoPath string, swarmPort int) (*Node, error) {
 	// Expand tilde if present
 	if len(repoPath) > 0 && repoPath[0] == '~' {
 		home, err := os.UserHomeDir()
@@ -51,8 +57,14 @@ func NewNode(repoPath string) (*Node, error) {
 		repoPath = filepath.Join(home, repoPath[1:])
 	}
 
+	// Use default port if not specified
+	if swarmPort <= 0 {
+		swarmPort = DefaultSwarmPort
+	}
+
 	return &Node{
-		repoPath: repoPath,
+		repoPath:  repoPath,
+		swarmPort: swarmPort,
 	}, nil
 }
 
@@ -65,7 +77,7 @@ func (n *Node) Start(ctx context.Context) error {
 		return nil // Already started
 	}
 
-	log.Printf("IPFS node starting (repo: %s)...", n.repoPath)
+	log.Printf("IPFS node starting (repo: %s, swarm port: %d)...", n.repoPath, n.swarmPort)
 
 	// Remove stale lock file if it exists from a previous unclean shutdown
 	// This can happen after a crash, forced quit, or migration
@@ -90,6 +102,8 @@ func (n *Node) Start(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to init config: %w", err)
 		}
+		// Configure swarm addresses with custom port
+		n.configureSwarmAddresses(cfg)
 		if err := fsrepo.Init(n.repoPath, cfg); err != nil {
 			return fmt.Errorf("failed to init repo: %w", err)
 		}
@@ -99,6 +113,12 @@ func (n *Node) Start(ctx context.Context) error {
 	repo, err := fsrepo.Open(n.repoPath)
 	if err != nil {
 		return fmt.Errorf("failed to open repo: %w", err)
+	}
+
+	// Update swarm port in existing repo config if it differs
+	if err := n.updateRepoSwarmPort(repo); err != nil {
+		repo.Close()
+		return fmt.Errorf("failed to update swarm port: %w", err)
 	}
 
 	// Construct node
@@ -187,6 +207,53 @@ func (n *Node) Stop() error {
 	}
 
 	return closeErr
+}
+
+// configureSwarmAddresses sets up the swarm listen addresses with the configured port
+func (n *Node) configureSwarmAddresses(cfg *config.Config) {
+	port := n.swarmPort
+	cfg.Addresses.Swarm = []string{
+		fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", port),
+		fmt.Sprintf("/ip6/::/tcp/%d", port),
+		fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1", port),
+		fmt.Sprintf("/ip6/::/udp/%d/quic-v1", port),
+		fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1/webtransport", port),
+		fmt.Sprintf("/ip6/::/udp/%d/quic-v1/webtransport", port),
+	}
+	log.Printf("Configured IPFS swarm addresses for port %d", port)
+}
+
+// updateRepoSwarmPort updates the swarm port in an existing repo if it differs from configured
+func (n *Node) updateRepoSwarmPort(repo repo.Repo) error {
+	cfg, err := repo.Config()
+	if err != nil {
+		return fmt.Errorf("failed to get repo config: %w", err)
+	}
+
+	// Check if port needs updating by examining current addresses
+	needsUpdate := true
+	expectedTCP := fmt.Sprintf("/ip4/0.0.0.0/tcp/%d", n.swarmPort)
+	for _, addr := range cfg.Addresses.Swarm {
+		if addr == expectedTCP {
+			needsUpdate = false
+			break
+		}
+	}
+
+	if needsUpdate {
+		log.Printf("Updating IPFS swarm port from existing config to %d", n.swarmPort)
+		n.configureSwarmAddresses(cfg)
+		if err := repo.SetConfig(cfg); err != nil {
+			return fmt.Errorf("failed to save updated config: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// GetSwarmPort returns the configured swarm port
+func (n *Node) GetSwarmPort() int {
+	return n.swarmPort
 }
 
 // Pin pins a CID to the local node with a timeout

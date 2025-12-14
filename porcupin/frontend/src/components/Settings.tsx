@@ -55,6 +55,8 @@ export function Settings({ onStatsChange }: SettingsProps) {
     const [minFreeDiskSpaceGB, setMinFreeDiskSpaceGB] = useState(5);
     const [syncOwned, setSyncOwned] = useState(true);
     const [syncCreated, setSyncCreated] = useState(true);
+    const [ipfsSwarmPort, setIpfsSwarmPort] = useState(4001);
+    const [ipfsPortChanged, setIpfsPortChanged] = useState(false);
 
     // Storage location state
     const [currentLocation, setCurrentLocation] = useState<storage.StorageLocation | null>(null);
@@ -137,6 +139,10 @@ export function Settings({ onStatsChange }: SettingsProps) {
                 setMinFreeDiskSpaceGB(cfgRes.Backup.min_free_disk_space_gb || 5);
                 setSyncOwned(cfgRes.Backup.sync_owned !== false);
                 setSyncCreated(cfgRes.Backup.sync_created !== false);
+            }
+            if (cfgRes?.IPFS) {
+                setIpfsSwarmPort(cfgRes.IPFS.swarm_port || 4001);
+                setIpfsPortChanged(false);
             }
         } catch (err: unknown) {
             console.error(err);
@@ -273,8 +279,13 @@ export function Settings({ onStatsChange }: SettingsProps) {
                 min_free_disk_space_gb: minFreeDiskSpaceGB,
                 sync_owned: syncOwned,
                 sync_created: syncCreated,
+                ipfs_swarm_port: ipfsSwarmPort,
             });
-            setMessage("Settings saved!");
+            if (ipfsPortChanged) {
+                setMessage("Settings saved! Restart the app for IPFS port change to take effect.");
+            } else {
+                setMessage("Settings saved!");
+            }
             loadSettings();
         } catch (err: unknown) {
             setMessage("Error saving: " + String(err));
@@ -644,35 +655,75 @@ export function Settings({ onStatsChange }: SettingsProps) {
                 </div>
             </div>
 
+            {/* IPFS Network */}
+            <div className="settings-section">
+                <h3>IPFS Network</h3>
+                {isRemote() && (
+                    <div className="info-notice">
+                        <AlertTriangle size={14} />
+                        <span>IPFS settings are managed on the remote server and cannot be changed here.</span>
+                    </div>
+                )}
+                <div className="form-group">
+                    <label htmlFor="ipfsSwarmPort">Swarm Port</label>
+                    <input
+                        id="ipfsSwarmPort"
+                        type="number"
+                        value={ipfsSwarmPort}
+                        onChange={(e) => {
+                            const newPort = Number(e.target.value);
+                            setIpfsSwarmPort(newPort);
+                            setIpfsPortChanged(true);
+                        }}
+                        min={1024}
+                        max={65535}
+                        disabled={isRemote()}
+                    />
+                    <span className="hint">Port for IPFS peer-to-peer connections (default: 4001)</span>
+                    {ipfsPortChanged && !isRemote() && (
+                        <div className="warning-notice">
+                            <AlertTriangle size={14} />
+                            <span>Changing the port requires an app restart to take effect.</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Sync Defaults */}
             <div className="settings-section">
                 <h3>Sync Defaults</h3>
                 <p className="section-description">
                     Default settings for new wallets. These can be overridden per wallet.
                 </p>
-                <div className="form-group toggle-group">
-                    <label htmlFor="syncOwned">
-                        <input
-                            id="syncOwned"
-                            type="checkbox"
-                            checked={syncOwned}
-                            onChange={(e) => setSyncOwned(e.target.checked)}
-                        />
-                        <span>Sync Owned NFTs</span>
-                    </label>
-                    <span className="hint">Backup NFTs this wallet currently owns</span>
-                </div>
-                <div className="form-group toggle-group">
-                    <label htmlFor="syncCreated">
-                        <input
-                            id="syncCreated"
-                            type="checkbox"
-                            checked={syncCreated}
-                            onChange={(e) => setSyncCreated(e.target.checked)}
-                        />
-                        <span>Sync Created NFTs</span>
-                    </label>
-                    <span className="hint">Backup NFTs this wallet minted (even if sold)</span>
+                <div className="toggle-options">
+                    <div className="toggle-option">
+                        <label htmlFor="syncOwned">
+                            <input
+                                id="syncOwned"
+                                type="checkbox"
+                                checked={syncOwned}
+                                onChange={(e) => setSyncOwned(e.target.checked)}
+                            />
+                            <div className="toggle-content">
+                                <span className="toggle-label">Sync Owned NFTs</span>
+                                <span className="toggle-hint">Backup NFTs this wallet currently owns</span>
+                            </div>
+                        </label>
+                    </div>
+                    <div className="toggle-option">
+                        <label htmlFor="syncCreated">
+                            <input
+                                id="syncCreated"
+                                type="checkbox"
+                                checked={syncCreated}
+                                onChange={(e) => setSyncCreated(e.target.checked)}
+                            />
+                            <div className="toggle-content">
+                                <span className="toggle-label">Sync Created NFTs</span>
+                                <span className="toggle-hint">Backup NFTs this wallet minted (even if sold)</span>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
 

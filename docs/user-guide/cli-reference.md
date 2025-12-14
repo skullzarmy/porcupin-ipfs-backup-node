@@ -101,6 +101,24 @@ See [Remote Server Guide](remote-server.md) for complete setup instructions incl
 
 ---
 
+## IPFS Options
+
+| Flag                 | Description                         | Default |
+| -------------------- | ----------------------------------- | ------- |
+| `--ipfs-port <port>` | IPFS swarm port for p2p connections | `4001`  |
+
+### IPFS Examples
+
+```bash
+# Use custom IPFS swarm port (if 4001 is already in use)
+porcupin --ipfs-port 4002
+
+# Combine with API server
+porcupin --serve --ipfs-port 4002 --api-port 9090
+```
+
+---
+
 ## One-Off Commands
 
 These commands execute immediately and exit (they don't start the daemon).

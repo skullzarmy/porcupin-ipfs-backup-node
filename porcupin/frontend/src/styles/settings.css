@@ -138,6 +138,56 @@
     margin-left: 28px;
 }
 
+/* Toggle options list (for grouped checkboxes with descriptions) */
+.toggle-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.toggle-option label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    padding: 12px;
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.toggle-option label:hover {
+    border-color: var(--accent-primary);
+    background: var(--bg-secondary);
+}
+
+.toggle-option input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    accent-color: var(--accent-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.toggle-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.toggle-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.toggle-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
 .settings-actions {
     display: flex;
     align-items: center;

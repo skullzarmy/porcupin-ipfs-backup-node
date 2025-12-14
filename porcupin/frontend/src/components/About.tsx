@@ -1,14 +1,21 @@
 import { useState, useEffect } from "react";
 import { Github, AlertTriangle, Mail, ExternalLink, Heart, Globe } from "lucide-react";
 import { BrowserOpenURL } from "../../wailsjs/runtime/runtime";
-import { GetVersion } from "../lib/backend";
+import { GetVersion, isRemote } from "../lib/backend";
+import * as WailsApp from "../../wailsjs/go/main/App";
 import { Logo } from "./Logo";
 
 export function About() {
     const [version, setVersion] = useState("");
+    const [localVersion, setLocalVersion] = useState("");
 
     useEffect(() => {
+        // Always get the backend version (remote if connected, local otherwise)
         GetVersion().then(setVersion);
+        // If in remote mode, also get local app version
+        if (isRemote()) {
+            WailsApp.GetVersion().then(setLocalVersion);
+        }
     }, []);
 
     return (
@@ -17,7 +24,14 @@ export function About() {
                 <Logo size={96} className="about-logo" />
                 <div className="about-info">
                     <h1>Porcupin</h1>
-                    <p className="version">Version {version}</p>
+                    {isRemote() ? (
+                        <div className="version-info">
+                            <p className="version">App: {localVersion}</p>
+                            <p className="version">Server: {version}</p>
+                        </div>
+                    ) : (
+                        <p className="version">Version {version}</p>
+                    )}
                 </div>
             </div>
 

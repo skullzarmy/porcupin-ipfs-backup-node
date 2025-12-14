@@ -154,6 +154,7 @@ export namespace config {
 	}
 	export class IPFSConfig {
 	    repo_path: string;
+	    swarm_port: number;
 	    max_file_size: number;
 	    pin_timeout: number;
 	    rate_limit_mbps: number;
@@ -165,6 +166,7 @@ export namespace config {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.repo_path = source["repo_path"];
+	        this.swarm_port = source["swarm_port"];
 	        this.max_file_size = source["max_file_size"];
 	        this.pin_timeout = source["pin_timeout"];
 	        this.rate_limit_mbps = source["rate_limit_mbps"];

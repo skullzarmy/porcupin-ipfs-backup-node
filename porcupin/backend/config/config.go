@@ -21,6 +21,7 @@ type Config struct {
 // IPFSConfig holds IPFS-specific configuration
 type IPFSConfig struct {
 	RepoPath    string        `yaml:"repo_path" json:"repo_path"`
+	SwarmPort   int           `yaml:"swarm_port" json:"swarm_port"`             // IPFS swarm port for p2p connections (default 4001)
 	MaxFileSize int64         `yaml:"max_file_size" json:"max_file_size"`       // in bytes
 	PinTimeout  time.Duration `yaml:"pin_timeout" json:"pin_timeout"`           // timeout for pin operations
 	RateLimit   int           `yaml:"rate_limit_mbps" json:"rate_limit_mbps"`   // bandwidth limit in Mbps
@@ -78,6 +79,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		IPFS: IPFSConfig{
 			RepoPath:    "~/.porcupin/ipfs",
+			SwarmPort:   4001, // default IPFS swarm port
 			MaxFileSize: 5 * 1024 * 1024 * 1024, // 5GB
 			PinTimeout:  2 * time.Minute,
 			RateLimit:   10, // 10 Mbps

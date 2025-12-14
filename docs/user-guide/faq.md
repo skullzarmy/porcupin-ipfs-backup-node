@@ -119,9 +119,19 @@ By default, IPFS nodes only keep files temporarily. "Pinning" tells your node to
 
 Not required, but recommended for best sharing:
 
--   **Port 4001 (TCP/UDP):** IPFS swarm connections
+-   **Port 4001 (TCP/UDP):** IPFS swarm connections (configurable via `ipfs.swarm_port` in config or `--ipfs-port` CLI flag)
 
 Without port forwarding, Porcupin still works but may share content less efficiently.
+
+If port 4001 is already in use by another IPFS node, you can change it:
+
+```yaml
+# In ~/.porcupin/config.yaml
+ipfs:
+    swarm_port: 4002
+```
+
+Or via CLI: `porcupin --ipfs-port 4002`
 
 ### Is my data private?
 
