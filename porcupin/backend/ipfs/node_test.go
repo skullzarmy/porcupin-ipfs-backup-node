@@ -19,8 +19,8 @@ func TestNodePinAndVerify(t *testing.T) {
 
 	repoPath := filepath.Join(tmpDir, "ipfs")
 	
-	// Create and start node
-	node, err := NewNode(repoPath)
+	// Create and start node (0 uses default swarm port)
+	node, err := NewNode(repoPath, 0)
 	if err != nil {
 		t.Fatalf("Failed to create node: %v", err)
 	}
