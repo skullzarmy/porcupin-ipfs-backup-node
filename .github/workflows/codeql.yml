@@ -1,0 +1,44 @@
+name: "CodeQL"
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+    schedule:
+        - cron: "0 6 * * 1" # Weekly on Mondays at 6 AM UTC
+
+jobs:
+    analyze:
+        name: Analyze
+        runs-on: ubuntu-latest
+        permissions:
+            actions: read
+            contents: read
+            security-events: write
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: "1.25"
+                  cache-dependency-path: porcupin/go.sum
+
+            - name: Initialize CodeQL
+              uses: github/codeql-action/init@v3
+              with:
+                  languages: go
+                  queries: security-and-quality
+
+            - name: Build Go code
+              working-directory: porcupin
+              run: |
+                  go build -v ./...
+
+            - name: Perform CodeQL Analysis
+              uses: github/codeql-action/analyze@v3
+              with:
+                  category: "/language:go"
