@@ -6,7 +6,7 @@ This is the Wails v2 desktop application for Porcupin - a Tezos NFT preservation
 
 ### Prerequisites
 
--   Go 1.23+
+-   Go 1.25+
 -   Node.js 18+
 -   Wails CLI: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 

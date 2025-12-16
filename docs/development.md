@@ -12,7 +12,7 @@ This guide is for developers who want to build Porcupin from source or contribut
 
 | Tool    | Version | Installation                                               |
 | ------- | ------- | ---------------------------------------------------------- |
-| Go      | 1.23+   | [go.dev/dl](https://go.dev/dl/)                            |
+| Go      | 1.25+   | [go.dev/dl](https://go.dev/dl/)                            |
 | Node.js | 18+     | [nodejs.org](https://nodejs.org/)                          |
 | Wails   | v2      | `go install github.com/wailsapp/wails/v2/cmd/wails@latest` |
 

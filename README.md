@@ -3,7 +3,7 @@
 **A set-and-forget Tezos NFT preservation app that pins your NFT assets to IPFS.**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/go-1.23+-00ADD8.svg)](https://go.dev/)
+[![Go Version](https://img.shields.io/badge/go-1.25+-00ADD8.svg)](https://go.dev/)
 [![codecov](https://codecov.io/github/skullzarmy/porcupin-ipfs-backup-node/branch/main/graph/badge.svg?token=NBY33RS342)](https://codecov.io/github/skullzarmy/porcupin-ipfs-backup-node)
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker-lightgrey.svg)](#user-installation)
 [![Tezos](https://img.shields.io/badge/Tezos-NFT%20Preservation-2C7DF7.svg)](https://tezos.com)
