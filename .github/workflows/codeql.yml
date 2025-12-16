@@ -31,11 +31,11 @@ jobs:
               uses: github/codeql-action/init@v3
               with:
                   languages: go
-                  queries: security-and-quality
+                  build-mode: manual
 
             - name: Build Go code
-              working-directory: porcupin
               run: |
+                  cd porcupin
                   go build -v ./...
 
             - name: Perform CodeQL Analysis
