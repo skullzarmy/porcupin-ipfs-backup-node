@@ -105,6 +105,17 @@ func (s *BackupService) run() {
 	// Phase 2: Start WebSocket listeners for real-time updates
 	s.startWatching()
 	
+	// Phase 2.5: Run integrity check in background to fix any missing asset records (e.g. from previous bugs)
+	go func() {
+		log.Println("Running background integrity check...")
+		stats, err := s.manager.VerifyAndFixPins(s.ctx)
+		if err != nil {
+			log.Printf("Background integrity check failed: %v", err)
+		} else {
+			log.Printf("Background integrity check complete: %d checked, %d fixed, %d errors", stats["checked"], stats["fixed"], stats["errors"])
+		}
+	}()
+	
 	// Phase 3: Periodic health check
 	healthTicker := time.NewTicker(5 * time.Minute)
 	defer healthTicker.Stop()
@@ -124,16 +135,23 @@ func (s *BackupService) run() {
 				st.IsPaused = true
 				st.Message = "Backup paused"
 			})
-			// Wait for resume
-			select {
-			case <-s.resumeCh:
-				s.updateStatus(func(st *ServiceStatus) {
-					st.State = StateWatching
-					st.IsPaused = false
-					st.Message = "Watching for new NFTs"
-				})
-			case <-s.ctx.Done():
-				return
+			// Wait for resume but keep updating disk usage
+		PauseLoop:
+			for {
+				select {
+				case <-s.resumeCh:
+					s.updateStatus(func(st *ServiceStatus) {
+						st.State = StateWatching
+						st.IsPaused = false
+						st.Message = "Watching for new NFTs"
+					})
+					break PauseLoop
+				case <-time.After(1 * time.Minute):
+					// Update disk usage even when paused
+					s.manager.UpdateDiskUsage()
+				case <-s.ctx.Done():
+					return
+				}
 			}
 			
 		case walletAddr := <-s.triggerCh:
@@ -147,6 +165,8 @@ func (s *BackupService) run() {
 			if !s.isPaused {
 				s.performHealthCheck()
 			}
+			// Always update disk usage on health check interval too
+			s.manager.UpdateDiskUsage()
 		}
 	}
 }
@@ -524,4 +544,9 @@ func (s *BackupService) UnpinAsset(cid string) error {
 		return nil
 	}
 	return s.ipfs.Unpin(s.ctx, cid)
+}
+
+// VerifyAndFixPins runs the verification and repair process
+func (s *BackupService) VerifyAndFixPins() (map[string]int, error) {
+	return s.manager.VerifyAndFixPins(s.ctx)
 }

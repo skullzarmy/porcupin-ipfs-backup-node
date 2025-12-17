@@ -41,7 +41,7 @@ export interface Backend {
     DeleteAsset(id: number): Promise<void>;
     GetAssetGatewayURL(id: number): Promise<Record<string, string>>;
     GetAssetStats(): Promise<Record<string, number>>;
-    GetAssets(page: number, limit: number, status: string): Promise<db.Asset[]>;
+    GetAssets(page: number, limit: number, status: string, search: string): Promise<db.Asset[]>;
     GetFailedAssets(): Promise<db.Asset[]>;
     RepinAsset(id: number): Promise<void>;
     RepinZeroSizeAssets(): Promise<number>;
@@ -52,7 +52,7 @@ export interface Backend {
     VerifyAsset(id: number): Promise<ipfs.VerifyResult>;
 
     // NFT operations
-    GetNFTsWithAssets(page: number, limit: number): Promise<db.NFT[]>;
+    GetNFTsWithAssets(page: number, limit: number, status: string, search: string): Promise<db.NFT[]>;
 
     // Service control
     GetRecentActivity(limit: number): Promise<db.Asset[]>;
@@ -205,7 +205,7 @@ function createRemoteBackend(client: ProxyAPIClient): Backend {
         DeleteAsset: (id) => client.deleteAsset(id),
         GetAssetGatewayURL: (id) => client.getAssetGatewayURL(id),
         GetAssetStats: () => client.getAssetStats(),
-        GetAssets: (page, limit, status) => client.getAssets(page, limit, status),
+        GetAssets: (page, limit, status, search) => client.getAssets(page, limit, status, search),
         GetFailedAssets: () => client.getFailedAssets(),
         RepinAsset: (id) => client.repinAsset(id),
         RepinZeroSizeAssets: () => client.repinZeroSizeAssets(),
@@ -216,7 +216,8 @@ function createRemoteBackend(client: ProxyAPIClient): Backend {
         VerifyAsset: (id) => client.verifyAsset(id),
 
         // NFT operations
-        GetNFTsWithAssets: (page, limit) => client.getNFTsWithAssets(page, limit),
+        // NFT operations
+        GetNFTsWithAssets: (page, limit, status, search) => client.getNFTsWithAssets(page, limit, status, search),
 
         // Service control
         GetRecentActivity: (limit) => client.getRecentActivity(limit),
