@@ -42,8 +42,8 @@ export function GetAssetStats() {
   return window['go']['main']['App']['GetAssetStats']();
 }
 
-export function GetAssets(arg1, arg2, arg3) {
-  return window['go']['main']['App']['GetAssets'](arg1, arg2, arg3);
+export function GetAssets(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GetAssets'](arg1, arg2, arg3, arg4);
 }
 
 export function GetConfig() {
@@ -62,8 +62,8 @@ export function GetMigrationStatus() {
   return window['go']['main']['App']['GetMigrationStatus']();
 }
 
-export function GetNFTsWithAssets(arg1, arg2) {
-  return window['go']['main']['App']['GetNFTsWithAssets'](arg1, arg2);
+export function GetNFTsWithAssets(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['GetNFTsWithAssets'](arg1, arg2, arg3, arg4);
 }
 
 export function GetRecentActivity(arg1) {
@@ -116,6 +116,10 @@ export function PauseBackup() {
 
 export function PreviewAsset(arg1, arg2) {
   return window['go']['main']['App']['PreviewAsset'](arg1, arg2);
+}
+
+export function RecoverMissingAssets() {
+  return window['go']['main']['App']['RecoverMissingAssets']();
 }
 
 export function RemoteProxy(arg1) {

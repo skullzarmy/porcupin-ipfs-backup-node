@@ -28,7 +28,7 @@ export function GetAssetGatewayURL(arg1:number):Promise<Record<string, string>>;
 
 export function GetAssetStats():Promise<Record<string, number>>;
 
-export function GetAssets(arg1:number,arg2:number,arg3:string):Promise<Array<db.Asset>>;
+export function GetAssets(arg1:number,arg2:number,arg3:string,arg4:string):Promise<Array<db.Asset>>;
 
 export function GetConfig():Promise<config.Config>;
 
@@ -38,7 +38,7 @@ export function GetIPFSRepoPath():Promise<string>;
 
 export function GetMigrationStatus():Promise<storage.MigrationStatus>;
 
-export function GetNFTsWithAssets(arg1:number,arg2:number):Promise<Array<db.NFT>>;
+export function GetNFTsWithAssets(arg1:number,arg2:number,arg3:string,arg4:string):Promise<Array<db.NFT>>;
 
 export function GetRecentActivity(arg1:number):Promise<Array<db.Asset>>;
 
@@ -65,6 +65,8 @@ export function MigrateStorage(arg1:string):Promise<void>;
 export function PauseBackup():Promise<void>;
 
 export function PreviewAsset(arg1:number,arg2:number):Promise<Record<string, any>>;
+
+export function RecoverMissingAssets():Promise<Record<string, number>>;
 
 export function RemoteProxy(arg1:main.RemoteProxyRequest):Promise<main.RemoteProxyResponse>;
 

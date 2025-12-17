@@ -290,8 +290,18 @@ export class ProxyAPIClient {
     // NFT Endpoints
     // =========================================================================
 
-    async getNFTsWithAssets(page: number, limit: number): Promise<db.NFT[]> {
-        const resp = await this.get<{ data: { nfts: db.NFT[] } }>(`/api/v1/nfts?page=${page}&limit=${limit}`);
+    async getNFTsWithAssets(page: number, limit: number, status: string, search: string): Promise<db.NFT[]> {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
+        if (status && status !== "all") {
+            params.append("status", status);
+        }
+        if (search) {
+            params.append("search", search);
+        }
+        const resp = await this.get<{ data: { nfts: db.NFT[] } }>(`/api/v1/nfts?${params.toString()}`);
         return resp.data?.nfts || [];
     }
 
