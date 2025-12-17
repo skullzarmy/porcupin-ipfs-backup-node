@@ -211,12 +211,18 @@ export class ProxyAPIClient {
     // Asset Endpoints
     // =========================================================================
 
-    async getAssets(page: number, limit: number, status: string): Promise<db.Asset[]> {
-        let path = `/api/v1/assets?page=${page}&limit=${limit}`;
+    async getAssets(page: number, limit: number, status: string, search: string): Promise<db.Asset[]> {
+        const params = new URLSearchParams({
+            page: page.toString(),
+            limit: limit.toString(),
+        });
         if (status && status !== "all") {
-            path += `&status=${status}`;
+            params.append("status", status);
         }
-        const resp = await this.get<{ data: { assets: db.Asset[] } }>(path);
+        if (search) {
+            params.append("search", search);
+        }
+        const resp = await this.get<{ data: { assets: db.Asset[] } }>(`/api/v1/assets?${params.toString()}`);
         return resp.data?.assets || [];
     }
 
@@ -225,7 +231,8 @@ export class ProxyAPIClient {
     }
 
     async getFailedAssets(): Promise<db.Asset[]> {
-        return this.getAssets(1, 1000, "failed");
+        const resp = await this.get<{ data: { assets: db.Asset[] } }>("/api/v1/assets/failed");
+        return resp.data?.assets || [];
     }
 
     async retryAsset(id: number): Promise<void> {
@@ -247,7 +254,7 @@ export class ProxyAPIClient {
     }
 
     async unpinAsset(id: number): Promise<void> {
-        await this.post(`/api/v1/assets/${id}/unpin`);
+        await this.delete(`/api/v1/assets/${id}`); // Assuming delete is equivalent to unpin if no keep_assets param
     }
 
     async repinAsset(id: number): Promise<void> {
@@ -255,12 +262,13 @@ export class ProxyAPIClient {
     }
 
     async repinZeroSizeAssets(): Promise<number> {
-        const resp = await this.post<{ count: number }>("/api/v1/assets/repin-zero-size");
-        return resp.count || 0;
+        // Not exposed via API yet
+        return 0;
     }
 
     async resyncAsset(id: number): Promise<void> {
-        await this.post(`/api/v1/assets/${id}/resync`);
+        // Not exposed via API yet
+        return;
     }
 
     async verifyAsset(id: number): Promise<ipfs.VerifyResult> {

@@ -409,7 +409,7 @@ func (a *App) GetConfig() config.Config {
 }
 
 // GetAssets returns a paginated list of assets with their associated NFT info
-func (a *App) GetAssets(page int, limit int, status string) ([]db.Asset, error) {
+func (a *App) GetAssets(page int, limit int, status string, search string) ([]db.Asset, error) {
 	var assets []db.Asset
 	offset := (page - 1) * limit
 	
@@ -418,14 +418,22 @@ func (a *App) GetAssets(page int, limit int, status string) ([]db.Asset, error) 
 	if status != "" && status != "all" {
 		query = query.Where("status = ?", status)
 	}
+
+	if search != "" {
+		likeSearch := "%" + search + "%"
+		// Join with NFT table for searching by NFT name/description
+		query = query.Joins("LEFT JOIN nfts ON nfts.id = assets.nft_id").
+			Where("assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ? OR nfts.name LIKE ? OR nfts.description LIKE ?", 
+				likeSearch, likeSearch, likeSearch, likeSearch, likeSearch)
+	}
 	
-	err := query.Order("id desc").Offset(offset).Limit(limit).Find(&assets).Error
+	err := query.Order("assets.id desc").Offset(offset).Limit(limit).Find(&assets).Error
 	if err != nil {
 		log.Printf("GetAssets error: %v", err)
 		return nil, err
 	}
 	
-	log.Printf("GetAssets fetched %d assets (page %d, limit %d, status %s)", len(assets), page, limit, status)
+	log.Printf("GetAssets fetched %d assets (page %d, limit %d, status %s, search %s)", len(assets), page, limit, status, search)
 	return assets, nil
 }
 
@@ -445,13 +453,33 @@ func (a *App) GetRecentActivity(limit int) ([]db.Asset, error) {
 }
 
 // GetNFTsWithAssets returns a paginated list of NFTs with their associated assets
-func (a *App) GetNFTsWithAssets(page int, limit int) ([]db.NFT, error) {
+func (a *App) GetNFTsWithAssets(page int, limit int, status string, search string) ([]db.NFT, error) {
 	var nfts []db.NFT
 	offset := (page - 1) * limit
 	
-	err := a.database.DB.Model(&db.NFT{}).
-		Preload("Assets").
-		Order("id desc").
+	query := a.database.DB.Model(&db.NFT{}).Preload("Assets")
+
+	// If filtering by asset status, we need to join/filter
+	// This is tricky with GORM Preload + Pagination. 
+	// Easier to find matching NFT IDs first if filters are present.
+	if status != "" && status != "all" || search != "" {
+		subQuery := a.database.DB.Model(&db.NFT{}).Select("DISTINCT nfts.id").
+			Joins("LEFT JOIN assets ON assets.nft_id = nfts.id")
+		
+		if status != "" && status != "all" {
+			subQuery = subQuery.Where("assets.status = ?", status)
+		}
+		
+		if search != "" {
+			likeSearch := "%" + search + "%"
+			subQuery = subQuery.Where("nfts.name LIKE ? OR nfts.description LIKE ? OR assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ?", 
+				likeSearch, likeSearch, likeSearch, likeSearch, likeSearch)
+		}
+		
+		query = query.Where("id IN (?)", subQuery)
+	}
+	
+	err := query.Order("id desc").
 		Offset(offset).
 		Limit(limit).
 		Find(&nfts).Error
@@ -461,7 +489,7 @@ func (a *App) GetNFTsWithAssets(page int, limit int) ([]db.NFT, error) {
 		return nil, err
 	}
 	
-	log.Printf("GetNFTsWithAssets fetched %d NFTs (page %d, limit %d)", len(nfts), page, limit)
+	log.Printf("GetNFTsWithAssets fetched %d NFTs (page %d, limit %d, status %s, search %s)", len(nfts), page, limit, status, search)
 	return nfts, nil
 }
 
@@ -715,6 +743,11 @@ func (a *App) UpdateSettings(settings map[string]interface{}) error {
 	homeDir, _ := os.UserHomeDir()
 	configPath := filepath.Join(homeDir, ".porcupin", "config.yaml")
 	return a.config.SaveConfig(configPath)
+}
+
+// RecoverMissingAssets triggers the verification and repair process for missing asset records
+func (a *App) RecoverMissingAssets() (map[string]int, error) {
+	return a.backupService.VerifyAndFixPins()
 }
 
 // ResetDatabase clears all NFTs, assets, and unpins all IPFS content

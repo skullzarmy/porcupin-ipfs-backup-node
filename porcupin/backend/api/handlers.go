@@ -673,10 +673,22 @@ func (h *Handlers) GetAssets(w http.ResponseWriter, r *http.Request) {
 	offset := (page - 1) * limit
 
 	// Build query
-	query := h.db.Model(&db.Asset{})
+	query := h.db.Model(&db.Asset{}).Preload("NFT")
 
-	if status != "" {
+	status = r.URL.Query().Get("status")
+	search := r.URL.Query().Get("search")
+
+	if status != "" && status != "all" {
 		query = query.Where("status = ?", status)
+	}
+
+	if search != "" {
+		likeSearch := "%" + search + "%"
+		// Join with NFT table for searching by NFT name/description
+		// We need to use a subquery or join for this
+		query = query.Joins("LEFT JOIN nfts ON nfts.id = assets.nft_id").
+			Where("assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ? OR nfts.name LIKE ? OR nfts.description LIKE ?", 
+				likeSearch, likeSearch, likeSearch, likeSearch, likeSearch)
 	}
 
 	// Get total count
@@ -685,7 +697,7 @@ func (h *Handlers) GetAssets(w http.ResponseWriter, r *http.Request) {
 
 	// Get paginated results
 	var assets []db.Asset
-	query.Order("id DESC").Offset(offset).Limit(limit).Find(&assets)
+	query.Order("assets.id DESC").Offset(offset).Limit(limit).Find(&assets)
 
 	// Build response
 	resp := AssetsListResponse{
@@ -862,6 +874,23 @@ func (h *Handlers) DeleteAsset(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message":  "asset deleted",
 		"asset_id": id,
+	})
+}
+
+// VerifyAndFixPins triggers the verification and repair process
+// POST /api/v1/verify-and-fix
+func (h *Handlers) VerifyAndFixPins(w http.ResponseWriter, r *http.Request) {
+	result, err := h.service.VerifyAndFixPins()
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "Failed to verify and fix pins", err.Error())
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"data": result,
+		"meta": map[string]interface{}{
+			"timestamp": time.Now().UTC(),
+		},
 	})
 }
 

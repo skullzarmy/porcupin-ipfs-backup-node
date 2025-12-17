@@ -95,12 +95,30 @@ export function Assets({ onStatsChange }: AssetsProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
+    // Debounced search query for API calls
+    const [debouncedSearch, setDebouncedSearch] = useState("");
+
     const PAGE_SIZE = 50;
+
+    // Debounce search input
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+            setPage(1); // Reset to page 1 on search change
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    // Reset page on status change
+    useEffect(() => {
+        setPage(1);
+    }, [statusFilter]);
 
     const loadNfts = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await GetNFTsWithAssets(page, PAGE_SIZE);
+            // Pass status and search to backend
+            const res = await GetNFTsWithAssets(page, PAGE_SIZE, statusFilter, debouncedSearch);
             setNfts(res || []);
             setHasMore((res?.length || 0) >= PAGE_SIZE);
 
@@ -122,7 +140,7 @@ export function Assets({ onStatsChange }: AssetsProps) {
         } finally {
             setLoading(false);
         }
-    }, [page]);
+    }, [page, statusFilter, debouncedSearch]);
 
     useEffect(() => {
         loadNfts();
@@ -133,85 +151,13 @@ export function Assets({ onStatsChange }: AssetsProps) {
         localStorage.setItem("porcupin-asset-layout", layout);
     }, [layout]);
 
-    // Filter assets based on search and status
-    const filteredAssets = useMemo(() => {
-        return allAssets.filter((asset) => {
-            // Status filter
-            if (statusFilter !== "all") {
-                if (statusFilter === "failed") {
-                    if (!asset.status.includes("failed")) return false;
-                } else if (asset.status !== statusFilter) {
-                    return false;
-                }
-            }
-
-            // Search filter
-            if (searchQuery) {
-                const query = searchQuery.toLowerCase();
-                const nftName = asset.nft?.name?.toLowerCase() || "";
-                const nftDesc = asset.nft?.description?.toLowerCase() || "";
-                const assetType = asset.type?.toLowerCase() || "";
-                const mimeType = asset.mime_type?.toLowerCase() || "";
-                const uri = asset.uri?.toLowerCase() || "";
-
-                return (
-                    nftName.includes(query) ||
-                    nftDesc.includes(query) ||
-                    assetType.includes(query) ||
-                    mimeType.includes(query) ||
-                    uri.includes(query)
-                );
-            }
-
-            return true;
-        });
-    }, [allAssets, searchQuery, statusFilter]);
-
-    // Filter NFTs for grid view
-    const filteredNfts = useMemo(() => {
-        if (!searchQuery && statusFilter === "all") return nfts;
-
-        return nfts
-            .map((nft) => {
-                const filteredNftAssets = (nft.assets || []).filter((asset) => {
-                    if (statusFilter !== "all") {
-                        if (statusFilter === "failed") {
-                            if (!asset.status.includes("failed")) return false;
-                        } else if (asset.status !== statusFilter) {
-                            return false;
-                        }
-                    }
-                    return true;
-                });
-
-                if (searchQuery) {
-                    const query = searchQuery.toLowerCase();
-                    const matchesNft =
-                        nft.name?.toLowerCase().includes(query) || nft.description?.toLowerCase().includes(query);
-
-                    if (matchesNft) {
-                        return { ...nft, assets: filteredNftAssets.length > 0 ? filteredNftAssets : nft.assets };
-                    }
-
-                    // Check if any asset matches
-                    const matchingAssets = filteredNftAssets.filter(
-                        (a) =>
-                            a.type?.toLowerCase().includes(query) ||
-                            a.mime_type?.toLowerCase().includes(query) ||
-                            a.uri?.toLowerCase().includes(query)
-                    );
-
-                    if (matchingAssets.length > 0) {
-                        return { ...nft, assets: matchingAssets };
-                    }
-
-                    return null;
-                }
-
-                return filteredNftAssets.length > 0 ? { ...nft, assets: filteredNftAssets } : null;
-            })
-            .filter(Boolean) as db.NFT[];
-    }, [nfts, searchQuery, statusFilter]);
+    // UI filtering is no longer needed since we filter on backend
+    // But we might want to keep some simple client-side logic for "all" 
+    // or just rely on backend results.
+    // For now, we use the results directly from backend which are already filtered.
+    
+    const filteredAssets = allAssets;
+    const filteredNfts = nfts;
 
     const handleRefresh = () => {
         loadNfts();
