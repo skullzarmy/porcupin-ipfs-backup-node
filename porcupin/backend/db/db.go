@@ -79,7 +79,31 @@ type Setting struct {
 
 // InitDB initializes the database and performs auto-migration
 func InitDB(db *gorm.DB) error {
-	return db.AutoMigrate(&Wallet{}, &NFT{}, &Asset{}, &Setting{})
+	if err := db.AutoMigrate(&Wallet{}, &NFT{}, &Asset{}, &Setting{}); err != nil {
+		return err
+	}
+
+	// Migration: Reset sync level for all wallets to pick up missed HEN/Teia mints (and any others)
+	// This is required because the previous bug caused tokens to be skipped but the sync level to be advanced.
+	var setting Setting
+	if err := db.Where("key = ?", "migration_reset_sync_v1").First(&setting).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// Migration not applied yet - reset all wallets
+			// Use Where("1=1") to bypass GORM's global update protection
+			if err := db.Model(&Wallet{}).Where("1=1").Update("last_synced_level", 0).Error; err != nil {
+				return err
+			}
+			
+			// Mark migration as applied
+			if err := db.Create(&Setting{Key: "migration_reset_sync_v1", Value: "true"}).Error; err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // GetSetting retrieves a setting value by key

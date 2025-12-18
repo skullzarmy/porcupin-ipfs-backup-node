@@ -571,13 +571,23 @@ func (h *Handlers) GetNFTs(w http.ResponseWriter, r *http.Request) {
 
 	offset := (page - 1) * limit
 
+	// Build query
+	query := h.db.Model(&db.NFT{})
+
+	search := r.URL.Query().Get("search")
+	if search != "" {
+		likeSearch := "%" + search + "%"
+		query = query.Where("name LIKE ? OR description LIKE ? OR token_id LIKE ? OR contract_address LIKE ? OR creator_address LIKE ?", 
+			likeSearch, likeSearch, likeSearch, likeSearch, likeSearch)
+	}
+
 	// Get total count
 	var total int64
-	h.db.Model(&db.NFT{}).Count(&total)
+	query.Count(&total)
 
 	// Get paginated results with assets
 	var nfts []db.NFT
-	h.db.Preload("Assets").Order("id DESC").Offset(offset).Limit(limit).Find(&nfts)
+	query.Preload("Assets").Order("id DESC").Offset(offset).Limit(limit).Find(&nfts)
 
 	// Build response
 	resp := NFTsListResponse{
