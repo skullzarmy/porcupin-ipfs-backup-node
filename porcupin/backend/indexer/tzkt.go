@@ -329,18 +329,10 @@ func (i *Indexer) SyncCreatedSince(ctx context.Context, address string, sinceLev
 // FetchRawMetadataURI retrieves the raw IPFS URI for a token's metadata
 func (i *Indexer) FetchRawMetadataURI(ctx context.Context, contractAddress string, tokenId string) (string, error) {
 	// 1. Get contract storage schema to find `token_metadata` bigmap ID.
-	var contract struct {
-		BigMapIDs struct {
-			TokenMetadata uint64 `json:"token_metadata"`
-		} `json:"bigmaps"`
-	}
-	
-	if err := i.get(ctx, fmt.Sprintf("/v1/contracts/%s", contractAddress), nil, &contract); err != nil {
-		return "", fmt.Errorf("failed to get contract info: %w", err)
-	}
-
-	if contract.BigMapIDs.TokenMetadata == 0 {
-		return "", fmt.Errorf("token_metadata bigmap not found for contract %s", contractAddress)
+	// Try to get it from the dedicated bigmaps endpoint which is more reliable
+	bigMapID, err := i.GetTokenMetadataBigMapID(ctx, contractAddress)
+	if err != nil {
+		return "", fmt.Errorf("failed to get token_metadata bigmap ID: %w", err)
 	}
 
 	// 2. Query the BigMap for the specific token
@@ -351,7 +343,7 @@ func (i *Indexer) FetchRawMetadataURI(ctx context.Context, contractAddress strin
 	}
 
 	filters := map[string]string{
-		"bigmap": fmt.Sprintf("%d", contract.BigMapIDs.TokenMetadata),
+		"bigmap": fmt.Sprintf("%d", bigMapID),
 		"key":    tokenId,
 	}
 
@@ -378,6 +370,43 @@ func (i *Indexer) FetchRawMetadataURI(ctx context.Context, contractAddress strin
 	}
 
 	return string(bytesURI), nil
+}
+
+// GetTokenMetadataBigMapID finds the token_metadata bigmap ID for a contract
+func (i *Indexer) GetTokenMetadataBigMapID(ctx context.Context, contractAddress string) (uint64, error) {
+	// Query all active bigmaps for the contract
+	// We fetch minimal fields to be efficient
+	var bigmaps []struct {
+		Ptr  uint64   `json:"ptr"`
+		Path string   `json:"path"`
+		Tags []string `json:"tags"`
+	}
+
+	params := map[string]string{
+		"active": "true",
+		"select": "ptr,path,tags",
+	}
+
+	endpoint := fmt.Sprintf("/v1/contracts/%s/bigmaps", contractAddress)
+	if err := i.get(ctx, endpoint, params, &bigmaps); err != nil {
+		return 0, fmt.Errorf("failed to fetch contract bigmaps: %w", err)
+	}
+
+	for _, bm := range bigmaps {
+		// Check path first (most reliable)
+		if bm.Path == "token_metadata" {
+			return bm.Ptr, nil
+		}
+		
+		// Check tags as fallback
+		for _, tag := range bm.Tags {
+			if tag == "token_metadata" {
+				return bm.Ptr, nil
+			}
+		}
+	}
+
+	return 0, fmt.Errorf("token_metadata bigmap not found for contract %s", contractAddress)
 }
 
 // Listen subscribes to real-time updates for the given address
