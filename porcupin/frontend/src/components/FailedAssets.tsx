@@ -15,13 +15,16 @@ export function FailedAssets({ onClose, onRetry }: FailedAssetsProps) {
     const [retrying, setRetrying] = useState<Set<number>>(new Set());
     const [deleting, setDeleting] = useState<Set<number>>(new Set());
     const [confirmClearAll, setConfirmClearAll] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     const loadAssets = useCallback(async () => {
         try {
+            setError(null);
             const failed = await GetFailedAssets();
             setAssets(failed || []);
         } catch (err: unknown) {
             console.error("Failed to load failed assets:", err);
+            setError(err instanceof Error ? err.message : String(err));
         } finally {
             setLoading(false);
         }
@@ -140,7 +143,13 @@ export function FailedAssets({ onClose, onRetry }: FailedAssetsProps) {
                     </button>
                 </div>
 
-                {assets.length === 0 ? (
+                {error ? (
+                    <div className="error-state">
+                        <p className="error-title">Error loading assets</p>
+                        <p className="error-message">{error}</p>
+                        <button onClick={loadAssets} className="btn-retry-load">Try Again</button>
+                    </div>
+                ) : assets.length === 0 ? (
                     <div className="empty-state">
                         <p>
                             <PartyPopper size={24} /> No failed assets!

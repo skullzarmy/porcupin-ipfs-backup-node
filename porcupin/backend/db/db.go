@@ -79,6 +79,16 @@ type Setting struct {
 
 // InitDB initializes the database and performs auto-migration
 func InitDB(db *gorm.DB) error {
+	// Enable WAL mode for better concurrency and performance
+	if err := db.Exec("PRAGMA journal_mode=WAL;").Error; err != nil {
+		return err
+	}
+	
+	// Set busy timeout to 5 seconds to reduce "database is locked" errors
+	if err := db.Exec("PRAGMA busy_timeout=5000;").Error; err != nil {
+		return err
+	}
+
 	if err := db.AutoMigrate(&Wallet{}, &NFT{}, &Asset{}, &Setting{}); err != nil {
 		return err
 	}

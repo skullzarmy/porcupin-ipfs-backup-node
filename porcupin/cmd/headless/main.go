@@ -465,6 +465,17 @@ func main() {
 		case <-sigCh:
 			fmt.Println("\nShutting down...")
 			service.Stop()
+
+			// Explicitly close database to ensure WAL checkpoint
+			sqlDB, err := gormDB.DB()
+			if err == nil {
+				log.Println("Closing database connection...")
+				if err := sqlDB.Close(); err != nil {
+					log.Printf("Error closing database: %v", err)
+				} else {
+					log.Println("Database connection closed (checkpointed)")
+				}
+			}
 			return
 		case <-statusTicker.C:
 			status := service.GetStatus()

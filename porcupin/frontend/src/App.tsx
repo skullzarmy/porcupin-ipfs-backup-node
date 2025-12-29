@@ -27,6 +27,7 @@ function AppContent() {
     const [stats, setStats] = useState<Partial<AssetStats>>({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [isStale, setIsStale] = useState(false);
 
     // Get connection state to trigger reloads when it changes
     const { state } = useConnection();
@@ -44,10 +45,12 @@ function AppContent() {
             const newStats = await GetAssetStats();
             console.log("[App] GetAssetStats returned:", newStats);
             setStats(newStats || {});
+            setIsStale(false);
         } catch (err: unknown) {
             console.error("[App] GetAssetStats error:", err);
-            // Clear stats on error to avoid showing stale data
-            setStats({});
+            // Don't clear stats on error to avoid UI blips - just show stale data
+            // setStats({}); 
+            setIsStale(true);
         }
     }, []);
 
@@ -58,16 +61,16 @@ function AppContent() {
             setWallets(res || []);
         } catch (err: unknown) {
             console.error("[App] GetWallets error:", err);
-            // Clear wallets on error to avoid showing stale data
-            setWallets([]);
+            // Don't clear wallets on error to avoid UI blips - just show stale data
+            // setWallets([]);
         }
     }, []);
 
     // Clear data when connection mode changes (switching between local/remote)
     useEffect(() => {
         console.log("[App] Connection mode changed to:", connectionMode, "status:", state.status);
-        // Clear stale data when switching modes
-        if (state.status === "connecting" || state.status === "disconnected") {
+        // Only clear data when we are fully disconnected, not during transient connecting states
+        if (state.status === "disconnected") {
             setWallets([]);
             setStats({});
         }
@@ -104,12 +107,18 @@ function AppContent() {
                 <div className="drag-region" style={{ "--wails-draggable": "drag" } as React.CSSProperties}></div>
 
                 {error && (
-                    <div className="error-banner" role="alert">
+                    <div className="error-banner" role="alert" aria-live="assertive">
                         <span>{error}</span>
                         <button type="button" onClick={() => setError("")} aria-label="Dismiss error">
                             ×
                         </button>
                     </div>
+                )}
+                
+                {isStale && !error && (
+                     <div className="stale-banner" role="status" aria-live="polite">
+                        <span>⚠️ Connection unstable - Data may be stale</span>
+                     </div>
                 )}
 
                 {activeTab === "dashboard" && <Dashboard stats={stats} walletCount={wallets.length} />}

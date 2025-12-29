@@ -61,7 +61,7 @@ export class ProxyAPIClient {
 
         const response = await RemoteProxy(proxyRequest);
 
-        console.log(`[ProxyAPI] Response: ${response.statusCode}`);
+        // console.log(`[ProxyAPI] Response: ${response.statusCode}`);
 
         if (response.statusCode >= 400) {
             let errorMsg = `API request failed: ${response.statusCode}`;

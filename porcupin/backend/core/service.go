@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -332,10 +333,12 @@ func (s *BackupService) syncWallet(address string) {
 		s.db.UpdateWalletSyncTime(address, headLevel)
 	}
 	
+	now := time.Now()
 	s.updateStatus(func(st *ServiceStatus) {
 		st.State = StateWatching
 		st.CurrentWallet = ""
 		st.Message = "Watching for new NFTs"
+		st.LastSyncAt = &now
 	})
 }
 
@@ -360,10 +363,20 @@ func (s *BackupService) retryWorker() {
 
 // processPendingAssets processes assets stuck in pending status
 func (s *BackupService) processPendingAssets() {
+	// Update status so user sees activity
+	s.updateStatus(func(st *ServiceStatus) {
+		st.Message = "Processing pending assets..."
+	})
+
 	processed, pinned, failed := s.manager.ProcessPendingAssets(s.ctx, 50)
 	if processed > 0 {
 		log.Printf("Processed %d pending assets: %d pinned, %d failed", processed, pinned, failed)
 	}
+
+	// Restore status
+	s.updateStatus(func(st *ServiceStatus) {
+		st.Message = "Watching for new NFTs"
+	})
 }
 
 // retryFailedAssets retries assets that have failed
@@ -380,6 +393,7 @@ func (s *BackupService) retryFailedAssets() {
 	
 	s.updateStatus(func(st *ServiceStatus) {
 		st.PendingRetries = len(assets)
+		st.Message = fmt.Sprintf("Retrying %d failed assets...", len(assets))
 	})
 	
 	log.Printf("Retrying %d failed assets", len(assets))

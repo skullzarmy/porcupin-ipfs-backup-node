@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -746,6 +747,12 @@ func (h *Handlers) GetFailedAssets(w http.ResponseWriter, r *http.Request) {
 		Order("id DESC").
 		Find(&assets)
 
+	// Debug log
+	count := len(assets)
+	if count > 0 {
+		log.Printf("[API] GetFailedAssets: Found %d failed assets", count)
+	}
+
 	resp := make([]AssetResponse, 0, len(assets))
 	for _, asset := range assets {
 		ar := AssetResponse{
@@ -761,7 +768,9 @@ func (h *Handlers) GetFailedAssets(w http.ResponseWriter, r *http.Request) {
 		resp = append(resp, ar)
 	}
 
-	WriteJSON(w, http.StatusOK, resp)
+	WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"assets": resp,
+	})
 }
 
 // RetryAsset retries pinning a failed asset

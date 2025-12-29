@@ -117,6 +117,15 @@ You are free to use, modify, and distribute this software. We just ask that you 
   <a href="https://fafolab.xyz">fafolab.xyz</a> · <a href="mailto:info@fafolab.xyz">info@fafolab.xyz</a>
 </p>
 
+### Technology Stack
+
+This project was made possible by these incredible open-source technologies:
+
+-   **[Wails](https://wails.io)** — The Go/React desktop application framework
+-   **[Kubo IPFS](https://github.com/ipfs/kubo)** — The implementation of IPFS used for embedded pinning
+-   **[TZKT](https://tzkt.io)** — The premier Tezos API and Indexer
+-   **[Go](https://go.dev)** — The language that powers the backend
+
 ### Special Thanks
 
 <p align="center">

@@ -66,12 +66,21 @@ type BackupManager struct {
 
 // NewBackupManager creates a new backup manager
 func NewBackupManager(ipfsNode IPFSClient, idx *indexer.Indexer, database *db.Database, cfg *config.Config) *BackupManager {
+	// Safeguard: Ensure at least 1 worker, default to 5 if suspicious
+	concurrency := cfg.Backup.MaxConcurrency
+	if concurrency <= 0 {
+		log.Printf("Warning: MaxConcurrency is %d, defaulting to 5", concurrency)
+		concurrency = 5
+	}
+	
+	log.Printf("Initializing BackupManager with %d workers", concurrency)
+	
 	return &BackupManager{
 		ipfs:     ipfsNode,
 		indexer:  idx,
 		db:       database,
 		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		workers:  make(chan struct{}, concurrency),
 		shutdown: make(chan struct{}),
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -606,27 +615,30 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 
 // downloadMetadata fetches metadata about an asset without downloading the full file
 func (bm *BackupManager) downloadMetadata(ctx context.Context, uri string) ([]byte, string, int64, error) {
-	resolvedURI := resolveURI(uri)
-	req, err := http.NewRequestWithContext(ctx, "HEAD", resolvedURI, nil)
+	httpURI := resolveURI(uri) // Convert ipfs:// to gateway URL
+	
+	// Create a new context with timeout to prevent infinite hangs on bad gateways
+	// This is CRITICAL: the parent context might be the service context which lives forever.
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "HEAD", httpURI, nil)
 	if err != nil {
 		return nil, "", 0, err
 	}
-
+	
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, "", 0, err
 	}
 	defer resp.Body.Close()
-
+	
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", 0, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, "", 0, fmt.Errorf("bad status: %s", resp.Status)
 	}
-
-	mimeType := resp.Header.Get("Content-Type")
-	size := resp.ContentLength
-
+	
 	// Just return the info - actual size validation happens in backupAsset
-	return []byte{}, mimeType, size, nil
+	return nil, resp.Header.Get("Content-Type"), resp.ContentLength, nil
 }
 
 // VerifyAndFixPins iterates through all NFTs and ensures their assets are properly tracked and pinned
@@ -1034,6 +1046,8 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 
 // ProcessPendingAssets processes all assets stuck in pending status
 // This is used to resume interrupted syncs or manually retry pending work
+// ProcessPendingAssets processes all assets stuck in pending status
+// This is used to resume interrupted syncs or manually retry pending work
 func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (processed int, pinned int, failed int) {
 	assets, err := bm.db.GetPendingAssets(limit)
 	if err != nil {
@@ -1047,30 +1061,58 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 
 	log.Printf("Processing %d pending assets", len(assets))
 
+	var wg sync.WaitGroup
+	var pCount, pinCount, fCount int64
+
 	for _, asset := range assets {
+		// Early exit checks
 		select {
 		case <-ctx.Done():
-			return processed, pinned, failed
+			goto Finish
 		default:
 		}
 
 		if bm.IsPaused() {
 			log.Printf("Paused, stopping pending asset processing")
-			return processed, pinned, failed
+			goto Finish
 		}
 
-		processed++
-		err := bm.pinAssetDirect(ctx, &asset)
-		if err != nil {
-			failed++
-			log.Printf("Failed to pin pending asset %s: %v", asset.URI, err)
-		} else {
-			pinned++
-		}
+		wg.Add(1)
+		// Capture loop variable
+		go func(a db.Asset) {
+			defer wg.Done()
+
+			// Acquire worker slot
+			select {
+			case bm.workers <- struct{}{}:
+				defer func() { <-bm.workers }()
+			case <-ctx.Done():
+				return
+			case <-bm.shutdown:
+				return
+			}
+
+			// Re-check pause after acquiring worker
+			if bm.IsPaused() {
+				return
+			}
+
+			atomic.AddInt64(&pCount, 1)
+			err := bm.pinAssetDirect(ctx, &a)
+			if err != nil {
+				atomic.AddInt64(&fCount, 1)
+				log.Printf("Failed to pin pending asset %s: %v", a.URI, err)
+			} else {
+				atomic.AddInt64(&pinCount, 1)
+			}
+		}(asset)
 	}
 
+	wg.Wait()
+
+Finish:
 	// Update disk usage after processing
 	bm.UpdateDiskUsage()
 
-	return processed, pinned, failed
+	return int(atomic.LoadInt64(&pCount)), int(atomic.LoadInt64(&pinCount)), int(atomic.LoadInt64(&fCount))
 }
