@@ -144,6 +144,27 @@ porcupin --version
 144:     -   *Warning:* USB 2.0 speeds will limit sync performance.
 145:     -   *Warning:* Random I/O on cheap flash drives may cause system stalls (unresponsiveness).
 
+### Headless Wi-Fi Setup
+
+Since the Pi Zero 2 W has no Ethernet port, you must configure Wi-Fi before first boot:
+
+1.  Flash your SD card with Raspberry Pi OS Lite.
+2.  On your computer, open the `boot` partition of the SD card.
+3.  Create a file named `wpa_supplicant.conf` with the following content:
+
+```text
+country=US
+ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+update_config=1
+
+network={
+    ssid="YOUR_WIFI_NAME"
+    psk="YOUR_WIFI_PASSWORD"
+}
+```
+
+4.  (Optional) Create an empty file named `ssh` (no extension) in the same `boot` partition to enable SSH.
+
 ### Running as a Service (systemd)
 
 Create `/etc/systemd/system/porcupin.service`:
