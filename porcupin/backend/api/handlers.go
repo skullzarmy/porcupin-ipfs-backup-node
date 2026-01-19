@@ -465,7 +465,9 @@ func (h *Handlers) DeleteWallet(w http.ResponseWriter, r *http.Request) {
 		for _, asset := range assets {
 			cid := core.ExtractCIDFromURI(asset.URI)
 			if cid != "" {
-				_ = h.service.UnpinAsset(cid)
+				if err := h.service.UnpinAsset(cid); err != nil {
+					log.Printf("Warning: failed to unpin asset %s during wallet deletion: %v", cid, err)
+				}
 			}
 		}
 

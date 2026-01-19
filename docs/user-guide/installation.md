@@ -125,6 +125,24 @@ porcupin --version
 ```
 
 **Tip:** For Raspberry Pi, consider using an external SSD for storage. SD cards are slow and wear out quickly with IPFS.
+128: 
+129: ### Minimal Hardware (Raspberry Pi Zero 2 W)
+130: 
+131: The Raspberry Pi Zero 2 W is supported but requires specific "Low Power" optimizations due to its 512MB RAM limit.
+132: 
+133: **⚠️ Critical Requirements:**
+134: 1.  **Build with `lowpower` tag:** You MUST compile the binary yourself with the `lowpower` tag. The standard release binaries will crash due to OOM (Out of Memory).
+135:     ```bash
+136:     go build -tags lowpower -o porcupin ./cmd/headless
+137:     ```
+138: 2.  **Enable ZRAM:** You should enable ZRAM (swap on RAM) to prevent crashes during memory spikes.
+139:     ```bash
+140:     sudo apt install zram-tools
+141:     # Edit /etc/default/zramswap to set PERCENT=50
+142:     ```
+143: 3.  **High Endurance Storage:** If using a USB Flash Drive or SD Card, ensure it is "High Endurance" or "Pro" grade.
+144:     -   *Warning:* USB 2.0 speeds will limit sync performance.
+145:     -   *Warning:* Random I/O on cheap flash drives may cause system stalls (unresponsiveness).
 
 ### Running as a Service (systemd)
 
