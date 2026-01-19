@@ -10,6 +10,7 @@ import {
 } from "../lib/backend";
 import type { db } from "../../wailsjs/go/models";
 import { ConfirmModal } from "./ConfirmModal";
+import { formatError } from "../utils";
 
 interface WalletsProps {
     wallets: db.Wallet[];
@@ -41,7 +42,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
             onWalletsChange();
             onStatsChange();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(formatError(err));
         } finally {
             setLoading(false);
         }
@@ -61,7 +62,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
             }
             onStatsChange();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(formatError(err));
         } finally {
             setLoading(false);
         }
@@ -72,7 +73,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
             await UpdateWalletSettings(wallet.address, !wallet.sync_owned, wallet.sync_created);
             onWalletsChange();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(formatError(err));
         }
     };
 
@@ -81,7 +82,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
             await UpdateWalletSettings(wallet.address, wallet.sync_owned, !wallet.sync_created);
             onWalletsChange();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(formatError(err));
         }
     };
 
@@ -103,7 +104,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
             onWalletsChange();
             onStatsChange();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(formatError(err));
         } finally {
             setLoading(false);
             setWalletToDelete(null);
@@ -122,7 +123,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
             setEditAlias("");
             onWalletsChange();
         } catch (err: unknown) {
-            setError(err instanceof Error ? err.message : String(err));
+            setError(formatError(err));
         }
     };
 

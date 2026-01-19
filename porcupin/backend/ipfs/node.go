@@ -16,7 +16,6 @@ import (
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
 	"github.com/ipfs/kubo/core/corerepo"
-	"github.com/ipfs/kubo/core/node/libp2p"
 	"github.com/ipfs/kubo/plugin/loader"
 	"github.com/ipfs/kubo/repo"
 	"github.com/ipfs/kubo/repo/fsrepo"
@@ -104,6 +103,10 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 		// Configure swarm addresses with custom port
 		n.configureSwarmAddresses(cfg)
+		
+		// Apply profile-specific configuration (e.g., low power settings)
+		applyProfileConfig(cfg)
+
 		if err := fsrepo.Init(n.repoPath, cfg); err != nil {
 			return fmt.Errorf("failed to init repo: %w", err)
 		}
@@ -124,7 +127,7 @@ func (n *Node) Start(ctx context.Context) error {
 	// Construct node
 	nodeOptions := &core.BuildCfg{
 		Online:  true,
-		Routing: libp2p.DHTOption,
+		Routing: getRoutingOption(),
 		Repo:    repo,
 		ExtraOpts: map[string]bool{
 			"pubsub": true,

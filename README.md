@@ -34,6 +34,7 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 | ------------------------------- | ------------------------------------------- |
 | **Install and use Porcupin**    | **[User Guide](docs/user-guide/README.md)** |
 | **Build from source**           | [Developer Guide](docs/development.md)      |
+| **Data Backup & Recovery**      | [Backup Strategy](docs/user-guide/backup-strategy.md) |
 | **Contribute code**             | [Contributing Guide](CONTRIBUTING.md)       |
 | **Understand the architecture** | [Architecture Docs](docs/architecture.md)   |
 
@@ -116,6 +117,15 @@ You are free to use, modify, and distribute this software. We just ask that you 
   <strong>FAFO<s>lab</s></strong><br/>
   <a href="https://fafolab.xyz">fafolab.xyz</a> · <a href="mailto:info@fafolab.xyz">info@fafolab.xyz</a>
 </p>
+
+### Technology Stack
+
+This project was made possible by these incredible open-source technologies:
+
+-   **[Wails](https://wails.io)** — The Go/React desktop application framework
+-   **[Kubo IPFS](https://github.com/ipfs/kubo)** — The implementation of IPFS used for embedded pinning
+-   **[TZKT](https://tzkt.io)** — The premier Tezos API and Indexer
+-   **[Go](https://go.dev)** — The language that powers the backend
 
 ### Special Thanks
 
