@@ -12,6 +12,8 @@ Porcupin stores its configuration in `~/.porcupin/config.yaml`. You can edit thi
 | Linux    | `~/.porcupin/config.yaml`                                 |
 | Windows  | `C:\Users\<username>\.porcupin\config.yaml`               |
 | Docker   | `/home/porcupin/.porcupin/config.yaml` (inside container) |
+| Systemd  | `/var/lib/porcupin/config.yaml` (default service path)    |
+| Systemd  | `/var/lib/porcupin/config.yaml` (default service path)    |
 
 ---
 
