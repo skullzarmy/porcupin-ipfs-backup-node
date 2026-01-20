@@ -17,7 +17,9 @@ import {
     Clock,
     Wallet,
     Hourglass,
+    Server,
 } from "lucide-react";
+import logo from "../assets/images/logo.svg";
 
 /** Asset statistics from the database */
 interface AssetStats {
@@ -32,9 +34,10 @@ interface AssetStats {
 interface DashboardProps {
     stats: Partial<AssetStats>;
     walletCount: number;
+    onNavigate: (tab: string, section?: string) => void;
 }
 
-export function Dashboard({ stats, walletCount }: DashboardProps) {
+export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
     const [status, setStatus] = useState<core.ServiceStatus | null>(null);
     const [isPaused, setIsPaused] = useState(false);
     const [showFailedModal, setShowFailedModal] = useState(false);
@@ -74,6 +77,36 @@ export function Dashboard({ stats, walletCount }: DashboardProps) {
             console.error("Failed to toggle pause:", err);
         }
     };
+
+    // EMPTY STATE
+    if (walletCount === 0) {
+        return (
+            <div className="dashboard-page empty">
+                <div className="empty-state-container">
+                    <img src={logo} alt="Porcupin Logo" className="empty-state-logo" />
+                    <h1>Nothing here but possibilities</h1>
+                    <p>Add a Tezos wallet to start backing up your NFTs.</p>
+
+                    <div className="empty-state-actions">
+                        <button className="btn-primary-large" onClick={() => onNavigate("wallets")}>
+                            Add First Wallet
+                        </button>
+
+                        <div className="empty-state-divider">
+                            <span>or</span>
+                        </div>
+
+                        <button
+                            onClick={() => onNavigate("settings", "remote-server-settings")}
+                            className="btn-text-icon"
+                        >
+                            <Server size={14} /> Connect to Remote Porcupin Server
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const failedCount = (stats.failed || 0) + (stats.failed_unavailable || 0);
 

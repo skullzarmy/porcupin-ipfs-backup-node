@@ -28,6 +28,7 @@ function AppContent() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [isStale, setIsStale] = useState(false);
+    const [scrollToSection, setScrollToSection] = useState("");
 
     // Get connection state to trigger reloads when it changes
     const { state } = useConnection();
@@ -65,6 +66,11 @@ function AppContent() {
             // setWallets([]);
         }
     }, []);
+
+    const handleNavigate = (tab: string, section?: string) => {
+        setActiveTab(tab);
+        if (section) setScrollToSection(section);
+    };
 
     // Clear data when connection mode changes (switching between local/remote)
     useEffect(() => {
@@ -121,7 +127,9 @@ function AppContent() {
                      </div>
                 )}
 
-                {activeTab === "dashboard" && <Dashboard stats={stats} walletCount={wallets.length} />}
+                {activeTab === "dashboard" && (
+                    <Dashboard stats={stats} walletCount={wallets.length} onNavigate={handleNavigate} />
+                )}
 
                 {activeTab === "wallets" && (
                     <Wallets
@@ -136,7 +144,9 @@ function AppContent() {
 
                 {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
 
-                {activeTab === "settings" && <Settings onStatsChange={updateStats} />}
+                {activeTab === "settings" && (
+                    <Settings onStatsChange={updateStats} scrollToSection={scrollToSection} />
+                )}
 
                 {activeTab === "about" && <About />}
             </main>
