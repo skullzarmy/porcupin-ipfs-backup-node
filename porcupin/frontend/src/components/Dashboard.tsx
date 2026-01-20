@@ -17,7 +17,9 @@ import {
     Clock,
     Wallet,
     Hourglass,
+    Server,
 } from "lucide-react";
+import { Logo } from "./Logo";
 
 /** Asset statistics from the database */
 interface AssetStats {
@@ -32,9 +34,11 @@ interface AssetStats {
 interface DashboardProps {
     stats: Partial<AssetStats>;
     walletCount: number;
+    walletCount: number;
+    onNavigate: (tab: string, section?: string) => void;
 }
 
-export function Dashboard({ stats, walletCount }: DashboardProps) {
+export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
     const [status, setStatus] = useState<core.ServiceStatus | null>(null);
     const [isPaused, setIsPaused] = useState(false);
     const [showFailedModal, setShowFailedModal] = useState(false);
@@ -123,6 +127,33 @@ export function Dashboard({ stats, walletCount }: DashboardProps) {
     // Only show detailed progress when there are pending assets to pin
     const hasPendingWork =
         status && status.total_assets > 0 && status.pinned_assets + status.failed_assets < status.total_assets;
+
+    // Empty State (Zero Wallets)
+    if (walletCount === 0) {
+        return (
+            <div className="dashboard-page">
+                <div className="dashboard-empty-state">
+                    <div className="empty-state-icon-wrapper">
+                        <Logo size={80} />
+                    </div>
+                    <h1>There's nothing here but possibilities...</h1>
+                    <p>Let's add your first wallet!</p>
+                    <button onClick={() => onNavigate("wallets")} className="btn-large btn-glow">
+                        Add My First Wallet
+                    </button>
+                    <div className="remote-connect-link">
+                        <span className="divider">or</span>
+                        <button
+                            onClick={() => onNavigate("settings", "remote-server-settings")}
+                            className="btn-text-icon"
+                        >
+                            <Server size={14} /> Connect to Remote Server
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="dashboard-page">

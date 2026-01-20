@@ -150,7 +150,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
                 </div>
             </div>
 
-            <div className="add-wallet">
+            <div className={`add-wallet ${wallets.length === 0 ? "input-glow-container" : ""}`}>
                 <input
                     type="text"
                     placeholder="Enter Tezos Address (tz1...)"
