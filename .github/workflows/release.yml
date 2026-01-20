@@ -136,6 +136,10 @@ jobs:
                     - goos: darwin
                       goarch: arm64
                       artifact: porcupin-server-darwin-arm64
+                    - goos: linux
+                      goarch: arm64
+                      artifact: porcupin-server-linux-arm64-lowpower
+                      tags: "lowpower"
 
         runs-on: ubuntu-latest
 
@@ -156,7 +160,11 @@ jobs:
                   GOARCH: ${{ matrix.goarch }}
                   CGO_ENABLED: "0"
               run: |
-                  go build -o build/bin/${{ matrix.artifact }} ./cmd/headless
+                  if [ -n "${{ matrix.tags }}" ]; then
+                    go build -tags ${{ matrix.tags }} -o build/bin/${{ matrix.artifact }} ./cmd/headless
+                  else
+                    go build -o build/bin/${{ matrix.artifact }} ./cmd/headless
+                  fi
 
             - name: Upload artifact
               uses: actions/upload-artifact@v4
@@ -246,3 +254,4 @@ jobs:
                       artifacts/porcupin-server-linux-arm64/porcupin-server-linux-arm64
                       artifacts/porcupin-server-darwin-amd64/porcupin-server-darwin-amd64
                       artifacts/porcupin-server-darwin-arm64/porcupin-server-darwin-arm64
+                      artifacts/porcupin-server-linux-arm64-lowpower/porcupin-server-linux-arm64-lowpower

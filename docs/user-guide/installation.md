@@ -131,10 +131,12 @@ The Raspberry Pi Zero 2 W is supported but requires specific "Low Power" optimiz
 
 **⚠️ Critical Requirements:**
 
-1.  **Build with `lowpower` tag:** You MUST compile the binary yourself with the `lowpower` tag. The standard release binaries will crash due to OOM (Out of Memory).
-
+1.  **Download the "lowpower" binary:** We provide a pre-built binary specifically optimized for the Pi Zero 2 W.
+    
     ```bash
-    go build -tags lowpower -o porcupin ./cmd/headless
+    wget https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases/latest/download/porcupin-server-linux-arm64-lowpower
+    chmod +x porcupin-server-linux-arm64-lowpower
+    sudo mv porcupin-server-linux-arm64-lowpower /usr/local/bin/porcupin
     ```
 
 2.  **Enable ZRAM:** You should enable ZRAM (swap on RAM) to prevent crashes during memory spikes.
