@@ -150,6 +150,50 @@ The Raspberry Pi Zero 2 W is supported but requires specific "Low Power" optimiz
     -   *Warning:* USB 2.0 speeds will limit sync performance.
     -   *Warning:* Random I/O on cheap flash drives may cause system stalls (unresponsiveness).
 
+### External Storage Setup (Crucial)
+
+If you are using an external USB drive (highly recommended for Raspberry Pi), **you must format it as ext4**. Windows filesystems like FAT32 or exFAT **do not support** the file permissions required by IPFS and will cause errors.
+
+**1. Format the Drive (ext4):**
+
+*Warning: This will erase all data on the drive!*
+
+```bash
+# Find your drive (e.g., /dev/sda)
+lsblk
+
+# Format partition 1 (e.g., /dev/sda1)
+sudo mkfs.ext4 /dev/sda1
+```
+
+**2. Configure Auto-Mount (`/etc/fstab`):**
+
+To ensure the drive mounts automatically on boot:
+
+```bash
+# Get the UUID of the new partition
+sudo blkid /dev/sda1
+# Output example: UUID="96106d19-..." BLOCK_SIZE="4096" TYPE="ext4"
+
+# Create mount point
+sudo mkdir -p /mnt/usb
+
+# Edit fstab
+sudo nano /etc/fstab
+
+# Add this line (replace UUID with yours):
+UUID=your-uuid-here /mnt/usb ext4 defaults,noatime 0 2
+```
+
+**3. Set Permissions:**
+
+After mounting, ensure the `porcupin` user owns the directory:
+
+```bash
+sudo mount -a
+sudo chown -R porcupin:porcupin /mnt/usb
+```
+
 ### Headless Wi-Fi Setup
 
 Since the Pi Zero 2 W has no Ethernet port, you must configure Wi-Fi before first boot:

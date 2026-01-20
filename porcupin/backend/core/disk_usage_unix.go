@@ -14,7 +14,8 @@ func GetDiskUsageBytes(path string) (int64, error) {
 	cmd := exec.Command("du", "-sk", path)
 	output, err := cmd.Output()
 	if err != nil {
-		return 0, fmt.Errorf("du command failed: %w", err)
+		log.Printf("Warning: disk usage check failed for %s: %v", path, err)
+		return 0, nil
 	}
 
 	var sizeKB int64
