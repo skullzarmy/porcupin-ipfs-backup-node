@@ -28,12 +28,7 @@ function AppContent() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [isStale, setIsStale] = useState(false);
-    const [scrollToSection, setScrollToSection] = useState<string | null>(null);
-
-    const handleNavigate = (tab: string, section?: string) => {
-        setActiveTab(tab);
-        if (section) setScrollToSection(section);
-    };
+    const [scrollToSection, setScrollToSection] = useState("");
 
     // Get connection state to trigger reloads when it changes
     const { state } = useConnection();
@@ -72,6 +67,11 @@ function AppContent() {
         }
     }, []);
 
+    const handleNavigate = (tab: string, section?: string) => {
+        setActiveTab(tab);
+        if (section) setScrollToSection(section);
+    };
+
     // Clear data when connection mode changes (switching between local/remote)
     useEffect(() => {
         console.log("[App] Connection mode changed to:", connectionMode, "status:", state.status);
@@ -106,7 +106,7 @@ function AppContent() {
                 Skip to main content
             </a>
 
-            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} walletCount={wallets.length} />
+            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
             <main className="main-content" id="main-content" tabIndex={-1}>
                 {/* Drag region for window - macOS/Windows title bar area */}

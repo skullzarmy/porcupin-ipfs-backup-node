@@ -40,10 +40,15 @@ import { formatBytes } from "../utils";
 
 interface SettingsProps {
     onStatsChange: () => void;
-    scrollToSection?: string | null;
+    scrollToSection?: string;
 }
 
 export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
+    const [storageInfo, setStorageInfo] = useState<main.StorageInfo | null>(null);
+    const [repoPath, setRepoPath] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [message, setMessage] = useState("");
+
     // Scroll to section handling
     useEffect(() => {
         if (scrollToSection) {
@@ -56,10 +61,6 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
             }, 100);
         }
     }, [scrollToSection]);
-    const [storageInfo, setStorageInfo] = useState<main.StorageInfo | null>(null);
-    const [repoPath, setRepoPath] = useState("");
-    const [saving, setSaving] = useState(false);
-    const [message, setMessage] = useState("");
 
     // Form state
     const [maxStorageGB, setMaxStorageGB] = useState(0);

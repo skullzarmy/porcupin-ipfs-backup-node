@@ -30,6 +30,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
     const [deleteMode, setDeleteMode] = useState<DeleteMode>("keep-pins");
     const [editingWallet, setEditingWallet] = useState<string | null>(null);
     const [editAlias, setEditAlias] = useState("");
+    const [hasFocusedInput, setHasFocusedInput] = useState(false);
 
     const handleAddWallet = async () => {
         if (!newAddress) return;
@@ -150,12 +151,13 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
                 </div>
             </div>
 
-            <div className={`add-wallet ${wallets.length === 0 ? "input-glow-container" : ""}`}>
+            <div className={`add-wallet ${wallets.length === 0 && !hasFocusedInput ? "input-glow-container" : ""}`}>
                 <input
                     type="text"
                     placeholder="Enter Tezos Address (tz1...)"
                     value={newAddress}
                     onChange={(e) => setNewAddress(e.target.value)}
+                    onFocus={() => setHasFocusedInput(true)}
                     aria-label="Tezos wallet address"
                 />
                 <input
@@ -163,6 +165,7 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
                     placeholder="Alias (Optional)"
                     value={newAlias}
                     onChange={(e) => setNewAlias(e.target.value)}
+                    onFocus={() => setHasFocusedInput(true)}
                     aria-label="Wallet alias (optional)"
                 />
                 <button type="button" onClick={handleAddWallet} disabled={loading} className="btn-primary">

@@ -19,7 +19,7 @@ import {
     Hourglass,
     Server,
 } from "lucide-react";
-import { Logo } from "./Logo";
+import logo from "../assets/images/logo.svg";
 
 /** Asset statistics from the database */
 interface AssetStats {
@@ -33,7 +33,6 @@ interface AssetStats {
 
 interface DashboardProps {
     stats: Partial<AssetStats>;
-    walletCount: number;
     walletCount: number;
     onNavigate: (tab: string, section?: string) => void;
 }
@@ -78,6 +77,36 @@ export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
             console.error("Failed to toggle pause:", err);
         }
     };
+
+    // EMPTY STATE
+    if (walletCount === 0) {
+        return (
+            <div className="dashboard-page empty">
+                <div className="empty-state-container">
+                    <img src={logo} alt="Porcupin Logo" className="empty-state-logo" />
+                    <h1>Nothing here but possibilities</h1>
+                    <p>Add a Tezos wallet to start backing up your NFTs.</p>
+
+                    <div className="empty-state-actions">
+                        <button className="btn-primary-large" onClick={() => onNavigate("wallets")}>
+                            Add First Wallet
+                        </button>
+
+                        <div className="empty-state-divider">
+                            <span>or</span>
+                        </div>
+
+                        <button
+                            onClick={() => onNavigate("settings", "remote-server-settings")}
+                            className="btn-text-icon"
+                        >
+                            <Server size={14} /> Connect to Remote Porcupin Server
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const failedCount = (stats.failed || 0) + (stats.failed_unavailable || 0);
 
@@ -127,33 +156,6 @@ export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
     // Only show detailed progress when there are pending assets to pin
     const hasPendingWork =
         status && status.total_assets > 0 && status.pinned_assets + status.failed_assets < status.total_assets;
-
-    // Empty State (Zero Wallets)
-    if (walletCount === 0) {
-        return (
-            <div className="dashboard-page">
-                <div className="dashboard-empty-state">
-                    <div className="empty-state-icon-wrapper">
-                        <Logo size={80} />
-                    </div>
-                    <h1>There's nothing here but possibilities...</h1>
-                    <p>Let's add your first wallet!</p>
-                    <button onClick={() => onNavigate("wallets")} className="btn-large btn-glow">
-                        Add My First Wallet
-                    </button>
-                    <div className="remote-connect-link">
-                        <span className="divider">or</span>
-                        <button
-                            onClick={() => onNavigate("settings", "remote-server-settings")}
-                            className="btn-text-icon"
-                        >
-                            <Server size={14} /> Connect to Remote Server
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="dashboard-page">
