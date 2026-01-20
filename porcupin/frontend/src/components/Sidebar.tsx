@@ -16,7 +16,6 @@ import { useConnectionStatus } from "../lib/connection";
 interface SidebarProps {
     activeTab: string;
     onTabChange: (tab: string) => void;
-    walletCount: number;
 }
 
 const navItems = [
@@ -27,7 +26,7 @@ const navItems = [
     { id: "about", icon: HelpCircle, label: "About" },
 ];
 
-export function Sidebar({ activeTab, onTabChange, walletCount }: SidebarProps) {
+export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const connectionStatus = useConnectionStatus();
 
@@ -43,9 +42,7 @@ export function Sidebar({ activeTab, onTabChange, walletCount }: SidebarProps) {
                     <button
                         key={item.id}
                         type="button"
-                        className={`sidebar-item ${activeTab === item.id ? "active" : ""} ${
-                            item.id === "wallets" && walletCount === 0 ? "nav-pulse" : ""
-                        }`}
+                        className={`sidebar-item ${activeTab === item.id ? "active" : ""}`}
                         onClick={() => onTabChange(item.id)}
                         aria-label={item.label}
                         aria-current={activeTab === item.id ? "page" : undefined}

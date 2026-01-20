@@ -3,18 +3,37 @@
 package ipfs
 
 import (
+	"log"
+	"time"
+
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core/node/libp2p"
 )
 
 // getRoutingOption returns the routing option for the IPFS node
-// For standard builds, we use the default DHT option (Server/Hybrid)
+// We universally use DHT Client option to reduce resource usage and avoid being a public server
 func getRoutingOption() libp2p.RoutingOption {
-	return libp2p.DHTOption
+	log.Println("IPFS Profile: Using DHT Client routing (Selfish Mode)")
+	return libp2p.DHTClientOption
 }
 
 // applyProfileConfig applies profile-specific configuration overrides
-// For standard builds, we use the defaults
 func applyProfileConfig(cfg *config.Config) {
-	// No overrides for standard profile
+	log.Println("IPFS Profile: Tuning connection limits for personal usage")
+
+	// Strict connection limits for all users
+	// Default is often 600/900 which is excessive for a personal backup tool
+	lowWater := config.NewOptionalInteger(20)
+	cfg.Swarm.ConnMgr.LowWater = lowWater
+
+	highWater := config.NewOptionalInteger(40)
+	cfg.Swarm.ConnMgr.HighWater = highWater
+
+	cfg.Swarm.ConnMgr.GracePeriod = config.NewOptionalDuration(1 * time.Minute)
+
+	// Disable AutoNATService as we are a client
+	cfg.AutoNAT.ServiceMode = config.AutoNATServiceDisabled
+
+	// Reduce reprovider interval
+	cfg.Reprovider.Interval = config.NewOptionalDuration(12 * time.Hour)
 }

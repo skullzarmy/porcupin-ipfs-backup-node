@@ -40,22 +40,9 @@ import { formatBytes } from "../utils";
 
 interface SettingsProps {
     onStatsChange: () => void;
-    scrollToSection?: string | null;
 }
 
-export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
-    // Scroll to section handling
-    useEffect(() => {
-        if (scrollToSection) {
-            // Small timeout to allow render
-            setTimeout(() => {
-                const element = document.getElementById(scrollToSection);
-                if (element) {
-                    element.scrollIntoView({ behavior: "smooth" });
-                }
-            }, 100);
-        }
-    }, [scrollToSection]);
+export function Settings({ onStatsChange }: SettingsProps) {
     const [storageInfo, setStorageInfo] = useState<main.StorageInfo | null>(null);
     const [repoPath, setRepoPath] = useState("");
     const [saving, setSaving] = useState(false);
@@ -741,7 +728,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
             </div>
 
             {/* Remote Server */}
-            <div className="settings-section" id="remote-server-settings">
+            <div className="settings-section">
                 <h3>
                     <Server size={18} />
                     Remote Server

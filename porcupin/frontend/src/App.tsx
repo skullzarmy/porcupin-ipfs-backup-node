@@ -28,12 +28,6 @@ function AppContent() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [isStale, setIsStale] = useState(false);
-    const [scrollToSection, setScrollToSection] = useState<string | null>(null);
-
-    const handleNavigate = (tab: string, section?: string) => {
-        setActiveTab(tab);
-        if (section) setScrollToSection(section);
-    };
 
     // Get connection state to trigger reloads when it changes
     const { state } = useConnection();
@@ -106,7 +100,7 @@ function AppContent() {
                 Skip to main content
             </a>
 
-            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} walletCount={wallets.length} />
+            <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
 
             <main className="main-content" id="main-content" tabIndex={-1}>
                 {/* Drag region for window - macOS/Windows title bar area */}
@@ -127,9 +121,7 @@ function AppContent() {
                      </div>
                 )}
 
-                {activeTab === "dashboard" && (
-                    <Dashboard stats={stats} walletCount={wallets.length} onNavigate={handleNavigate} />
-                )}
+                {activeTab === "dashboard" && <Dashboard stats={stats} walletCount={wallets.length} />}
 
                 {activeTab === "wallets" && (
                     <Wallets
@@ -144,9 +136,7 @@ function AppContent() {
 
                 {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
 
-                {activeTab === "settings" && (
-                    <Settings onStatsChange={updateStats} scrollToSection={scrollToSection} />
-                )}
+                {activeTab === "settings" && <Settings onStatsChange={updateStats} />}
 
                 {activeTab === "about" && <About />}
             </main>

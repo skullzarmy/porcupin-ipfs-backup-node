@@ -14,7 +14,7 @@ This guide covers installing Porcupin on all supported platforms.
 | **Windows (ARM)**         | ARM64        | `porcupin-windows-arm64.zip`   | Surface Pro X, etc.                |
 | **Linux (x64)**           | x64          | `porcupin-linux-amd64.tar.gz`  | Ubuntu/Debian with GUI             |
 | **Linux Server (x64)**    | x64          | `porcupin-server-linux-amd64`  | Headless Ubuntu/Debian             |
-| **Linux Server (ARM64)**  | ARM64        | `porcupin-server-linux-arm64`  | Headless, Raspberry Pi 4/5         |
+| **Linux Server (ARM64)**  | ARM64        | `porcupin-server-linux-arm64`  | Headless, Pi 4/5/Zero 2 W  |
 | **macOS Server (Intel)**  | x64          | `porcupin-server-darwin-amd64` | Headless macOS Intel               |
 | **macOS Server (ARM)**    | ARM64        | `porcupin-server-darwin-arm64` | Headless macOS M1/M2/M3            |
 | **Docker**                | Any          | `ghcr.io/skullzarmy/porcupin`  | Any platform with Docker           |
@@ -126,25 +126,81 @@ porcupin --version
 
 **Tip:** For Raspberry Pi, consider using an external SSD for storage. SD cards are slow and wear out quickly with IPFS.
 ### Minimal Hardware (Raspberry Pi Zero 2 W)
-
-The Raspberry Pi Zero 2 W is supported but requires specific "Low Power" optimizations due to its 512MB RAM limit.
-
-**⚠️ Critical Requirements:**
-
-1.  **Download the "lowpower" binary:** We provide a pre-built binary specifically optimized for the Pi Zero 2 W.
     
-    ```bash
-    wget https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases/latest/download/porcupin-server-linux-arm64-lowpower
-    chmod +x porcupin-server-linux-arm64-lowpower
-    sudo mv porcupin-server-linux-arm64-lowpower /usr/local/bin/porcupin
-    ```
+The Raspberry Pi Zero 2 W uses a quad-core processor but is severely limited by its **512MB RAM**. To run Porcupin (which includes a full IPFS node) stably, you must perform the following optimizations.
 
-2.  **Enable ZRAM:** You should enable ZRAM (swap on RAM) to prevent crashes during memory spikes.
+**1. Enable Swap (CRITICAL)**
 
-    ```bash
-    sudo apt install zram-tools
-    # Edit /etc/default/zramswap to set PERCENT=50
-    ```
+The default 100MB swap is insufficient. You need at least 2GB of swap or the process will be killed (OOM).
+
+**Where should I put the swap file?**
+*    **USB SSD (Recommended):** fast and saves your SD card from burning out.
+*    **USB Flash Drive:** Saves your SD card, but might be slow.
+*    **SD Card (Fallback):** Simplest, but heavy swapping will wear it out faster.
+
+**Option A: Swap on USB (Recommended)**
+Assuming your drive is mounted at `/mnt/usb` and formatted as ext4:
+```bash
+sudo fallocate -l 2G /mnt/usb/swapfile
+sudo chmod 600 /mnt/usb/swapfile
+sudo mkswap /mnt/usb/swapfile
+sudo swapon /mnt/usb/swapfile
+echo '/mnt/usb/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+**Option B: Swap on SD Card**
+```bash
+sudo fallocate -l 2G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+**2. Optimize Configuration**
+
+The config file is generated automatically the first time you run Porcupin. You can also create it manually.
+
+Edit `~/.porcupin/config.yaml` (or `/var/lib/porcupin/config.yaml` if running as a service) and paste the following low-memory tuning:
+
+```yaml
+backup:
+  max_concurrency: 1           # Default is 3. Limit to 1 worker on Zero 2 W.
+  max_metadata_size_mb: 1      # Avoid loading huge JSONs into RAM
+  min_free_disk_space_gb: 1    # Lower requirement for small SD cards
+  max_storage_gb: 0            # 0 = unlimited
+
+ipfs:
+  rate_limit_mbps: 2           # Prevent network buffers from filling RAM
+  repo_path: "~/.porcupin/ipfs"
+
+server:
+  bind_address: "127.0.0.1:8080"
+  enable_auth: false
+
+tzkt:
+  base_url: "https://api.tzkt.io"
+
+api:
+  enabled: false # Enable if managing remotely
+  port: 8085
+```
+
+**3. Runtime Tuning (GOGC)**
+
+When running the service, force Go to garbage collect more aggressively by setting `GOGC`.
+
+Manually:
+```bash
+GOGC=20 porcupin ...
+```
+
+Or in your systemd service file (`/etc/systemd/system/porcupin.service`):
+```ini
+[Service]
+Environment="GOGC=20"
+...
+```
 
 3.  **High Endurance Storage:** If using a USB Flash Drive or SD Card, ensure it is "High Endurance" or "Pro" grade.
     -   *Warning:* USB 2.0 speeds will limit sync performance.
