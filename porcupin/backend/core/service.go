@@ -61,6 +61,8 @@ type BackupService struct {
 	pauseCh   chan struct{}
 	resumeCh  chan struct{}
 	triggerCh chan string  // wallet address to sync
+	
+	watchedWallets map[string]bool // Track which wallets have active watchers
 }
 
 // NewBackupService creates a new backup service
@@ -77,6 +79,7 @@ func NewBackupService(ipfsNode *ipfs.Node, idx *indexer.Indexer, database *db.Da
 		pauseCh:   make(chan struct{}),
 		resumeCh:  make(chan struct{}),
 		triggerCh: make(chan string, 100),
+		watchedWallets: make(map[string]bool),
 	}
 }
 
@@ -120,6 +123,10 @@ func (s *BackupService) run() {
 	// Phase 3: Periodic health check
 	healthTicker := time.NewTicker(5 * time.Minute)
 	defer healthTicker.Stop()
+
+	// Hot Reload Ticker: Check for new wallets frequently (every 15 seconds)
+	hotReloadTicker := time.NewTicker(15 * time.Second)
+	defer hotReloadTicker.Stop()
 	
 	for {
 		select {
@@ -161,6 +168,12 @@ func (s *BackupService) run() {
 				s.syncWallet(walletAddr)
 			}
 			
+		case <-hotReloadTicker.C:
+			// fast check for new wallets added via CLI
+			if !s.isPaused {
+				s.checkForNewWallets()
+			}
+
 		case <-healthTicker.C:
 			// Periodic check - sync any wallets that haven't been synced in a while
 			if !s.isPaused {
@@ -248,8 +261,15 @@ func (s *BackupService) startWatching() {
 		return
 	}
 	
+	// Lock for map access
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	for _, wallet := range wallets {
-		go s.watchWallet(wallet.Address)
+		if !s.watchedWallets[wallet.Address] {
+			s.watchedWallets[wallet.Address] = true
+			go s.watchWallet(wallet.Address)
+		}
 	}
 }
 
