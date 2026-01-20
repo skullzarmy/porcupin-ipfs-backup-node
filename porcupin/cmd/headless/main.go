@@ -13,6 +13,7 @@ import (
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"porcupin/backend/api"
 	"porcupin/backend/cli"
@@ -128,7 +129,9 @@ func main() {
 
 	// Initialize database
 	dbPath := filepath.Join(dataPath, "porcupin.db")
-	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Warn), // Suppress "record not found" info logs
+	})
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -279,7 +282,7 @@ func main() {
 		totalAssets := stats["pending"] + stats["pinned"] + stats["failed"] + stats["failed_unavailable"]
 		
 		// Get actual disk usage from IPFS repo directory
-		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
+		ipfsRepoPath := resolveRepoPath(cfg, dataPath)
 		storageBytes, err := core.GetDiskUsageBytes(ipfsRepoPath)
 		if err != nil {
 			log.Printf("Warning: could not get disk usage: %v", err)
@@ -312,7 +315,7 @@ func main() {
 
 		fmt.Printf("Found %d pending assets, starting IPFS node...\n", pendingCount)
 
-		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
+		ipfsRepoPath := resolveRepoPath(cfg, dataPath)
 		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
 		if err != nil {
 			log.Fatalf("Failed to create IPFS node: %v", err)
@@ -341,7 +344,7 @@ func main() {
 	fmt.Println("🦔 Porcupin Headless Server")
 	fmt.Println("Starting IPFS node...")
 
-	ipfsRepoPath := filepath.Join(dataPath, "ipfs")
+	ipfsRepoPath := resolveRepoPath(cfg, dataPath)
 	ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
 	if err != nil {
 		log.Fatalf("Failed to create IPFS node: %v", err)
