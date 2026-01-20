@@ -93,7 +93,7 @@ For production servers, run Porcupin as a systemd service:
 
 ```bash
 # Create a dedicated user and data directory
-sudo useradd -r -s /bin/false porcupin
+sudo useradd -r -d /var/lib/porcupin -s /bin/false porcupin
 sudo mkdir -p /var/lib/porcupin
 sudo chown porcupin:porcupin /var/lib/porcupin
 ```

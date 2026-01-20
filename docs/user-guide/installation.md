@@ -211,6 +211,21 @@ sudo systemctl status porcupin
 sudo journalctl -u porcupin -f
 ```
 
+### Interacting with the Service
+
+When running as a systemd service, the data is stored in `/var/lib/porcupin`. You **must** specify this directory when running manual commands, and ideally run them as the `porcupin` user:
+
+```bash
+# Add a wallet
+sudo -u porcupin porcupin --data /var/lib/porcupin --add-wallet tz1YourWallet
+
+# Check status
+sudo -u porcupin porcupin --data /var/lib/porcupin --stats
+
+# List wallets
+sudo -u porcupin porcupin --data /var/lib/porcupin --list-wallets
+```
+
 ---
 
 ## Docker
