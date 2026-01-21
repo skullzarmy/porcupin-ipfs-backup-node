@@ -129,6 +129,9 @@ porcupin --version
     
 The Raspberry Pi Zero 2 W uses a quad-core processor but is severely limited by its **512MB RAM**. To run Porcupin (which includes a full IPFS node) stably, you must perform the following optimizations.
 
+> [!CAUTION]
+> **Hardware Limitations:** While we have made every effort to support the Zero 2 W and have proven functionality in testing, we are working at the extreme edge of the device's capabilities. We experienced multiple issues and instability during development. We **strongly recommend** opting for a more powerful device (like a Raspberry Pi 4 or 5) for a stable experience.
+
 **1. Enable Swap (CRITICAL)**
 
 The default 100MB swap is insufficient. You need at least 2GB of swap or the process will be killed (OOM).
