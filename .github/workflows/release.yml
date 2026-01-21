@@ -136,10 +136,6 @@ jobs:
                     - goos: darwin
                       goarch: arm64
                       artifact: porcupin-server-darwin-arm64
-                    - goos: linux
-                      goarch: arm64
-                      artifact: porcupin-server-linux-arm64-lowpower
-                      tags: "lowpower"
 
         runs-on: ubuntu-latest
 
@@ -254,4 +250,3 @@ jobs:
                       artifacts/porcupin-server-linux-arm64/porcupin-server-linux-arm64
                       artifacts/porcupin-server-darwin-amd64/porcupin-server-darwin-amd64
                       artifacts/porcupin-server-darwin-arm64/porcupin-server-darwin-arm64
-                      artifacts/porcupin-server-linux-arm64-lowpower/porcupin-server-linux-arm64-lowpower
