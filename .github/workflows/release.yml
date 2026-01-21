@@ -155,12 +155,7 @@ jobs:
                   GOOS: ${{ matrix.goos }}
                   GOARCH: ${{ matrix.goarch }}
                   CGO_ENABLED: "0"
-              run: |
-                  if [ -n "${{ matrix.tags }}" ]; then
-                    go build -tags ${{ matrix.tags }} -o build/bin/${{ matrix.artifact }} ./cmd/headless
-                  else
-                    go build -o build/bin/${{ matrix.artifact }} ./cmd/headless
-                  fi
+              run: go build -o build/bin/${{ matrix.artifact }} ./cmd/headless
 
             - name: Upload artifact
               uses: actions/upload-artifact@v4

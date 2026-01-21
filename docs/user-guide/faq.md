@@ -64,11 +64,11 @@ IPFS also shares content with others, but this is minimal.
 
 ### Does it work on Raspberry Pi?
 
-Yes! Use the `porcupin-server-linux-arm64` binary. Recommended:
+Yes! Porcupin runs great on Raspberry Pi 4 and 5.
 
--   Raspberry Pi 4 or 5
--   4GB+ RAM
--   External SSD (not SD card)
+For the Raspberry Pi Zero 2 W, specific optimizations are required.
+
+👉 **See [Raspberry Pi Installation](installation.md#raspberry-pi-arm64) and [Minimal Hardware Setup](installation.md#minimal-hardware-raspberry-pi-zero-2-w) in the Installation Guide.**
 
 ---
 

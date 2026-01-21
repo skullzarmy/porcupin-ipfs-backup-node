@@ -89,85 +89,17 @@ porcupin --stats
 
 ### Step 4: Run as a Service (systemd)
 
-For production servers, run Porcupin as a systemd service:
+For production servers, we recommend running Porcupin as a systemd service.
 
-```bash
-# Create a dedicated user and data directory
-sudo useradd -r -d /var/lib/porcupin -s /bin/false porcupin
-sudo mkdir -p /var/lib/porcupin
-sudo chown porcupin:porcupin /var/lib/porcupin
-```
-
-Create `/etc/systemd/system/porcupin.service`:
-
-```ini
-[Unit]
-Description=Porcupin NFT Backup Node
-After=network.target
-
-[Service]
-Type=simple
-User=porcupin
-ExecStart=/usr/local/bin/porcupin --data /var/lib/porcupin
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Enable and start:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable porcupin
-sudo systemctl start porcupin
-
-# Check status
-sudo systemctl status porcupin
-
-# View logs
-sudo journalctl -u porcupin -f
-```
-
-**Managing wallets with systemd:**
-
-```bash
-# Add a wallet (run as porcupin user to access the database)
-sudo -u porcupin porcupin --data /var/lib/porcupin --add-wallet tz1YourWallet
-
-# List wallets
-sudo -u porcupin porcupin --data /var/lib/porcupin --list-wallets
-
-# Check stats
-sudo -u porcupin porcupin --data /var/lib/porcupin --stats
-```
+👉 **See [Running as a Service](installation.md#running-as-a-service-systemd) in the Installation Guide.**
 
 ---
 
 ## Docker
 
-### Step 1: Start the Container
+You can also run Porcupin using Docker or Docker Compose.
 
-```bash
-docker-compose up -d
-```
-
-### Step 2: Add Wallets
-
-```bash
-docker-compose exec porcupin porcupin --add-wallet tz1YourWallet
-```
-
-### Step 3: Check Status
-
-```bash
-# View stats
-docker-compose exec porcupin porcupin --stats
-
-# Follow logs
-docker-compose logs -f
-```
+👉 **See [Docker Installation](installation.md#docker) in the Installation Guide.**
 
 ---
 

@@ -38,7 +38,7 @@ All downloads available at [Releases](https://github.com/skullzarmy/porcupin-ipf
 -   4GB RAM minimum
 -   10GB+ free disk space (more = more NFTs)
 
-> **Security Note:** On first launch, macOS may show "porcupin cannot be opened because the developer cannot be verified." Right-click the app and select "Open" to bypass this, or go to System Settings → Privacy & Security and click "Open Anyway".
+> **Security Note:** On first launch, macOS may show "porcupin cannot be opened because the developer cannot be verified." Right-click the app and select "Open" to bypass this, or go to System Settings → Privacy & Security and click "Open Anyway". **See [Troubleshooting](troubleshooting.md#macos-porcupin-cant-be-opened-because-it-is-from-an-unidentified-developer) for more details.**
 
 ### Windows
 

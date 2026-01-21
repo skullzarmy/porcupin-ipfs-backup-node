@@ -171,7 +171,7 @@ sudo journalctl -u porcupin -f
 
 ### Default: Private IPs Only
 
-By default, the API server only accepts connections from private IP ranges:
+By default, the API server only accepts connections from private IP ranges (LAN):
 
 -   `192.168.0.0/16` (most home networks)
 -   `10.0.0.0/8` (some corporate networks)
@@ -180,66 +180,17 @@ By default, the API server only accepts connections from private IP ranges:
 
 Connections from public IPs are rejected with `403 Forbidden`.
 
-### Custom Port
+### Public Access & Internet Exposure
 
-```bash
-porcupin --serve --api-port 9090
-```
+If you need to access your server from outside your local network (e.g., over the internet), see the dedicated guide:
 
-### Bind to Specific Interface
+👉 **[Advanced: Internet Exposure](advanced-exposure.md)**
 
-```bash
-# Only accept connections on eth0
-porcupin --serve --api-bind 192.168.1.50
-```
-
-### Allow Public IPs (Advanced)
-
-**⚠️ Warning:** Only use with TLS enabled and strong firewall rules.
-
-```bash
-porcupin --serve --allow-public --tls-cert cert.pem --tls-key key.pem
-```
-
----
-
-## TLS Configuration
-
-For secure connections (especially over the internet), enable TLS.
-
-### Option 1: Self-Signed Certificate
-
-Generate a self-signed certificate:
-
-```bash
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes \
-  -subj "/CN=porcupin.local"
-```
-
-Start with TLS:
-
-```bash
-porcupin --serve --tls-cert cert.pem --tls-key key.pem
-```
-
-The server will now run on `https://` instead of `http://`.
-
-### Option 2: Let's Encrypt (For Public Access)
-
-If exposing to the internet, use a proper certificate:
-
-```bash
-# Install certbot
-sudo apt install certbot
-
-# Get certificate (requires port 80 open)
-sudo certbot certonly --standalone -d porcupin.yourdomain.com
-
-# Use certificate
-porcupin --serve --allow-public \
-  --tls-cert /etc/letsencrypt/live/porcupin.yourdomain.com/fullchain.pem \
-  --tls-key /etc/letsencrypt/live/porcupin.yourdomain.com/privkey.pem
-```
+This guide covers:
+-   Risk assessment
+-   Enabling public access (`--allow-public`)
+-   Configuring TLS (Required for secure access)
+-   Router and firewall setup
 
 ---
 

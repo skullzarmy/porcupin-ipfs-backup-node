@@ -115,18 +115,9 @@ ipfs:
 
 ### Raspberry Pi Optimization
 
-For Raspberry Pi with limited resources:
+For Raspberry Pi Zero 2 W and other low-memory devices, specific tuning is required.
 
-```yaml
-ipfs:
-    # Use external SSD (recommended)
-    repo_path: /mnt/ssd/porcupin-ipfs
-    pin_timeout: 3m # Allow more time
-
-backup:
-    max_concurrency: 2 # Fewer parallel downloads
-    min_free_disk_space_gb: 2
-```
+👉 **See [Minimal Hardware Optimization](installation.md#minimal-hardware-raspberry-pi-zero-2-w) in the Installation Guide for the complete setup.**
 
 ### Slow Internet Connection
 
