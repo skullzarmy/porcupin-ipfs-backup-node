@@ -95,6 +95,8 @@ func NewServer(config ServerConfig, database *db.Database, service *core.BackupS
 
 // SetIPFS sets the IPFS node for the server
 func (s *Server) SetIPFS(node *ipfs.Node) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.ipfs = node
 	if s.handlers != nil {
 		s.handlers.SetIPFS(node)

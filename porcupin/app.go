@@ -229,8 +229,9 @@ func (a *App) DeleteWalletWithUnpin(address string) error {
 		if cid == "" {
 			continue
 		}
-		// Ignore errors - asset may not be pinned or may have already been unpinned
-		_ = a.ipfsNode.Unpin(ctx, cid)
+		if err := a.ipfsNode.Unpin(ctx, cid); err != nil {
+			return fmt.Errorf("failed to unpin asset %s: %w", cid, err)
+		}
 	}
 
 	// Delete from database

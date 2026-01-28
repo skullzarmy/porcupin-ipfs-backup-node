@@ -197,37 +197,32 @@ func generateLabel(path string, storageType StorageType) string {
 func generateLabelForOS(path string, storageType StorageType, goos string) string {
 	// Extract volume/mount name from path based on OS
 	var volumeName string
+	path = filepath.Clean(path)
+	parts := strings.Split(path, string(filepath.Separator))
 	
 	switch goos {
 	case "darwin":
-		if strings.HasPrefix(path, "/Volumes/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 3 {
-				volumeName = parts[2]
-			}
+		// /Volumes/Name -> ["", "Volumes", "Name"]
+		if len(parts) >= 3 && parts[1] == "Volumes" {
+			volumeName = parts[2]
 		}
 	case "linux":
-		// Handle /mnt/name, /media/user/name, and /run/media/user/name patterns
-		if strings.HasPrefix(path, "/mnt/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 3 {
-				volumeName = parts[2]
-			}
-		} else if strings.HasPrefix(path, "/media/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 4 {
-				volumeName = parts[3] // /media/user/volumename
-			}
-		} else if strings.HasPrefix(path, "/run/media/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 5 {
-				volumeName = parts[4] // /run/media/user/volumename
-			}
+		// /mnt/name -> ["", "mnt", "name"]
+		// /media/user/name -> ["", "media", "user", "name"]
+		// /run/media/user/name -> ["", "run", "media", "user", "name"]
+		if len(parts) >= 3 && parts[1] == "mnt" {
+			volumeName = parts[2]
+		} else if len(parts) >= 4 && parts[1] == "media" {
+			volumeName = parts[3]
+		} else if len(parts) >= 5 && parts[1] == "run" && parts[2] == "media" {
+			volumeName = parts[4]
 		}
 	case "windows":
-		// Handle drive letters like D:\path
-		if len(path) >= 2 && path[1] == ':' {
-			volumeName = string(path[0]) + " Drive"
+		// C:\path -> ["C:", "path"]
+		// VolumeName returns "C:"
+		vol := filepath.VolumeName(path)
+		if vol != "" {
+			volumeName = vol + " Drive"
 		}
 	}
 	
@@ -259,35 +254,24 @@ func getMountPoint(path string) string {
 
 // getMountPointForOS is the testable implementation that accepts OS as parameter
 func getMountPointForOS(path string, goos string) string {
+	path = filepath.Clean(path)
+	parts := strings.Split(path, string(filepath.Separator))
+
 	switch goos {
 	case "darwin":
-		if strings.HasPrefix(path, "/Volumes/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 3 {
-				return "/Volumes/" + parts[2]
-			}
+		if len(parts) >= 3 && parts[1] == "Volumes" {
+			return string(filepath.Separator) + filepath.Join(parts[1], parts[2])
 		}
 	case "linux":
-		if strings.HasPrefix(path, "/mnt/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 3 {
-				return "/mnt/" + parts[2]
-			}
-		} else if strings.HasPrefix(path, "/media/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 4 {
-				return "/media/" + parts[2] + "/" + parts[3]
-			}
-		} else if strings.HasPrefix(path, "/run/media/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 5 {
-				return "/run/media/" + parts[3] + "/" + parts[4]
-			}
+		if len(parts) >= 3 && parts[1] == "mnt" {
+			return string(filepath.Separator) + filepath.Join(parts[1], parts[2])
+		} else if len(parts) >= 4 && parts[1] == "media" {
+			return string(filepath.Separator) + filepath.Join(parts[1], parts[2], parts[3])
+		} else if len(parts) >= 5 && parts[1] == "run" && parts[2] == "media" {
+			return string(filepath.Separator) + filepath.Join(parts[1], parts[2], parts[3], parts[4])
 		}
 	case "windows":
-		if len(path) >= 2 && path[1] == ':' {
-			return path[:2] + "\\"
-		}
+		return filepath.VolumeName(path) + string(filepath.Separator)
 	}
 	return path
 }
