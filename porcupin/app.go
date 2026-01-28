@@ -216,39 +216,7 @@ func (a *App) DeleteWallet(address string, deleteData bool) error {
 
 // DeleteWalletWithUnpin removes a wallet and unpins all its assets from IPFS
 func (a *App) DeleteWalletWithUnpin(address string) error {
-	// Get all assets for this wallet
-	assets, err := a.database.GetAssetsByWallet(address)
-	if err != nil {
-		return fmt.Errorf("failed to get assets: %w", err)
-	}
-
-	// Unpin each asset
-	ctx := context.Background()
-	for _, asset := range assets {
-		cid := core.ExtractCIDFromURI(asset.URI)
-		if cid == "" {
-			continue
-		}
-		if err := a.ipfsNode.Unpin(ctx, cid); err != nil {
-			return fmt.Errorf("failed to unpin asset %s: %w", cid, err)
-		}
-	}
-
-	// Delete from database
-	if err := a.database.DeleteAssetsByWallet(address); err != nil {
-		return fmt.Errorf("failed to delete assets: %w", err)
-	}
-	if err := a.database.DeleteNFTsByWallet(address); err != nil {
-		return fmt.Errorf("failed to delete NFTs: %w", err)
-	}
-	if err := a.database.DeleteWallet(address); err != nil {
-		return fmt.Errorf("failed to delete wallet: %w", err)
-	}
-
-	// Mark disk usage dirty so it recalculates
-	a.backupService.GetManager().MarkDiskUsageDirty()
-
-	return nil
+	return a.backupService.DeleteWalletFull(address)
 }
 
 // SyncWallet synchronizes NFTs for a given wallet (manual trigger)
@@ -759,78 +727,35 @@ func (a *App) ResetDatabase() error {
 	wailsRuntime.EventsEmit(a.ctx, "clear:start", ClearDataStatus{
 		InProgress: true,
 		Phase:      "unpinning",
-		Message:    "Unpinning IPFS content...",
+		Message:    "Starting reset...",
 	})
-	
-	// Step 1: Unpin all content from IPFS
-	log.Println("Unpinning all IPFS content...")
-	unpinned, err := a.ipfsNode.UnpinAll(a.ctx, func(total, current int) {
+
+	err := a.backupService.ClearAllData(func(phase, message string, total, current int) {
 		wailsRuntime.EventsEmit(a.ctx, "clear:progress", ClearDataStatus{
 			InProgress:    true,
-			Phase:         "unpinning",
-			Message:       fmt.Sprintf("Unpinning content... %d/%d", current, total),
+			Phase:         phase,
+			Message:       message,
 			TotalPins:     total,
 			UnpinnedCount: current,
 		})
 	})
+
 	if err != nil {
-		log.Printf("Warning: failed to unpin all: %v", err)
 		wailsRuntime.EventsEmit(a.ctx, "clear:progress", ClearDataStatus{
 			InProgress: true,
-			Phase:      "unpinning",
-			Message:    fmt.Sprintf("Warning: %v", err),
-		})
-	} else {
-		log.Printf("Unpinned %d items", unpinned)
-	}
-	
-	// Step 2: Run garbage collection to free disk space
-	wailsRuntime.EventsEmit(a.ctx, "clear:progress", ClearDataStatus{
-		InProgress: true,
-		Phase:      "garbage_collect",
-		Message:    "Running garbage collection to free disk space...",
-	})
-	log.Println("Running IPFS garbage collection...")
-	if err := a.ipfsNode.GarbageCollect(a.ctx); err != nil {
-		log.Printf("Warning: garbage collection failed: %v", err)
-	}
-	
-	// Step 3: Delete database records
-	wailsRuntime.EventsEmit(a.ctx, "clear:progress", ClearDataStatus{
-		InProgress: true,
-		Phase:      "clearing_db",
-		Message:    "Clearing database records...",
-	})
-	if err := a.database.DB.Exec("DELETE FROM assets").Error; err != nil {
-		wailsRuntime.EventsEmit(a.ctx, "clear:error", ClearDataStatus{
-			InProgress: false,
 			Phase:      "error",
 			Error:      err.Error(),
+			Message:    "Reset failed",
 		})
-		return fmt.Errorf("failed to delete assets: %w", err)
+		return err
 	}
-	if err := a.database.DB.Exec("DELETE FROM nfts").Error; err != nil {
-		wailsRuntime.EventsEmit(a.ctx, "clear:error", ClearDataStatus{
-			InProgress: false,
-			Phase:      "error",
-			Error:      err.Error(),
-		})
-		return fmt.Errorf("failed to delete nfts: %w", err)
-	}
-	
-	// Step 4: Update disk usage
-	a.backupService.GetManager().MarkDiskUsageDirty()
-	a.backupService.GetManager().UpdateDiskUsage()
-	
-	// Emit complete
-	wailsRuntime.EventsEmit(a.ctx, "clear:complete", ClearDataStatus{
-		InProgress:    false,
-		Phase:         "complete",
-		Message:       fmt.Sprintf("Cleared %d pins", unpinned),
-		UnpinnedCount: unpinned,
+
+	wailsRuntime.EventsEmit(a.ctx, "clear:progress", ClearDataStatus{
+		InProgress: false,
+		Phase:      "complete",
+		Message:    "Reset complete",
 	})
 	
-	log.Println("Full data reset complete")
 	return nil
 }
 
@@ -1151,13 +1076,13 @@ func (a *App) MigrateStorage(destPath string) error {
 
 // GetMigrationStatus returns the current migration status
 func (a *App) GetMigrationStatus() storage.MigrationStatus {
-	return storage.GetGlobalMigrationStatus()
+	return a.backupService.GetStorageManager().GetMigrationStatus()
 }
 
 // CancelMigration cancels an ongoing storage migration
 func (a *App) CancelMigration() error {
 	log.Println("CancelMigration called")
-	err := storage.CancelGlobalMigration()
+	err := a.backupService.GetStorageManager().CancelMigration()
 	if err != nil {
 		log.Printf("CancelMigration error: %v", err)
 		return err

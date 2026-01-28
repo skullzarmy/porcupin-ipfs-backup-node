@@ -283,43 +283,6 @@ func TestManager_CancelMigration_NoMigration(t *testing.T) {
 	}
 }
 
-func TestGetGlobalMigrationStatus_NoManager(t *testing.T) {
-	// Save and restore global state to avoid race with other tests
-	globalMigrationMu.Lock()
-	savedManager := globalMigrationManager
-	globalMigrationManager = nil
-	globalMigrationMu.Unlock()
-
-	defer func() {
-		globalMigrationMu.Lock()
-		globalMigrationManager = savedManager
-		globalMigrationMu.Unlock()
-	}()
-
-	status := GetGlobalMigrationStatus()
-	if status.InProgress {
-		t.Error("Global status should show no migration when manager is nil")
-	}
-}
-
-func TestCancelGlobalMigration_NoManager(t *testing.T) {
-	// Save and restore global state to avoid race with other tests
-	globalMigrationMu.Lock()
-	savedManager := globalMigrationManager
-	globalMigrationManager = nil
-	globalMigrationMu.Unlock()
-
-	defer func() {
-		globalMigrationMu.Lock()
-		globalMigrationManager = savedManager
-		globalMigrationMu.Unlock()
-	}()
-
-	err := CancelGlobalMigration()
-	if err == nil {
-		t.Error("CancelGlobalMigration should error when no manager")
-	}
-}
 
 // =============================================================================
 // GET DIR SIZE TESTS
@@ -751,38 +714,6 @@ func TestGetMountPoint_UsesRuntimeOS(t *testing.T) {
 // GLOBAL MIGRATION MANAGER TESTS
 // =============================================================================
 
-func TestGetGlobalMigrationStatus_WithManager(t *testing.T) {
-	// Save current state
-	globalMigrationMu.Lock()
-	savedManager := globalMigrationManager
-	globalMigrationMu.Unlock()
-
-	defer func() {
-		globalMigrationMu.Lock()
-		globalMigrationManager = savedManager
-		globalMigrationMu.Unlock()
-	}()
-
-	// Set up a test manager
-	testManager := NewManager("/test")
-	testManager.migrationStatus = &MigrationStatus{
-		InProgress: true,
-		Progress:   50.0,
-		Phase:      "copying",
-	}
-
-	globalMigrationMu.Lock()
-	globalMigrationManager = testManager
-	globalMigrationMu.Unlock()
-
-	status := GetGlobalMigrationStatus()
-	if !status.InProgress {
-		t.Error("Global status should show in progress")
-	}
-	if status.Progress != 50.0 {
-		t.Errorf("Progress = %f, want 50.0", status.Progress)
-	}
-}
 
 // =============================================================================
 // DETECT STORAGE TYPE TESTS

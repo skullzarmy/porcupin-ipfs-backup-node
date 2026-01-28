@@ -11,6 +11,9 @@ import (
 	"porcupin/backend/db"
 	"porcupin/backend/indexer"
 	"porcupin/backend/ipfs"
+	"porcupin/backend/storage"
+
+	"gorm.io/gorm"
 )
 
 // ServiceState represents the current state of the backup service
@@ -49,6 +52,7 @@ type BackupService struct {
 	db       *db.Database
 	config   *config.Config
 	ipfs     *ipfs.Node
+	storage  *storage.Manager
 	
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -69,12 +73,16 @@ type BackupService struct {
 func NewBackupService(ipfsNode *ipfs.Node, idx *indexer.Indexer, database *db.Database, cfg *config.Config) *BackupService {
 	manager := NewBackupManager(ipfsNode, idx, database, cfg)
 	
+	// Create storage manager pointing to current repo path
+	storageMgr := storage.NewManager(ipfsNode.GetRepoPath())
+
 	return &BackupService{
 		manager:   manager,
 		indexer:   idx,
 		db:        database,
 		config:    cfg,
 		ipfs:      ipfsNode,
+		storage:   storageMgr,
 		status:    ServiceStatus{State: StateStopped},
 		pauseCh:   make(chan struct{}),
 		resumeCh:  make(chan struct{}),
@@ -583,4 +591,93 @@ func (s *BackupService) UnpinAsset(cid string) error {
 // VerifyAndFixPins runs the verification and repair process
 func (s *BackupService) VerifyAndFixPins() (map[string]int, error) {
 	return s.manager.VerifyAndFixPins(s.ctx)
+}
+
+// GetStorageManager returns the storage manager instance
+func (s *BackupService) GetStorageManager() *storage.Manager {
+	return s.storage
+}
+
+// ClearAllData performs a full device reset: unpins everything, GCs, and clears DB
+func (s *BackupService) ClearAllData(progress func(string, string, int, int)) error {
+	// 1. Unpin all IPFS content
+	if progress != nil {
+		progress("unpinning", "Unpinning all IPFS content...", 0, 0)
+	}
+	
+	unpinned, err := s.ipfs.UnpinAll(s.ctx, func(total, current int) {
+		if progress != nil {
+			progress("unpinning", fmt.Sprintf("Unpinning content... %d/%d", current, total), total, current)
+		}
+	})
+	if err != nil {
+		log.Printf("Warning: failed to unpin all: %v", err)
+	}
+	log.Printf("Unpinned %d items", unpinned)
+
+	// 2. Garbage Collect
+	if progress != nil {
+		progress("garbage_collect", "Running internal IPFS garbage collection...", 0, 0)
+	}
+	if err := s.ipfs.GarbageCollect(s.ctx); err != nil {
+		log.Printf("Warning: garbage collection failed: %v", err)
+	}
+
+	// 3. Clear DB
+	if progress != nil {
+		progress("clearing_db", "Clearing database records...", 0, 0)
+	}
+	
+	// Transactional clear
+	return s.db.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("DELETE FROM assets").Error; err != nil {
+			return err
+		}
+		if err := tx.Exec("DELETE FROM nfts").Error; err != nil {
+			return err
+		}
+		// Reset wallets to sync=false/levels=0 instead of deleting? 
+		// Original implementation didn't delete wallets in ResetDatabase, it says "clearing all NFTs, assets".
+		// Actually app.go ResetDatabase did DELETE FROM assets, nfts. 
+		// It did NOT delete wallets.
+		return nil
+	})
+}
+
+// DeleteWalletFull deletes a wallet and all its assets/NFTs from DB and unpins content
+func (s *BackupService) DeleteWalletFull(address string) error {
+	// Get all assets for this wallet
+	assets, err := s.db.GetAssetsByWallet(address)
+	if err != nil {
+		return fmt.Errorf("failed to get assets: %w", err)
+	}
+
+	// Unpin each asset
+	// We use background context to ensure cleanup continues even if request context dies,
+	// but using service context s.ctx is safer for overall lifecycle management.
+	for _, asset := range assets {
+		cid := ExtractCIDFromURI(asset.URI) // Package-level function in core/backup.go
+		if cid == "" {
+			continue
+		}
+		if err := s.ipfs.Unpin(s.ctx, cid); err != nil {
+			return fmt.Errorf("failed to unpin asset %s: %w", cid, err)
+		}
+	}
+
+	// Delete from database
+	if err := s.db.DeleteAssetsByWallet(address); err != nil {
+		return fmt.Errorf("failed to delete assets: %w", err)
+	}
+	if err := s.db.DeleteNFTsByWallet(address); err != nil {
+		return fmt.Errorf("failed to delete NFTs: %w", err)
+	}
+	if err := s.db.DeleteWallet(address); err != nil {
+		return fmt.Errorf("failed to delete wallet: %w", err)
+	}
+
+	// Mark disk usage dirty so it recalculates
+	s.manager.MarkDiskUsageDirty()
+
+	return nil
 }
