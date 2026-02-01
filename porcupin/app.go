@@ -107,17 +107,22 @@ func (a *App) startup(ctx context.Context) {
 	log.Println("Backup service initialized")
 	
 	// Initialize updater
-	a.updater = updater.NewManager(version.Version)
-	log.Println("Updater initialized (current version: " + version.Version + ")")
+	updaterMgr, err := updater.NewManager(version.Version)
+	if err != nil {
+		log.Printf("Failed to initialize updater: %v", err)
+	} else {
+		a.updater = updaterMgr
+		log.Println("Updater initialized (current version: " + version.Version + ")")
 
-	// Check for updates in background
-	go func() {
-		// Wait a bit for UI to be ready
-		time.Sleep(5 * time.Second)
-		if info, err := a.updater.CheckForUpdates(ctx); err == nil && info.Available {
-			wailsRuntime.EventsEmit(ctx, "update:available", info)
-		}
-	}()
+		// Check for updates in background
+		go func() {
+			// Wait a bit for UI to be ready
+			time.Sleep(5 * time.Second)
+			if info, err := a.updater.CheckForUpdates(ctx); err == nil && info.Available {
+				wailsRuntime.EventsEmit(ctx, "update:available", info)
+			}
+		}()
+	}
 	
 	// Initialize disk usage in background (don't block startup)
 	go func() {

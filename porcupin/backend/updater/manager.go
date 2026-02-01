@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/creativeprojects/go-selfupdate"
 )
@@ -15,35 +16,80 @@ const (
 	Repository = "skullzarmy/porcupin-ipfs-backup-node"
 )
 
+// Release interface abstracts the selfupdate.Release struct
+type Release interface {
+	Version() string
+	LessOrEqual(version string) bool
+	// Add other methods/fields as needed via getters if strictly necessary
+	// logic relying on direct field access (ReleaseNotes, etc) will need accessors or type assertion
+	// For now, we expose what Manager uses:
+	GetReleaseNotes() string
+	GetPublishedAt() time.Time
+	GetAssetURL() string
+}
+
+// selfupdateReleaseAdapter wraps *selfupdate.Release to satisfy Release interface
+type selfupdateReleaseAdapter struct {
+	*selfupdate.Release
+}
+
+func (r *selfupdateReleaseAdapter) GetReleaseNotes() string { return r.ReleaseNotes }
+func (r *selfupdateReleaseAdapter) GetPublishedAt() time.Time { return r.PublishedAt }
+func (r *selfupdateReleaseAdapter) GetAssetURL() string { return r.AssetURL }
+
+
+// Updater interface allows mocking the selfupdate.Updater
+type Updater interface {
+	DetectLatest(ctx context.Context, repository selfupdate.Repository) (Release, bool, error)
+	UpdateTo(ctx context.Context, release Release, cmdPath string) error
+}
+
+// RealUpdater adapts the concrete selfupdate.Updater to our interface
+type RealUpdater struct {
+	*selfupdate.Updater
+}
+
+func (u *RealUpdater) DetectLatest(ctx context.Context, repository selfupdate.Repository) (Release, bool, error) {
+	rel, found, err := u.Updater.DetectLatest(ctx, repository)
+	if rel != nil {
+		return &selfupdateReleaseAdapter{rel}, found, err
+	}
+	return nil, found, err
+}
+
+func (u *RealUpdater) UpdateTo(ctx context.Context, release Release, cmdPath string) error {
+	// Type assert back to concrete type for the library
+	adapter, ok := release.(*selfupdateReleaseAdapter)
+	if !ok {
+		return fmt.Errorf("invalid release type")
+	}
+	return u.Updater.UpdateTo(ctx, adapter.Release, cmdPath)
+}
+
 // Manager handles the update process
 type Manager struct {
-	updater      *selfupdate.Updater
+	updater      Updater
 	currentVer   string
-	latestRelease *selfupdate.Release
+	latestRelease Release
 }
 
 // NewManager creates a new update manager
-func NewManager(currentVersion string) *Manager {
+func NewManager(currentVersion string) (*Manager, error) {
 	// Configure updater
-	// We want to verify assets if possible, but for now we'll start simple
-	// selfupdate automatically detects OS/Arch
-	
 	up, err := selfupdate.NewUpdater(selfupdate.Config{
 		Validator: &selfupdate.ChecksumValidator{
-			UniqueFilename: "checksums.txt", // Standard GoReleaser checksum file
+			UniqueFilename: "checksums.txt",
 		},
 	})
 	
 	if err != nil {
-		log.Printf("Failed to create updater: %v", err)
-		// Fallback to simpler updater if validator fails (e.g. config error)
-		// but usually NewUpdater only errors on fundamental config
+		return nil, fmt.Errorf("failed to create updater: %w", err)
 	}
 
 	return &Manager{
-		updater:    up,
+		updater:    &RealUpdater{up},
 		currentVer: currentVersion,
-	}
+	}, nil
 }
 
 // CheckForUpdates checks GitHub for a newer version
@@ -54,7 +100,6 @@ func (m *Manager) CheckForUpdates(ctx context.Context) (*UpdateInfo, error) {
 
 	log.Printf("Checking for updates (current: %s)...", m.currentVer)
 	
-	// Detect latest version
 	latest, found, err := m.updater.DetectLatest(ctx, selfupdate.ParseSlug(Repository))
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect update: %w", err)
@@ -84,14 +129,9 @@ func (m *Manager) CheckForUpdates(ctx context.Context) (*UpdateInfo, error) {
 	// Populate info
 	info.Available = true
 	info.Version = latest.Version()
-	info.ReleaseNotes = latest.ReleaseNotes
-	info.PubDate = latest.PublishedAt
-	info.AssetURL = latest.AssetURL
-	
-	// Helper to calculate size if available
-	// The library might not expose raw asset size easily without iterating assets,
-	// checking latest.AssetID or similar.
-	// We'll leave HumanSize empty for now or populate if we can find the specific asset.
+	info.ReleaseNotes = latest.GetReleaseNotes()
+	info.PubDate = latest.GetPublishedAt()
+	info.AssetURL = latest.GetAssetURL()
 	
 	return info, nil
 }
@@ -119,13 +159,6 @@ func (m *Manager) InstallLatest(ctx context.Context) error {
 
 	log.Printf("Installing update %s to %s", m.latestRelease.Version(), exePath)
 
-	// Perform the update
-	// UpdateTo logic is wrapped in m.updater.UpdateTo usually or we use the lower level method
-	// The library provides `UpdateTo(ctx, release, cmdPath)` in newer versions or similar.
-	
-	// Looking at creativeprojects/go-selfupdate API:
-	// It has `UpdateTo(ctx context.Context, latest *Release, cmdPath string) error`
-	
 	if err := m.updater.UpdateTo(ctx, m.latestRelease, exePath); err != nil {
 		return fmt.Errorf("failed to update binary: %w", err)
 	}

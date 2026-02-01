@@ -78,9 +78,12 @@ func main() {
 	}
 
 	if *updateCheck {
-		mgr := updater.NewManager(version.Version)
+		updateMgr, err := updater.NewManager(version.Version)
+	if err != nil {
+		log.Printf("Warning: Failed to initialize updater: %v", err)
+	}
 		fmt.Println("Checking for updates...")
-		info, err := mgr.CheckForUpdates(context.Background())
+		info, err := updateMgr.CheckForUpdates(context.Background())
 		if err != nil {
 			log.Fatalf("Failed to check for updates: %v", err)
 		}
@@ -92,7 +95,7 @@ func main() {
 		fmt.Printf("New version available: %s\n", info.Version)
 		fmt.Printf("Release notes:\n%s\n", info.ReleaseNotes)
 		fmt.Print("Installing update... ")
-		if err := mgr.InstallLatest(context.Background()); err != nil {
+		if err := updateMgr.InstallLatest(context.Background()); err != nil {
 			fmt.Printf("Failed\n")
 			log.Fatalf("Failed to install update: %v", err)
 		}

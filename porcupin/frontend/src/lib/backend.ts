@@ -242,7 +242,7 @@ function createRemoteBackend(client: ProxyAPIClient): Backend {
         UpdateSettings: (settings) => client.updateSettings(settings),
         CheckForUpdates: () => client.checkForUpdates(),
         InstallUpdate: () => client.installUpdate(),
-        RestartApp: () => Promise.reject(new Error("Retart not supported remotely")),
+        RestartApp: () => Promise.reject(new Error("Restart not supported remotely")),
 
         // Storage
         GetIPFSRepoPath: () => client.getIPFSRepoPath(),

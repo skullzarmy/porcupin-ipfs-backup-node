@@ -22,7 +22,7 @@ import {
 import { useConnection } from "../lib/connection";
 import { ConfirmModal } from "./ConfirmModal";
 import UpdateModal from "./UpdateModal";
-import { EventsOn, LogInfo, LogError, EventsEmit } from "../../wailsjs/runtime/runtime";
+import { EventsOn, LogInfo, LogError } from "../../wailsjs/runtime/runtime";
 import {
     AlertTriangle,
     HardDrive,
@@ -95,7 +95,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
     const [updateProgress, setUpdateProgress] = useState<{phase: string, message: string, percent: number} | undefined>(undefined);
 
     // Theme state
-    const [activeSection, setActiveSection] = useState("general");
+    // activeSection removed as it was unused
     const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
         const saved = localStorage.getItem("porcupin-theme");
         return (saved as "light" | "dark" | "system") || "dark";
