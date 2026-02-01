@@ -255,23 +255,51 @@ func getMountPoint(path string) string {
 // getMountPointForOS is the testable implementation that accepts OS as parameter
 func getMountPointForOS(path string, goos string) string {
 	path = filepath.Clean(path)
-	parts := strings.Split(path, string(filepath.Separator))
+	
+	// Determine separator based on OS explicitly for testing
+	sep := "/"
+	if goos == "windows" {
+		sep = "\\"
+	}
+
+	// Normalized path for splitting
+	// On non-Windows running Windows tests, filepath.Clean might strictly use /
+	// so we need to be careful. The input path in tests is usually hardcoded with correct separators.
+	// But strings.Split needs the exact char.
+	
+	// If we are on Non-Windows but testing Windows, input like "C:\\Users" comes in.
+	// filepath.Clean on macOS might keep it or treat backslash as char.
+	// Simplest approach: Use the sep derived from goos.
+	
+	parts := strings.Split(path, sep)
 
 	switch goos {
 	case "darwin":
 		if len(parts) >= 3 && parts[1] == "Volumes" {
-			return string(filepath.Separator) + filepath.Join(parts[1], parts[2])
+			return sep + filepath.Join(parts[1], parts[2])
 		}
 	case "linux":
 		if len(parts) >= 3 && parts[1] == "mnt" {
-			return string(filepath.Separator) + filepath.Join(parts[1], parts[2])
+			return sep + filepath.Join(parts[1], parts[2])
 		} else if len(parts) >= 4 && parts[1] == "media" {
-			return string(filepath.Separator) + filepath.Join(parts[1], parts[2], parts[3])
+			return sep + filepath.Join(parts[1], parts[2], parts[3])
 		} else if len(parts) >= 5 && parts[1] == "run" && parts[2] == "media" {
-			return string(filepath.Separator) + filepath.Join(parts[1], parts[2], parts[3], parts[4])
+			return sep + filepath.Join(parts[1], parts[2], parts[3], parts[4])
 		}
 	case "windows":
-		return filepath.VolumeName(path) + string(filepath.Separator)
+		// filepath.VolumeName depends on runtime OS, so we must manually parse drive
+		// Expected: "C:" or "\\server\share"
+		if len(parts) > 0 && strings.Contains(parts[0], ":") {
+			return parts[0] + sep
+		}
+		// UNC path support handling would go here if needed, keeping simple for C:\ style
+		if strings.HasPrefix(path, "\\\\") {
+			// Naive UNC parsing: \\server\share
+			// Split by \ -> ["", "", "server", "share", ...]
+			if len(parts) >= 4 {
+				return sep + sep + parts[2] + sep + parts[3]
+			}
+		}
 	}
 	return path
 }

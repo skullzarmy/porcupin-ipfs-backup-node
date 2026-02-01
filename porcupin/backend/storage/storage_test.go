@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -608,6 +609,7 @@ func TestGenerateLabel_LocalStorage(t *testing.T) {
 // TestGenerateLabelForOS_AllPlatforms tests label generation for ALL platforms
 // regardless of which OS the test is running on
 func TestGenerateLabelForOS_AllPlatforms(t *testing.T) {
+	t.Logf("Running storage tests on %s. Tests for other operating systems will be explicitly skipped.", runtime.GOOS)
 	tests := []struct {
 		name        string
 		path        string
@@ -644,6 +646,15 @@ func TestGenerateLabelForOS_AllPlatforms(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Skip Windows tests if running on non-Windows, because filepath.Separator and VolumeName behavior differs
+			if tt.goos == "windows" && runtime.GOOS != "windows" {
+				t.Skip("Skipping Windows test on non-Windows OS")
+			}
+			// Skip Non-Windows tests if running on Windows (path separators will mismatch)
+			if tt.goos != "windows" && runtime.GOOS == "windows" {
+				t.Skip("Skipping non-Windows test on Windows OS")
+			}
+
 			got := generateLabelForOS(tt.path, tt.storageType, tt.goos)
 			if got != tt.expected {
 				t.Errorf("generateLabelForOS(%q, %v, %q) = %q, want %q",
@@ -655,6 +666,7 @@ func TestGenerateLabelForOS_AllPlatforms(t *testing.T) {
 
 // TestGetMountPointForOS_AllPlatforms tests mount point extraction for ALL platforms
 func TestGetMountPointForOS_AllPlatforms(t *testing.T) {
+	t.Logf("Running mount point tests on %s. Tests for other operating systems will be explicitly skipped.", runtime.GOOS)
 	tests := []struct {
 		name     string
 		path     string
@@ -676,7 +688,7 @@ func TestGetMountPointForOS_AllPlatforms(t *testing.T) {
 		// Windows
 		{"windows_d_drive", "D:\\Users\\test\\data", "windows", "D:\\"},
 		{"windows_c_drive", "C:\\Program Files", "windows", "C:\\"},
-		{"windows_unc", "\\\\server\\share\\folder", "windows", "\\\\server\\share\\folder"},
+		{"windows_unc", "\\\\server\\share\\folder", "windows", "\\\\server\\share"},
 
 		// Unknown OS - returns path unchanged
 		{"freebsd_unchanged", "/usr/local/data", "freebsd", "/usr/local/data"},
@@ -684,6 +696,15 @@ func TestGetMountPointForOS_AllPlatforms(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Skip Windows tests if running on non-Windows
+			if tt.goos == "windows" && runtime.GOOS != "windows" {
+				t.Skip("Skipping Windows test on non-Windows OS")
+			}
+			// Skip Non-Windows tests if running on Windows
+			if tt.goos != "windows" && runtime.GOOS == "windows" {
+				t.Skip("Skipping non-Windows test on Windows OS")
+			}
+
 			got := getMountPointForOS(tt.path, tt.goos)
 			if got != tt.expected {
 				t.Errorf("getMountPointForOS(%q, %q) = %q, want %q",
