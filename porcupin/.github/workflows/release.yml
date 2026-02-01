@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Wails
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+
+      - name: Build Headless Server (Linux AMD64)
+        run: |
+          mkdir -p build/bin
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X porcupin/backend/version.Version=${{ github.ref_name }}" -o build/bin/porcupin-linux-amd64 ./cmd/headless
+
+      - name: Build Headless Server (Linux ARM64)
+        run: |
+          GOOS=linux GOARCH=arm64 go build -ldflags "-X porcupin/backend/version.Version=${{ github.ref_name }}" -o build/bin/porcupin-linux-arm64 ./cmd/headless
+
+      - name: Build Headless Server (Mac AMD64)
+        run: |
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-X porcupin/backend/version.Version=${{ github.ref_name }}" -o build/bin/porcupin-darwin-amd64 ./cmd/headless
+
+      - name: Build Headless Server (Mac ARM64)
+        run: |
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-X porcupin/backend/version.Version=${{ github.ref_name }}" -o build/bin/porcupin-darwin-arm64 ./cmd/headless
+
+      # Note: Cross-compiling Wails applications (Desktop) for macOS/Windows from Linux has limitations.
+      # For a complete setup, this workflow should be matrix-based running on macos-latest and windows-latest.
+      # For now, we focus on the headless server assets which are critical for the CLI update mechanism.
+
+      - name: Generate Checksums
+        working-directory: build/bin
+        run: |
+          sha256sum * > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            build/bin/porcupin-linux-amd64
+            build/bin/porcupin-linux-arm64
+            build/bin/porcupin-darwin-amd64
+            build/bin/porcupin-darwin-arm64
+            build/bin/checksums.txt
+          generate_release_notes: true

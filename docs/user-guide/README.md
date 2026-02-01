@@ -10,8 +10,10 @@ Welcome to Porcupin! This guide will help you install, configure, and use Porcup
 4. **[Remote Server Guide](remote-server.md)** - Run on NAS/Pi, manage from desktop
 5. **[Advanced: Internet Exposure](advanced-exposure.md)** - ⚠️ For experts only
 6. **[Configuration](configuration.md)** - Customize storage, limits, and behavior
-7. **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
-8. **[FAQ](faq.md)** - Frequently asked questions
+7. **[Backup Strategy](backup-strategy.md)** - Best practices for keeping your IPFS data safe.
+8. **[Updating](updating.md)** - How to update Porcupin (Desktop & Headless) to the latest version.
+9. **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
+10. **[FAQ](faq.md)** - Frequently asked questions
 
 ## What is Porcupin?
 

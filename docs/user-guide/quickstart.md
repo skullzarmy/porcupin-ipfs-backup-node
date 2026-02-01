@@ -162,5 +162,7 @@ You can run Porcupin on multiple machines with the same wallets. Each will:
 ## Next Steps
 
 -   **[Configuration](configuration.md)** - Storage limits, external drives, advanced settings
+-   **[Updating](updating.md)** - How to keep Porcupin up to date
 -   **[Troubleshooting](troubleshooting.md)** - Common issues
 -   **[FAQ](faq.md)** - Frequently asked questions
+

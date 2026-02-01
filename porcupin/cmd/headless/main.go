@@ -22,6 +22,7 @@ import (
 	"porcupin/backend/db"
 	"porcupin/backend/indexer"
 	"porcupin/backend/ipfs"
+	"porcupin/backend/updater"
 	"porcupin/backend/version"
 )
 
@@ -43,6 +44,7 @@ func main() {
 	showVersionShort := flag.Bool("v", false, "Show version and exit")
 	showAbout := flag.Bool("about", false, "Show about information and exit")
 	retryPending := flag.Bool("retry-pending", false, "Process all pending assets and exit")
+	updateCheck := flag.Bool("update", false, "Check for and install updates")
 
 	// API server flags
 	serveAPI := flag.Bool("serve", false, "Start API server for remote access")
@@ -72,6 +74,30 @@ func main() {
 
 	if *showAbout {
 		cli.PrintAbout(version.Version)
+		return
+	}
+
+	if *updateCheck {
+		mgr := updater.NewManager(version.Version)
+		fmt.Println("Checking for updates...")
+		info, err := mgr.CheckForUpdates(context.Background())
+		if err != nil {
+			log.Fatalf("Failed to check for updates: %v", err)
+		}
+		if !info.Available {
+			fmt.Printf("Porcupin is up to date (version %s)\n", version.Version)
+			return
+		}
+
+		fmt.Printf("New version available: %s\n", info.Version)
+		fmt.Printf("Release notes:\n%s\n", info.ReleaseNotes)
+		fmt.Print("Installing update... ")
+		if err := mgr.InstallLatest(context.Background()); err != nil {
+			fmt.Printf("Failed\n")
+			log.Fatalf("Failed to install update: %v", err)
+		}
+		fmt.Printf("Success!\n")
+		fmt.Println("Please restart the application.")
 		return
 	}
 

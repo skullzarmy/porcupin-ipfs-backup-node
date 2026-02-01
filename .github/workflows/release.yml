@@ -126,16 +126,16 @@ jobs:
                 include:
                     - goos: linux
                       goarch: amd64
-                      artifact: porcupin-server-linux-amd64
+                      artifact: porcupin-linux-amd64
                     - goos: linux
                       goarch: arm64
-                      artifact: porcupin-server-linux-arm64
+                      artifact: porcupin-linux-arm64
                     - goos: darwin
                       goarch: amd64
-                      artifact: porcupin-server-darwin-amd64
+                      artifact: porcupin-darwin-amd64
                     - goos: darwin
                       goarch: arm64
-                      artifact: porcupin-server-darwin-arm64
+                      artifact: porcupin-darwin-arm64
 
         runs-on: ubuntu-latest
 
@@ -228,6 +228,15 @@ jobs:
             - name: List artifacts
               run: find artifacts -type f
 
+            - name: Generate Checksums
+              run: |
+                cd artifacts
+                sha256sum */* > checksums.txt
+                # Move checksums to root for release
+                mv checksums.txt ../checksums.txt
+                cd ..
+                cat checksums.txt
+
             - name: Create Release
               uses: softprops/action-gh-release@v1
               with:
@@ -241,7 +250,8 @@ jobs:
                       artifacts/porcupin-windows-amd64/porcupin-windows-amd64.zip
                       artifacts/porcupin-windows-arm64/porcupin-windows-arm64.zip
                       artifacts/porcupin-linux-amd64/porcupin-linux-amd64.tar.gz
-                      artifacts/porcupin-server-linux-amd64/porcupin-server-linux-amd64
-                      artifacts/porcupin-server-linux-arm64/porcupin-server-linux-arm64
-                      artifacts/porcupin-server-darwin-amd64/porcupin-server-darwin-amd64
-                      artifacts/porcupin-server-darwin-arm64/porcupin-server-darwin-arm64
+                      artifacts/porcupin-linux-amd64/porcupin-linux-amd64
+                      artifacts/porcupin-linux-arm64/porcupin-linux-arm64
+                      artifacts/porcupin-darwin-amd64/porcupin-darwin-amd64
+                      artifacts/porcupin-darwin-arm64/porcupin-darwin-arm64
+                      checksums.txt

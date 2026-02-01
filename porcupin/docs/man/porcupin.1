@@ -1,0 +1,63 @@
+.TH PORCUPIN-SERVER 1 "January 2026" "v0.3.2" "Porcupin Manual"
+.SH NAME
+porcupin-server \- Headless IPFS backup node for Tezos assets
+.SH SYNOPSIS
+.B porcupin-server
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B porcupin-server
+is the headless daemon for the Porcupin application. It monitors configured Tezos wallets and automatically pins their associated NFT assets (images, metadata, videos) to an embedded IPFS node.
+.SH OPTIONS
+.TP
+.B \-config \fIpath\fR
+Path to configuration file (default: ~/.porcupin/config.yaml).
+.TP
+.B \-data \fIpath\fR
+Data directory for database and IPFS repo (default: ~/.porcupin).
+.TP
+.B \-update
+Check for and install the latest version from GitHub.
+.TP
+.B \-serve
+Start the API server for remote management.
+.TP
+.B \-api-port \fIport\fR
+Port for the API server (default: 8085).
+.TP
+.B \-api-bind \fIaddress\fR
+Bind address for the API server (default: 0.0.0.0).
+.TP
+.B \-list-wallets
+List all tracked wallets and exit.
+.TP
+.B \-add-wallet \fIaddress\fR
+Add a wallet address to track and exit.
+.TP
+.B \-remove-wallet \fIaddress\fR
+Remove a wallet address (stop tracking) and exit.
+.TP
+.B \-version
+Show version information and exit.
+.SH EXAMPLES
+.B Start the server in background:
+.RS
+porcupin-server --serve &
+.RE
+.PP
+.B Update to latest version:
+.RS
+porcupin-server --update
+.RE
+.SH FILES
+.I ~/.porcupin/config.yaml
+.RS
+Configuration file.
+.RE
+.I ~/.porcupin/porcupin.db
+.RS
+SQLite database.
+.RE
+.SH AUTHOR
+Developed by skllzrmy.tez
+.SH SEE ALSO
+.BR ipfs (1)

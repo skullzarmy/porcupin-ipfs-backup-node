@@ -15,7 +15,7 @@
  */
 
 import * as WailsApp from "../../wailsjs/go/main/App";
-import type { config, core, db, ipfs, main, storage } from "../../wailsjs/go/models";
+import type { config, core, db, ipfs, main, storage, updater } from "../../wailsjs/go/models";
 import type { ProxyAPIClient } from "./proxy-api-client";
 
 // =============================================================================
@@ -67,6 +67,9 @@ export interface Backend {
     GetConfig(): Promise<config.Config>;
     GetVersion(): Promise<string>;
     UpdateSettings(settings: Record<string, unknown>): Promise<void>;
+    CheckForUpdates(): Promise<updater.UpdateInfo>;
+    InstallUpdate(): Promise<void>;
+    RestartApp(): Promise<void>;
 
     // Storage (some only available locally)
     GetIPFSRepoPath(): Promise<string>;
@@ -107,6 +110,8 @@ export function setAPIClient(client: ProxyAPIClient | null): void {
 /**
  * Check if currently in remote mode
  */
+
+
 export function isRemote(): boolean {
     return isRemoteMode;
 }
@@ -165,6 +170,9 @@ const localBackend: Backend = {
     GetConfig: WailsApp.GetConfig,
     GetVersion: WailsApp.GetVersion,
     UpdateSettings: WailsApp.UpdateSettings,
+    CheckForUpdates: WailsApp.CheckForUpdates,
+    InstallUpdate: WailsApp.InstallUpdate,
+    RestartApp: WailsApp.RestartApp,
 
     // Storage
     GetIPFSRepoPath: WailsApp.GetIPFSRepoPath,
@@ -232,6 +240,9 @@ function createRemoteBackend(client: ProxyAPIClient): Backend {
         GetConfig: () => client.getConfig(),
         GetVersion: () => client.getVersion(),
         UpdateSettings: (settings) => client.updateSettings(settings),
+        CheckForUpdates: () => client.checkForUpdates(),
+        InstallUpdate: () => client.installUpdate(),
+        RestartApp: () => Promise.reject(new Error("Retart not supported remotely")),
 
         // Storage
         GetIPFSRepoPath: () => client.getIPFSRepoPath(),
@@ -318,6 +329,9 @@ export const VerifyAndFixPins = () => getBackend().VerifyAndFixPins();
 export const GetConfig = () => getBackend().GetConfig();
 export const GetVersion = () => getBackend().GetVersion();
 export const UpdateSettings = (...args: Parameters<Backend["UpdateSettings"]>) => getBackend().UpdateSettings(...args);
+export const CheckForUpdates = () => getBackend().CheckForUpdates();
+export const InstallUpdate = () => getBackend().InstallUpdate();
+export const RestartApp = () => getBackend().RestartApp();
 
 export const GetIPFSRepoPath = () => getBackend().GetIPFSRepoPath();
 export const GetStorageInfo = () => getBackend().GetStorageInfo();
