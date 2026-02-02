@@ -72,10 +72,6 @@ wails build -platform darwin/universal
 make build
 sudo make install
 
-# Linux/macOS using Makefile (Recommended)
-make build
-sudo make install
-
 # Manual Build (Go)
 # Current platform
 go build -o build/bin/porcupin ./cmd/headless
