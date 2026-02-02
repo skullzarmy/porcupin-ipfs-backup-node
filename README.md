@@ -75,6 +75,7 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 | Windows x64           |      ✅       |       —        |   ✅   |
 | Windows ARM64         |      ✅       |       —        |   ✅   |
 | Linux x64             |      ✅       |       ✅       |   ✅   |
+| Linux ARM64 (Pi)      |      —        |       ✅       |   ✅   |
 
 ---
 

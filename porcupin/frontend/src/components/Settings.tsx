@@ -17,6 +17,7 @@ import {
     CheckForUpdates,
     InstallUpdate,
     RestartApp,
+    GetVersion,
     isRemote,
 } from "../lib/backend";
 import { useConnection } from "../lib/connection";
@@ -53,6 +54,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
     const [repoPath, setRepoPath] = useState("");
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState("");
+    const [appVersion, setAppVersion] = useState("");
 
     // Scroll to section handling
     useEffect(() => {
@@ -140,9 +142,10 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
     const loadSettings = useCallback(async () => {
         try {
             // Core settings that work in both local and remote mode
-            const [cfgRes, storageRes, pathRes] = await Promise.all([GetConfig(), GetStorageInfo(), GetIPFSRepoPath()]);
+            const [cfgRes, storageRes, pathRes, verRes] = await Promise.all([GetConfig(), GetStorageInfo(), GetIPFSRepoPath(), GetVersion()]);
             setStorageInfo(storageRes);
             setRepoPath(pathRes);
+            setAppVersion(verRes);
 
             // Desktop-only: storage location management (not available in remote mode)
             if (!isRemote()) {
@@ -485,7 +488,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                 <div className="storage-info">
                     <div className="storage-stat">
                         <span className="label">Current Version:</span>
-                        <span className="value">v0.3.3-rc4</span>
+                        <span className="value">{appVersion || "Loading..."}</span>
                     </div>
                     <div className="migration-actions" style={{ marginTop: '16px' }}>
                          <button 
@@ -530,22 +533,22 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                     setUpdateSuccess(false);
                     setUpdateProgress({ phase: "starting", message: "Starting update...", percent: 0 });
 
-                    const cancelProgress = EventsOn("update:progress", (data: any) => {
-                        console.log("[Settings] Update progress:", data);
-                        setUpdateProgress(data);
-                    });
-
                     try {
                         await InstallUpdate();
                         setUpdateSuccess(true);
                     } catch (err: any) {
                         setUpdateError(err.toString());
-                    } finally {
-                        cancelProgress();
                     }
                 }}
                 onCancel={() => setShowUpdateConfirm(false)}
             />
+
+            {/* Listener for update progress */}
+            {showUpdateProgress && (
+                <UpdateProgressListener 
+                    onProgress={(data) => setUpdateProgress(data)}
+                />
+            )}
 
             <UpdateModal
                 isOpen={showUpdateProgress}
@@ -1199,4 +1202,15 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
             </div>
         </div>
     );
+}
+// Helper component to manage event listener lifecycle
+function UpdateProgressListener({ onProgress }: { onProgress: (data: any) => void }) {
+    useEffect(() => {
+        const cancel = EventsOn("update:progress", (data: any) => {
+            console.log("[Settings] Update progress:", data);
+            onProgress(data);
+        });
+        return () => cancel();
+    }, [onProgress]);
+    return null;
 }

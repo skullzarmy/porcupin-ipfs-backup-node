@@ -82,8 +82,12 @@ func main() {
 	if err != nil {
 		log.Printf("Warning: Failed to initialize updater: %v", err)
 	}
-		fmt.Println("Checking for updates...")
-		info, err := updateMgr.CheckForUpdates(context.Background())
+	fmt.Println("Checking for updates...")
+		// Use timeout for update check
+		ctxCheck, cancelCheck := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancelCheck()
+
+		info, err := updateMgr.CheckForUpdates(ctxCheck)
 		if err != nil {
 			log.Fatalf("Failed to check for updates: %v", err)
 		}
@@ -95,7 +99,12 @@ func main() {
 		fmt.Printf("New version available: %s\n", info.Version)
 		fmt.Printf("Release notes:\n%s\n", info.ReleaseNotes)
 		fmt.Print("Installing update... ")
-		if err := updateMgr.InstallLatest(context.Background()); err != nil {
+		
+		// Use longer timeout for download and install
+		ctxInstall, cancelInstall := context.WithTimeout(context.Background(), 15*time.Minute)
+		defer cancelInstall()
+		
+		if err := updateMgr.InstallLatest(ctxInstall); err != nil {
 			fmt.Printf("Failed\n")
 			log.Fatalf("Failed to install update: %v", err)
 		}

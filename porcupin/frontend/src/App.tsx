@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import "./App.css";
-import { GetWallets, GetAssetStats } from "./lib/backend";
+import { GetWallets, GetAssetStats, RestartApp } from "./lib/backend";
 import { InstallUpdate } from "../wailsjs/go/main/App";
-import { EventsOn, EventsOff } from "../wailsjs/runtime";
+import { EventsOn } from "../wailsjs/runtime";
 import type { db } from "../wailsjs/go/models";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -122,6 +122,22 @@ function AppContent() {
         return () => cancel();
     }, []);
 
+    // Listen for progress events when update is active
+    useEffect(() => {
+        if (!showUpdateModal) return;
+
+        console.log("[App] Setting up update progress listener");
+        const cancelProgress = EventsOn("update:progress", (data: any) => {
+            console.log("[App] Update progress:", data);
+            setUpdateProgress(data);
+        });
+
+        return () => {
+            console.log("[App] Cleaning up update progress listener");
+            cancelProgress();
+        };
+    }, [showUpdateModal]);
+
     const handleInstallUpdate = async () => {
         setShowUpdateToast(false);
         setShowUpdateModal(true);
@@ -129,20 +145,11 @@ function AppContent() {
         setUpdateSuccess(false);
         setUpdateProgress({ phase: "starting", message: "Starting update...", percent: 0 });
 
-        // Listen for progress events
-        const cancelProgress = EventsOn("update:progress", (data: any) => {
-            console.log("[App] Update progress:", data);
-            setUpdateProgress(data);
-        });
-
         try {
             await InstallUpdate();
             setUpdateSuccess(true);
         } catch (err: any) {
             setUpdateError(err.toString());
-        } finally {
-            // Clean up listener
-            cancelProgress();
         }
     };
 
@@ -161,7 +168,14 @@ function AppContent() {
                 error={updateError}
                 success={updateSuccess}
                 progress={updateProgress}
-                onRestart={() => window.location.reload()}
+                onRestart={async () => {
+                   try {
+                       await RestartApp();
+                   } catch (e: any) {
+                       console.error("Restart failed", e);
+                       setUpdateError("Restart failed: " + e.toString());
+                   }
+                }}
             />
 
             {/* Skip link for keyboard navigation - WCAG 2.4.1 */}
