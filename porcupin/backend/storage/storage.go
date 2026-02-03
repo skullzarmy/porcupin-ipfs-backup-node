@@ -197,37 +197,32 @@ func generateLabel(path string, storageType StorageType) string {
 func generateLabelForOS(path string, storageType StorageType, goos string) string {
 	// Extract volume/mount name from path based on OS
 	var volumeName string
+	path = filepath.Clean(path)
+	parts := strings.Split(path, string(filepath.Separator))
 	
 	switch goos {
 	case "darwin":
-		if strings.HasPrefix(path, "/Volumes/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 3 {
-				volumeName = parts[2]
-			}
+		// /Volumes/Name -> ["", "Volumes", "Name"]
+		if len(parts) >= 3 && parts[1] == "Volumes" {
+			volumeName = parts[2]
 		}
 	case "linux":
-		// Handle /mnt/name, /media/user/name, and /run/media/user/name patterns
-		if strings.HasPrefix(path, "/mnt/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 3 {
-				volumeName = parts[2]
-			}
-		} else if strings.HasPrefix(path, "/media/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 4 {
-				volumeName = parts[3] // /media/user/volumename
-			}
-		} else if strings.HasPrefix(path, "/run/media/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 5 {
-				volumeName = parts[4] // /run/media/user/volumename
-			}
+		// /mnt/name -> ["", "mnt", "name"]
+		// /media/user/name -> ["", "media", "user", "name"]
+		// /run/media/user/name -> ["", "run", "media", "user", "name"]
+		if len(parts) >= 3 && parts[1] == "mnt" {
+			volumeName = parts[2]
+		} else if len(parts) >= 4 && parts[1] == "media" {
+			volumeName = parts[3]
+		} else if len(parts) >= 5 && parts[1] == "run" && parts[2] == "media" {
+			volumeName = parts[4]
 		}
 	case "windows":
-		// Handle drive letters like D:\path
-		if len(path) >= 2 && path[1] == ':' {
-			volumeName = string(path[0]) + " Drive"
+		// C:\path -> ["C:", "path"]
+		// VolumeName returns "C:"
+		vol := filepath.VolumeName(path)
+		if vol != "" {
+			volumeName = vol + " Drive"
 		}
 	}
 	
@@ -259,34 +254,51 @@ func getMountPoint(path string) string {
 
 // getMountPointForOS is the testable implementation that accepts OS as parameter
 func getMountPointForOS(path string, goos string) string {
+	path = filepath.Clean(path)
+	
+	// Determine separator based on OS explicitly for testing
+	sep := "/"
+	if goos == "windows" {
+		sep = "\\"
+	}
+
+	// Normalized path for splitting
+	// On non-Windows running Windows tests, filepath.Clean might strictly use /
+	// so we need to be careful. The input path in tests is usually hardcoded with correct separators.
+	// But strings.Split needs the exact char.
+	
+	// If we are on Non-Windows but testing Windows, input like "C:\\Users" comes in.
+	// filepath.Clean on macOS might keep it or treat backslash as char.
+	// Simplest approach: Use the sep derived from goos.
+	
+	parts := strings.Split(path, sep)
+
 	switch goos {
 	case "darwin":
-		if strings.HasPrefix(path, "/Volumes/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 3 {
-				return "/Volumes/" + parts[2]
-			}
+		if len(parts) >= 3 && parts[1] == "Volumes" {
+			return sep + filepath.Join(parts[1], parts[2])
 		}
 	case "linux":
-		if strings.HasPrefix(path, "/mnt/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 3 {
-				return "/mnt/" + parts[2]
-			}
-		} else if strings.HasPrefix(path, "/media/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 4 {
-				return "/media/" + parts[2] + "/" + parts[3]
-			}
-		} else if strings.HasPrefix(path, "/run/media/") {
-			parts := strings.Split(path, "/")
-			if len(parts) >= 5 {
-				return "/run/media/" + parts[3] + "/" + parts[4]
-			}
+		if len(parts) >= 3 && parts[1] == "mnt" {
+			return sep + filepath.Join(parts[1], parts[2])
+		} else if len(parts) >= 4 && parts[1] == "media" {
+			return sep + filepath.Join(parts[1], parts[2], parts[3])
+		} else if len(parts) >= 5 && parts[1] == "run" && parts[2] == "media" {
+			return sep + filepath.Join(parts[1], parts[2], parts[3], parts[4])
 		}
 	case "windows":
-		if len(path) >= 2 && path[1] == ':' {
-			return path[:2] + "\\"
+		// filepath.VolumeName depends on runtime OS, so we must manually parse drive
+		// Expected: "C:" or "\\server\share"
+		if len(parts) > 0 && strings.Contains(parts[0], ":") {
+			return parts[0] + sep
+		}
+		// UNC path support handling would go here if needed, keeping simple for C:\ style
+		if strings.HasPrefix(path, "\\\\") {
+			// Naive UNC parsing: \\server\share
+			// Split by \ -> ["", "", "server", "share", ...]
+			if len(parts) >= 4 {
+				return sep + sep + parts[2] + sep + parts[3]
+			}
 		}
 	}
 	return path

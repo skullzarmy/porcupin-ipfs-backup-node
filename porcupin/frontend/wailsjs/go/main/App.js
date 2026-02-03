@@ -14,6 +14,10 @@ export function CancelMigration() {
   return window['go']['main']['App']['CancelMigration']();
 }
 
+export function CheckForUpdates() {
+  return window['go']['main']['App']['CheckForUpdates']();
+}
+
 export function ClearFailed() {
   return window['go']['main']['App']['ClearFailed']();
 }
@@ -98,6 +102,10 @@ export function GetWallets() {
   return window['go']['main']['App']['GetWallets']();
 }
 
+export function InstallUpdate() {
+  return window['go']['main']['App']['InstallUpdate']();
+}
+
 export function IsBackupPaused() {
   return window['go']['main']['App']['IsBackupPaused']();
 }
@@ -136,6 +144,10 @@ export function RepinZeroSizeAssets() {
 
 export function ResetDatabase() {
   return window['go']['main']['App']['ResetDatabase']();
+}
+
+export function RestartApp() {
+  return window['go']['main']['App']['RestartApp']();
 }
 
 export function ResumeBackup() {

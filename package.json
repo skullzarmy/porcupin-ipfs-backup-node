@@ -1,6 +1,6 @@
 {
     "name": "porcupin-build",
-    "version": "0.3.2-rc3",
+    "version": "0.3.3-rc4",
     "description": "Build scripts for Porcupin",
     "scripts": {
         "build": "bun run build:all",

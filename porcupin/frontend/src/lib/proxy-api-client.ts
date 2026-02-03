@@ -412,4 +412,12 @@ export class ProxyAPIClient {
     async validateStoragePath(_path: string): Promise<void> {
         throw new Error("Validate storage path is not available in remote mode");
     }
+
+    async checkForUpdates(): Promise<any> {
+        throw new Error("Remote updates not supported in proxy mode");
+    }
+
+    async installUpdate(): Promise<void> {
+        throw new Error("Remote updates not supported in proxy mode");
+    }
 }

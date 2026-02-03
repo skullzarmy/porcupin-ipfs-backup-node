@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import "./App.css";
-import { GetWallets, GetAssetStats } from "./lib/backend";
+import { GetWallets, GetAssetStats, RestartApp } from "./lib/backend";
+import { InstallUpdate } from "../wailsjs/go/main/App";
+import { EventsOn } from "../wailsjs/runtime";
 import type { db } from "../wailsjs/go/models";
 import { Sidebar } from "./components/Sidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -9,6 +11,8 @@ import { Assets } from "./components/Assets";
 import { Settings } from "./components/Settings";
 import { About } from "./components/About";
 import { ConnectionProvider, useConnection } from "./lib/connection";
+import UpdateToast from "./components/UpdateToast";
+import UpdateModal from "./components/UpdateModal";
 
 /** Asset statistics returned from the backend */
 interface AssetStats {
@@ -21,6 +25,7 @@ interface AssetStats {
     total_size_bytes: number;
 }
 
+
 function AppContent() {
     const [activeTab, setActiveTab] = useState("dashboard");
     const [wallets, setWallets] = useState<db.Wallet[]>([]);
@@ -29,6 +34,14 @@ function AppContent() {
     const [error, setError] = useState("");
     const [isStale, setIsStale] = useState(false);
     const [scrollToSection, setScrollToSection] = useState("");
+
+    // Update State
+    const [showUpdateToast, setShowUpdateToast] = useState(false);
+    const [updateVersion, setUpdateVersion] = useState("");
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [updateError, setUpdateError] = useState("");
+    const [updateSuccess, setUpdateSuccess] = useState(false);
+    const [updateProgress, setUpdateProgress] = useState<{phase: string, message: string, percent: number} | undefined>(undefined);
 
     // Get connection state to trigger reloads when it changes
     const { state } = useConnection();
@@ -99,8 +112,72 @@ function AppContent() {
         return () => clearInterval(interval);
     }, [loadWallets, updateStats]);
 
+    // Listen for updates
+    useEffect(() => {
+        const cancel = EventsOn("update:available", (info: any) => {
+            console.log("[App] Update available:", info);
+            setUpdateVersion(info.version);
+            setShowUpdateToast(true);
+        });
+        return () => cancel();
+    }, []);
+
+    // Listen for progress events when update is active
+    useEffect(() => {
+        if (!showUpdateModal) return;
+
+        console.log("[App] Setting up update progress listener");
+        const cancelProgress = EventsOn("update:progress", (data: any) => {
+            console.log("[App] Update progress:", data);
+            setUpdateProgress(data);
+        });
+
+        return () => {
+            console.log("[App] Cleaning up update progress listener");
+            cancelProgress();
+        };
+    }, [showUpdateModal]);
+
+    const handleInstallUpdate = async () => {
+        setShowUpdateToast(false);
+        setShowUpdateModal(true);
+        setUpdateError("");
+        setUpdateSuccess(false);
+        setUpdateProgress({ phase: "starting", message: "Starting update...", percent: 0 });
+
+        try {
+            await InstallUpdate();
+            setUpdateSuccess(true);
+        } catch (err: any) {
+            setUpdateError(err.toString());
+        }
+    };
+
     return (
         <div className="app-layout">
+            {showUpdateToast && (
+                <UpdateToast 
+                    version={updateVersion}
+                    onInstall={handleInstallUpdate}
+                    onDismiss={() => setShowUpdateToast(false)}
+                />
+            )}
+
+            <UpdateModal 
+                isOpen={showUpdateModal}
+                error={updateError}
+                success={updateSuccess}
+                progress={updateProgress}
+                onRestart={async () => {
+                   try {
+                       await RestartApp();
+                   } catch (e: any) {
+                       console.error("Restart failed", e);
+                       setUpdateError("Restart failed: " + e.toString());
+                   }
+                }}
+            />
+
             {/* Skip link for keyboard navigation - WCAG 2.4.1 */}
             <a href="#main-content" className="skip-link">
                 Skip to main content

@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sync"
 	"time"
 
@@ -466,45 +465,8 @@ func (n *Node) GarbageCollect(ctx context.Context) error {
 		return fmt.Errorf("garbage collection failed: %w", err)
 	}
 	
-	// OS-specific cleanup to ensure disk space is properly released
-	// All commands are official/standard utilities that fail gracefully without permissions
-	log.Println("Running OS-specific disk cleanup...")
-	
-	switch runtime.GOOS {
-	case "darwin":
-		// sync: Standard POSIX filesystem flush
-		exec.Command("sync").Run()
-		// tmutil thinlocalsnapshots: Apple's official Time Machine API
-		// Requests macOS to thin snapshots to free space - same as Disk Utility uses
-		log.Println("Requesting Time Machine to release snapshot space...")
-		cmd := exec.Command("tmutil", "thinlocalsnapshots", "/", "107374182400", "1")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			log.Printf("tmutil note: %v (%s)", err, string(output))
-		}
-		
-	case "linux":
-		// sync: Standard POSIX filesystem flush
-		exec.Command("sync").Run()
-		// fstrim: Standard util-linux command for SSD TRIM
-		// Recommended by all major distros, runs weekly via systemd timer by default
-		if n.repoPath != "" {
-			exec.Command("fstrim", "-v", n.repoPath).Run()
-		}
-		
-	case "windows":
-		// Optimize-Volume: Official Windows PowerShell cmdlet for drive optimization
-		// Triggers TRIM on SSDs, same as running "Optimize Drives" from Windows
-		if len(n.repoPath) >= 2 && n.repoPath[1] == ':' {
-			driveLetter := string(n.repoPath[0])
-			log.Printf("Requesting Windows to optimize drive %s...", driveLetter)
-			exec.Command("powershell", "-Command", 
-				fmt.Sprintf("Optimize-Volume -DriveLetter %s -ReTrim -ErrorAction SilentlyContinue", driveLetter)).Run()
-		}
-		
-	default:
-		// sync: Standard POSIX - works on all Unix-like systems (BSD, etc)
-		exec.Command("sync").Run()
-	}
+	// OS-specific cleanup has been removed for safety.
+	// We rely solely on IPFS internal repo garbage collection.
 	
 	log.Println("IPFS garbage collection complete")
 	return nil
@@ -612,42 +574,12 @@ func (n *Node) Cat(ctx context.Context, cidStr string, maxBytes int64) ([]byte, 
 		return nil, "", fmt.Errorf("failed to read: %w", err)
 	}
 
-	// Try to detect mime type from content
-	mimeType := detectMimeType(data[:n_read])
+	// Detect mime type using standard library
+	mimeType := http.DetectContentType(data[:n_read])
 
 	return data[:n_read], mimeType, nil
 }
 
-// detectMimeType tries to detect the mime type from content
-func detectMimeType(data []byte) string {
-	if len(data) < 4 {
-		return "application/octet-stream"
-	}
-
-	// Check magic bytes
-	switch {
-	case data[0] == 0xFF && data[1] == 0xD8 && data[2] == 0xFF:
-		return "image/jpeg"
-	case data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47:
-		return "image/png"
-	case data[0] == 0x47 && data[1] == 0x49 && data[2] == 0x46:
-		return "image/gif"
-	case data[0] == 0x52 && data[1] == 0x49 && data[2] == 0x46 && data[3] == 0x46:
-		return "image/webp"
-	case data[0] == 0x00 && data[1] == 0x00 && data[2] == 0x00:
-		if len(data) > 7 && data[4] == 0x66 && data[5] == 0x74 && data[6] == 0x79 && data[7] == 0x70 {
-			return "video/mp4"
-		}
-	case data[0] == 0x1A && data[1] == 0x45 && data[2] == 0xDF && data[3] == 0xA3:
-		return "video/webm"
-	case data[0] == '{' || data[0] == '[':
-		return "application/json"
-	case data[0] == '<':
-		return "text/html"
-	}
-
-	return "application/octet-stream"
-}
 
 // Helper to setup plugins (required for Kubo)
 func setupPlugins(externalPluginsPath string) error {

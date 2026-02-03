@@ -645,3 +645,51 @@ export namespace storage {
 
 }
 
+export namespace updater {
+	
+	export class UpdateInfo {
+	    available: boolean;
+	    version: string;
+	    current_version: string;
+	    release_notes: string;
+	    // Go type: time
+	    pub_date: any;
+	    asset_url: string;
+	    human_size: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.available = source["available"];
+	        this.version = source["version"];
+	        this.current_version = source["current_version"];
+	        this.release_notes = source["release_notes"];
+	        this.pub_date = this.convertValues(source["pub_date"], null);
+	        this.asset_url = source["asset_url"];
+	        this.human_size = source["human_size"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+

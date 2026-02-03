@@ -68,14 +68,19 @@ wails build -platform darwin/universal
 ### Headless Server (Linux/Docker/RPi)
 
 ```bash
+# Linux/macOS using Makefile (Recommended)
+make build
+sudo make install
+
+# Manual Build (Go)
 # Current platform
-go build -o build/bin/porcupin-server ./cmd/headless
+go build -o build/bin/porcupin ./cmd/headless
 
 # Linux x64
-GOOS=linux GOARCH=amd64 go build -o build/bin/porcupin-server-linux-amd64 ./cmd/headless
+GOOS=linux GOARCH=amd64 go build -o build/bin/porcupin-linux-amd64 ./cmd/headless
 
 # Raspberry Pi (ARM64)
-GOOS=linux GOARCH=arm64 go build -o build/bin/porcupin-server-linux-arm64 ./cmd/headless
+GOOS=linux GOARCH=arm64 go build -o build/bin/porcupin-linux-arm64 ./cmd/headless
 ```
 
 ## Adding New Features

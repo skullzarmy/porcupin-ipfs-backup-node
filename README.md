@@ -34,6 +34,7 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 | ------------------------------- | ------------------------------------------- |
 | **Install and use Porcupin**    | **[User Guide](docs/user-guide/README.md)** |
 | **Build from source**           | [Developer Guide](docs/development.md)      |
+| **Update Porcupin**             | [Updating Guide](docs/user-guide/updating.md)|
 | **Data Backup & Recovery**      | [Backup Strategy](docs/user-guide/backup-strategy.md) |
 | **Contribute code**             | [Contributing Guide](CONTRIBUTING.md)       |
 | **Understand the architecture** | [Architecture Docs](docs/architecture.md)   |
@@ -74,7 +75,7 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 | Windows x64           |      ✅       |       —        |   ✅   |
 | Windows ARM64         |      ✅       |       —        |   ✅   |
 | Linux x64             |      ✅       |       ✅       |   ✅   |
-| Linux ARM64 (Pi)      |       —       |       ✅       |   ✅   |
+| Linux ARM64 (Pi)      |      —        |       ✅       |   ✅   |
 
 ---
 

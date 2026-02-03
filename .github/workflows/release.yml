@@ -228,6 +228,15 @@ jobs:
             - name: List artifacts
               run: find artifacts -type f
 
+            - name: Generate Checksums
+              run: |
+                cd artifacts
+                sha256sum */* > checksums.txt
+                # Move checksums to root for release
+                mv checksums.txt ../checksums.txt
+                cd ..
+                cat checksums.txt
+
             - name: Create Release
               uses: softprops/action-gh-release@v1
               with:
@@ -245,3 +254,4 @@ jobs:
                       artifacts/porcupin-server-linux-arm64/porcupin-server-linux-arm64
                       artifacts/porcupin-server-darwin-amd64/porcupin-server-darwin-amd64
                       artifacts/porcupin-server-darwin-arm64/porcupin-server-darwin-arm64
+                      checksums.txt

@@ -1,0 +1,23 @@
+[Unit]
+Description=Porcupin IPFS Backup Node
+Documentation=https://github.com/skullzarmy/porcupin-ipfs-backup-node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=porcupin
+Group=porcupin
+# Edit this path to match your installation
+ExecStart=/usr/local/bin/porcupin
+
+# Critical for seamless updates:
+# When 'porcupin --update' replaces the binary and exits, systemd will clean up and restart the new binary immediately.
+Restart=always
+RestartSec=5s
+
+# resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

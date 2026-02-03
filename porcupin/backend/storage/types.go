@@ -57,9 +57,6 @@ type Manager struct {
 	rsyncCmd        *exec.Cmd          // Reference to rsync process for cancellation
 }
 
-// Global migration manager to persist status across calls
-var globalMigrationManager *Manager
-var globalMigrationMu sync.Mutex
 
 // NewManager creates a new storage manager
 func NewManager(currentPath string) *Manager {
@@ -69,27 +66,6 @@ func NewManager(currentPath string) *Manager {
 	}
 }
 
-// GetGlobalMigrationStatus returns the global migration status
-func GetGlobalMigrationStatus() MigrationStatus {
-	globalMigrationMu.Lock()
-	defer globalMigrationMu.Unlock()
-	if globalMigrationManager == nil || globalMigrationManager.migrationStatus == nil {
-		return MigrationStatus{}
-	}
-	return *globalMigrationManager.migrationStatus
-}
-
-// CancelGlobalMigration cancels any ongoing migration
-func CancelGlobalMigration() error {
-	globalMigrationMu.Lock()
-	manager := globalMigrationManager
-	globalMigrationMu.Unlock()
-	
-	if manager == nil {
-		return fmt.Errorf("no migration in progress")
-	}
-	return manager.CancelMigration()
-}
 
 // CancelMigration cancels an ongoing migration
 func (m *Manager) CancelMigration() error {
@@ -200,11 +176,6 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 		DestPath:   destPath,
 		Phase:      "preparing",
 	}
-	
-	// Set global manager for status queries
-	globalMigrationMu.Lock()
-	globalMigrationManager = m
-	globalMigrationMu.Unlock()
 	
 	m.mu.Unlock()
 
