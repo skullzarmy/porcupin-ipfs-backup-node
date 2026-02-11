@@ -167,11 +167,20 @@ func main() {
 		cfg = config.DefaultConfig()
 	}
 
-	// Handle 'settings' subcommand (before DB/IPFS initialization)
+	// Handle positional subcommands (before DB/IPFS initialization)
 	args := flag.Args()
-	if len(args) > 0 && args[0] == "settings" {
-		handleSettings(args[1:], cfg, cfgPath)
-		return
+	if len(args) > 0 {
+		switch args[0] {
+		case "version":
+			cli.PrintBannerWithVersion(version.Version)
+			return
+		case "about":
+			cli.PrintAbout(version.Version)
+			return
+		case "settings":
+			handleSettings(args[1:], cfg, cfgPath)
+			return
+		}
 	}
 
 	// Apply CLI overrides to config
