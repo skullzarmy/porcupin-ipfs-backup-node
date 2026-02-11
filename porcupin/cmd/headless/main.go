@@ -153,10 +153,25 @@ func main() {
 		cfgPath = filepath.Join(dataPath, "config.yaml")
 	}
 
+	// Ensure config file exists on disk (auto-generate defaults if missing)
+	created, ensureErr := config.EnsureConfigFile(cfgPath)
+	if ensureErr != nil {
+		log.Printf("Warning: could not create config file: %v", ensureErr)
+	} else if created {
+		log.Printf("Created default config at %s", cfgPath)
+	}
+
 	cfg, err := config.LoadConfig(cfgPath)
 	if err != nil {
 		log.Printf("No config file found, using defaults")
 		cfg = config.DefaultConfig()
+	}
+
+	// Handle 'settings' subcommand (before DB/IPFS initialization)
+	args := flag.Args()
+	if len(args) > 0 && args[0] == "settings" {
+		handleSettings(args[1:], cfg, cfgPath)
+		return
 	}
 
 	// Apply CLI overrides to config
@@ -530,4 +545,118 @@ func main() {
 			)
 		}
 	}
+}
+
+// handleSettings processes the 'porcupin settings' subcommand
+func handleSettings(args []string, cfg *config.Config, cfgPath string) {
+	if len(args) == 0 {
+		printSettingsUsage()
+		return
+	}
+
+	subcmd := args[0]
+
+	switch subcmd {
+	case "list":
+		items := config.ListAll(cfg)
+		useColor := cli.IsTTY()
+		if useColor {
+			fmt.Println()
+			fmt.Printf("  %s%sPorcupin Settings%s\n", cli.Bold, cli.White, cli.Reset)
+			fmt.Println()
+		}
+		currentSection := ""
+		for _, item := range items {
+			// Extract section name for grouping
+			parts := splitFirst(item.Key, ".")
+			if parts[0] != currentSection {
+				currentSection = parts[0]
+				if useColor {
+					fmt.Printf("  %s[%s]%s\n", cli.Dim, currentSection, cli.Reset)
+				} else {
+					fmt.Printf("  [%s]\n", currentSection)
+				}
+			}
+			if useColor {
+				fmt.Printf("    %s%s%s = %s%s%s\n", cli.Cyan, item.Key, cli.Reset, cli.Bold, item.Value, cli.Reset)
+			} else {
+				fmt.Printf("    %s = %s\n", item.Key, item.Value)
+			}
+		}
+		if useColor {
+			fmt.Println()
+		}
+
+	case "location":
+		fmt.Println(cfgPath)
+
+	default:
+		// It's a key — either get or set
+		key := subcmd
+
+		if len(args) == 1 {
+			// GET
+			val, err := config.GetByDotNotation(cfg, key)
+			if err != nil {
+				log.Fatalf("Error: %v", err)
+			}
+			fmt.Println(val)
+		} else {
+			// SET
+			value := args[1]
+
+			// Show old value
+			oldVal, _ := config.GetByDotNotation(cfg, key)
+
+			if err := config.SetByDotNotation(cfg, key, value); err != nil {
+				log.Fatalf("Error: %v", err)
+			}
+
+			if err := cfg.SaveConfig(cfgPath); err != nil {
+				log.Fatalf("Failed to save config: %v", err)
+			}
+
+			newVal, _ := config.GetByDotNotation(cfg, key)
+			if cli.IsTTY() {
+				fmt.Printf("%s%s%s: %s → %s%s%s\n", cli.Cyan, key, cli.Reset, oldVal, cli.Bold, newVal, cli.Reset)
+			} else {
+				fmt.Printf("%s: %s → %s\n", key, oldVal, newVal)
+			}
+		}
+	}
+}
+
+// printSettingsUsage prints help for the settings subcommand
+func printSettingsUsage() {
+	fmt.Println("Usage: porcupin settings <command>")
+	fmt.Println()
+	fmt.Println("Commands:")
+	fmt.Println("  list                          List all settings")
+	fmt.Println("  location                      Show config file path")
+	fmt.Println("  <key>                         Get a setting value")
+	fmt.Println("  <key> <value>                 Set a setting value")
+	fmt.Println()
+	fmt.Println("Keys use dot notation (e.g. backup.max_concurrency)")
+	fmt.Println("Dashes and underscores are interchangeable.")
+	fmt.Println()
+	fmt.Println("Examples:")
+	fmt.Println("  porcupin settings list")
+	fmt.Println("  porcupin settings backup.max_concurrency")
+	fmt.Println("  porcupin settings backup.max-concurrency 2")
+	fmt.Println("  porcupin settings ipfs.pin_timeout 5m")
+}
+
+// splitFirst splits a string on the first occurrence of sep
+func splitFirst(s, sep string) [2]string {
+	idx := len(s)
+	for i := 0; i < len(s); i++ {
+		if s[i] == sep[0] {
+			idx = i
+			break
+		}
+	}
+	if idx == len(s) {
+		return [2]string{s, ""}
+	}
+	return [2]string{s[:idx], s[idx+1:]}
 }
