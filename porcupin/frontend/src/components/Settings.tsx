@@ -141,11 +141,14 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
 
     const loadSettings = useCallback(async () => {
         try {
-            // Core settings that work in both local and remote mode
-            const [cfgRes, storageRes, pathRes, verRes] = await Promise.all([GetConfig(), GetStorageInfo(), GetIPFSRepoPath(), GetVersion()]);
-            setStorageInfo(storageRes);
-            setRepoPath(pathRes);
-            setAppVersion(verRes);
+            // Use allSettled so one failure doesn't block the others
+            const [cfgRes, storageRes, pathRes, verRes] = await Promise.allSettled([
+                GetConfig(), GetStorageInfo(), GetIPFSRepoPath(), GetVersion()
+            ]);
+
+            if (storageRes.status === "fulfilled") setStorageInfo(storageRes.value);
+            if (pathRes.status === "fulfilled") setRepoPath(pathRes.value);
+            if (verRes.status === "fulfilled") setAppVersion(verRes.value);
 
             // Desktop-only: storage location management (not available in remote mode)
             if (!isRemote()) {
@@ -163,16 +166,17 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
             }
 
             // Populate form - note: Config uses PascalCase from Go struct
-            if (cfgRes?.Backup) {
-                setMaxStorageGB(cfgRes.Backup.max_storage_gb || 0);
-                setStorageWarningPct(cfgRes.Backup.storage_warning_pct || 80);
-                setMaxConcurrency(cfgRes.Backup.max_concurrency || 5);
-                setMinFreeDiskSpaceGB(cfgRes.Backup.min_free_disk_space_gb || 5);
-                setSyncOwned(cfgRes.Backup.sync_owned !== false);
-                setSyncCreated(cfgRes.Backup.sync_created !== false);
+            const cfg = cfgRes.status === "fulfilled" ? cfgRes.value : null;
+            if (cfg?.Backup) {
+                setMaxStorageGB(cfg.Backup.max_storage_gb || 0);
+                setStorageWarningPct(cfg.Backup.storage_warning_pct || 80);
+                setMaxConcurrency(cfg.Backup.max_concurrency || 5);
+                setMinFreeDiskSpaceGB(cfg.Backup.min_free_disk_space_gb || 5);
+                setSyncOwned(cfg.Backup.sync_owned !== false);
+                setSyncCreated(cfg.Backup.sync_created !== false);
             }
-            if (cfgRes?.IPFS) {
-                setIpfsSwarmPort(cfgRes.IPFS.swarm_port || 4001);
+            if (cfg?.IPFS) {
+                setIpfsSwarmPort(cfg.IPFS.swarm_port || 4001);
                 setIpfsPortChanged(false);
             }
         } catch (err: unknown) {
