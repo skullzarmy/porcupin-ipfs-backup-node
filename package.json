@@ -4,7 +4,7 @@
     "description": "Build scripts for Porcupin",
     "scripts": {
         "build": "bun run build:all",
-        "build:all": "bun run build:desktop && bun run build:headless",
+        "build:all": "bun run build:desktop && bun run build:headless && bun run build:man",
         "build:desktop": "bun run build:macos && bun run build:windows",
         "build:macos": "cd porcupin && wails build -platform darwin/universal && codesign --force --deep --sign - --entitlements build/darwin/entitlements.plist build/bin/Porcupin.app",
         "build:windows": "bun run build:windows:amd64 && bun run build:windows:arm64",
@@ -19,6 +19,7 @@
         "build:headless:linux:amd64": "cd porcupin && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o build/bin/porcupin-server-linux-amd64 ./cmd/headless",
         "build:headless:linux:arm64": "cd porcupin && GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o build/bin/porcupin-server-linux-arm64 ./cmd/headless",
         "build:docker": "docker build -t porcupin .",
+        "build:man": "cp porcupin/docs/man/porcupin.1 porcupin/build/bin/porcupin.1",
         "dev": "cd porcupin && wails dev",
         "clean": "rm -rf porcupin/build/bin/*"
     }
