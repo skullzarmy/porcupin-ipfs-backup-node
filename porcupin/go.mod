@@ -3,6 +3,7 @@ module porcupin
 go 1.25
 
 require (
+	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/creativeprojects/go-selfupdate v1.5.2
 	github.com/dipdup-net/go-lib v0.4.10
 	github.com/glebarez/sqlite v1.11.0
@@ -24,7 +25,6 @@ require (
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
 	github.com/DataDog/zstd v1.5.7 // indirect
 	github.com/Jorropo/jsync v1.0.1 // indirect
-	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/RaduBerinde/axisds v0.0.0-20250419182453-5135a0650657 // indirect
 	github.com/RaduBerinde/btreemap v0.0.0-20250419174037-3d62b7205d54 // indirect
 	github.com/alecthomas/units v0.0.0-20240927000941-0f3dac36c52b // indirect
