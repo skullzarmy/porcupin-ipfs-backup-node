@@ -14,12 +14,15 @@ import {
     CancelMigration,
     DiscoverServers,
     TestRemoteConnection,
+    isRemote,
+} from "../lib/backend";
+// Updates are always client-scoped — use Wails bindings directly
+import {
     CheckForUpdates,
     InstallUpdate,
     RestartApp,
     GetVersion,
-    isRemote,
-} from "../lib/backend";
+} from "../../wailsjs/go/main/App";
 import { useConnection } from "../lib/connection";
 import { ConfirmModal } from "./ConfirmModal";
 import UpdateModal from "./UpdateModal";
@@ -42,7 +45,7 @@ import {
     Search,
 } from "lucide-react";
 import type { api, main, storage } from "../../wailsjs/go/models";
-import { formatBytes } from "../utils";
+import { formatBytes, compareSemver } from "../utils";
 
 interface SettingsProps {
     onStatsChange: () => void;
@@ -141,11 +144,17 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
 
     const loadSettings = useCallback(async () => {
         try {
-            // Core settings that work in both local and remote mode
-            const [cfgRes, storageRes, pathRes, verRes] = await Promise.all([GetConfig(), GetStorageInfo(), GetIPFSRepoPath(), GetVersion()]);
-            setStorageInfo(storageRes);
-            setRepoPath(pathRes);
-            setAppVersion(verRes);
+            // Always get client version from local Wails binding
+            const clientVersion = await GetVersion();
+            setAppVersion(clientVersion);
+
+            // Use allSettled so one failure doesn't block the others
+            const [cfgRes, storageRes, pathRes] = await Promise.allSettled([
+                GetConfig(), GetStorageInfo(), GetIPFSRepoPath()
+            ]);
+
+            if (storageRes.status === "fulfilled") setStorageInfo(storageRes.value);
+            if (pathRes.status === "fulfilled") setRepoPath(pathRes.value);
 
             // Desktop-only: storage location management (not available in remote mode)
             if (!isRemote()) {
@@ -163,16 +172,17 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
             }
 
             // Populate form - note: Config uses PascalCase from Go struct
-            if (cfgRes?.Backup) {
-                setMaxStorageGB(cfgRes.Backup.max_storage_gb || 0);
-                setStorageWarningPct(cfgRes.Backup.storage_warning_pct || 80);
-                setMaxConcurrency(cfgRes.Backup.max_concurrency || 5);
-                setMinFreeDiskSpaceGB(cfgRes.Backup.min_free_disk_space_gb || 5);
-                setSyncOwned(cfgRes.Backup.sync_owned !== false);
-                setSyncCreated(cfgRes.Backup.sync_created !== false);
+            const cfg = cfgRes.status === "fulfilled" ? cfgRes.value : null;
+            if (cfg?.Backup) {
+                setMaxStorageGB(cfg.Backup.max_storage_gb || 0);
+                setStorageWarningPct(cfg.Backup.storage_warning_pct || 80);
+                setMaxConcurrency(cfg.Backup.max_concurrency || 5);
+                setMinFreeDiskSpaceGB(cfg.Backup.min_free_disk_space_gb || 5);
+                setSyncOwned(cfg.Backup.sync_owned !== false);
+                setSyncCreated(cfg.Backup.sync_created !== false);
             }
-            if (cfgRes?.IPFS) {
-                setIpfsSwarmPort(cfgRes.IPFS.swarm_port || 4001);
+            if (cfg?.IPFS) {
+                setIpfsSwarmPort(cfg.IPFS.swarm_port || 4001);
                 setIpfsPortChanged(false);
             }
         } catch (err: unknown) {
@@ -489,6 +499,11 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                     <div className="storage-stat">
                         <span className="label">Current Version:</span>
                         <span className="value">{appVersion || "Loading..."}</span>
+                        {isRemote() && connectionState.serverVersion && (
+                            <span className="value" style={{ marginLeft: '12px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                                (Server: v{connectionState.serverVersion})
+                            </span>
+                        )}
                     </div>
                     <div className="migration-actions" style={{ marginTop: '16px' }}>
                          <button 
@@ -500,18 +515,11 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                                         setUpdateInfo(info);
                                         setShowUpdateConfirm(true);
                                     } else {
-                                        // Use a small toast or non-blocking UI ideally, but for now we don't have a Toast component exposed conveniently.
-                                        // We'll stick to error alert style for "Up to date" or just log it?
-                                        // User asked to REMOVE alerts. 
-                                        // We can reuse the error state to show a "Status message" inline?
-                                        // Or just alert("Up to date") is the only remaining alert? 
-                                        // NO. User said "do I use browser alerts fucking anywhere?".
-                                        // I'll add a 'statusMessage' state to show inline.
-                                        // But for this step I'll just remove the alert.
+                                        setMessage("You're running the latest version.");
                                     }
                                 } catch (err) {
                                     setUpdateError("Error checking: " + err);
-                                    setShowUpdateProgress(true); // Show modal with error
+                                    setShowUpdateProgress(true);
                                 }
                             }}
                          >
@@ -860,6 +868,12 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                             </span>
                             {connectionState.serverVersion && (
                                 <span className="server-version">v{connectionState.serverVersion}</span>
+                            )}
+                            {connectionState.serverVersion && appVersion && compareSemver(connectionState.serverVersion, appVersion) < 0 && (
+                                <div className="warning-notice" style={{ marginTop: '8px' }}>
+                                    <AlertTriangle size={14} />
+                                    <span>Server is running v{connectionState.serverVersion} — client is v{appVersion}. Update the server via <code>porcupin --update</code>.</span>
+                                </div>
                             )}
                         </div>
                         <button type="button" onClick={() => disconnect()} className="btn-secondary">

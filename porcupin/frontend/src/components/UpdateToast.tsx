@@ -1,5 +1,4 @@
 import React from 'react';
-import { InstallUpdate } from '../../wailsjs/go/main/App';
 
 interface UpdateToastProps {
     version: string;

@@ -230,10 +230,17 @@ jobs:
 
             - name: Generate Checksums
               run: |
+                touch checksums.txt
                 cd artifacts
-                sha256sum */* > checksums.txt
-                # Move checksums to root for release
-                mv checksums.txt ../checksums.txt
+                # Loop through each artifact directory and verify contents
+                for dir in */; do
+                  if [ -d "$dir" ]; then
+                    cd "$dir"
+                    # Generate checksum for files in this dir, appending to root checksums
+                    sha256sum * >> ../../checksums.txt
+                    cd ..
+                  fi
+                done
                 cd ..
                 cat checksums.txt
 

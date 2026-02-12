@@ -27,6 +27,8 @@ Running `porcupin` without any one-off command flags starts the daemon, which:
 | `--config <path>` | Path to config file                       | `<data>/config.yaml` |
 | `--version`       | Show version and exit                     |                      |
 
+> **Note:** If the config file doesn't exist when Porcupin runs, it is automatically created with default values.
+
 ---
 
 ## API Server Mode
@@ -225,6 +227,81 @@ Example with systemd:
 
 ```bash
 sudo -u porcupin porcupin --data /var/lib/porcupin --retry-pending
+```
+
+---
+
+## Settings Commands
+
+Manage configuration from the command line using dot notation.
+
+### `porcupin settings list`
+
+List all current settings.
+
+```bash
+porcupin settings list
+```
+
+Output (grouped by section):
+
+```
+  [ipfs]
+    ipfs.repo_path = ~/.porcupin/ipfs
+    ipfs.swarm_port = 4001
+    ipfs.pin_timeout = 2m0s
+    ...
+  [backup]
+    backup.max_concurrency = 5
+    ...
+```
+
+### `porcupin settings location`
+
+Show the config file path.
+
+```bash
+porcupin settings location
+```
+
+### `porcupin settings <key>`
+
+Get a specific setting value.
+
+```bash
+porcupin settings backup.max_concurrency
+# Output: 5
+```
+
+### `porcupin settings <key> <value>`
+
+Set a specific setting value.
+
+```bash
+porcupin settings backup.max_concurrency 2
+# Output: backup.max_concurrency: 5 → 2
+
+porcupin settings ipfs.pin_timeout 5m
+# Output: ipfs.pin_timeout: 2m0s → 5m0s
+```
+
+### Dash and Underscore Support
+
+Dashes and underscores are interchangeable in key names:
+
+```bash
+# These are equivalent:
+porcupin settings backup.max_concurrency
+porcupin settings backup.max-concurrency
+```
+
+### Settings with systemd
+
+When running as a systemd service, use `--data` with settings commands:
+
+```bash
+sudo -u porcupin porcupin --data /var/lib/porcupin settings list
+sudo -u porcupin porcupin --data /var/lib/porcupin settings backup.max_concurrency 2
 ```
 
 ---

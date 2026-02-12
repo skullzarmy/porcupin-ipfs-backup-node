@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Porcupin stores its configuration in `~/.porcupin/config.yaml`. You can edit this file directly or use the Settings UI in the desktop app.
+Porcupin stores its configuration in `~/.porcupin/config.yaml`. The config file is automatically created with default values on first run. You can edit this file directly, use the Settings UI in the desktop app, or use the `porcupin settings` command.
 
 ---
 
@@ -158,7 +158,7 @@ The headless version doesn't support migration yet. Manual steps:
 
 1. Stop Porcupin
 2. Copy `~/.porcupin/ipfs` to new location
-3. Update `repo_path` in config.yaml
+3. Update repo path: `porcupin settings ipfs.repo_path /new/path/ipfs`
 4. Start Porcupin
 
 ---
@@ -218,6 +218,30 @@ docker run -d \
 
 ---
 
+## Managing Settings from the CLI
+
+The `porcupin settings` command lets you view and modify configuration without manually editing the YAML file:
+
+```bash
+# List all settings
+porcupin settings list
+
+# Show config file path
+porcupin settings location
+
+# Get a setting
+porcupin settings backup.max_concurrency
+
+# Set a setting
+porcupin settings backup.max_concurrency 2
+```
+
+Dashes and underscores are interchangeable: `backup.max-concurrency` and `backup.max_concurrency` both work.
+
+See the [CLI Reference](cli-reference.md#settings-commands) for full documentation.
+
+---
+
 ## Resetting Configuration
 
 ### Reset to Defaults
@@ -226,7 +250,7 @@ Delete the config file and restart:
 
 ```bash
 rm ~/.porcupin/config.yaml
-# Restart Porcupin - a new config with defaults will be created
+# Restart Porcupin - a new config with defaults will be created automatically
 ```
 
 ### Full Reset (Delete Everything)

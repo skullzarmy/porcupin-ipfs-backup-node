@@ -1,13 +1,35 @@
-.TH PORCUPIN-SERVER 1 "January 2026" "v0.3.2" "Porcupin Manual"
+.TH PORCUPIN 1 "February 2026" "v0.3.3" "Porcupin Manual"
 .SH NAME
-porcupin-server \- Headless IPFS backup node for Tezos assets
+porcupin \- Headless IPFS backup node for Tezos NFT assets
 .SH SYNOPSIS
-.B porcupin-server
-[\fIOPTIONS\fR]
+.B porcupin
+[\fIOPTIONS\fR] [\fICOMMAND\fR]
 .SH DESCRIPTION
-.B porcupin-server
+.B porcupin
 is the headless daemon for the Porcupin application. It monitors configured Tezos wallets and automatically pins their associated NFT assets (images, metadata, videos) to an embedded IPFS node.
-.SH OPTIONS
+.PP
+When run without options, it starts in daemon mode, continuously syncing and pinning assets.
+.SH COMMANDS
+Positional subcommands (no leading dash required):
+.TP
+.B version
+Show version banner and exit.
+.TP
+.B about
+Show about information and exit.
+.TP
+.B settings list
+List all current configuration settings.
+.TP
+.B settings location
+Show the config file path.
+.TP
+.B settings \fIkey\fR
+Get the value of a configuration key (dot notation).
+.TP
+.B settings \fIkey\fR \fIvalue\fR
+Set a configuration key to a new value. Dashes and underscores are interchangeable in key names (e.g. backup.max\-concurrency = backup.max_concurrency).
+.SH GLOBAL OPTIONS
 .TP
 .B \-config \fIpath\fR
 Path to configuration file (default: ~/.porcupin/config.yaml).
@@ -15,48 +37,133 @@ Path to configuration file (default: ~/.porcupin/config.yaml).
 .B \-data \fIpath\fR
 Data directory for database and IPFS repo (default: ~/.porcupin).
 .TP
+.B \-version\fR, \fB\-v
+Show version banner and exit.
+.TP
+.B \-about
+Show about information and exit.
+.SH WALLET MANAGEMENT
+.TP
+.B \-add\-wallet \fIaddress\fR
+Add a Tezos wallet address to track and exit.
+.TP
+.B \-alias \fIname\fR
+Alias for wallet (use with \-\-add\-wallet or \-\-rename\-wallet).
+.TP
+.B \-rename\-wallet \fIaddress\fR
+Rename a wallet (set alias), use with \-\-alias.
+.TP
+.B \-list\-wallets
+List all tracked wallets and exit.
+.TP
+.B \-remove\-wallet \fIaddress\fR
+Remove a wallet address (stop tracking) and exit.
+.TP
+.B \-unpin\-wallet \fIaddress\fR
+Unpin all assets for a wallet and exit.
+.TP
+.B \-delete\-wallet \fIaddress\fR
+Remove wallet and unpin all its assets, then exit.
+.SH DAEMON OPTIONS
+.TP
+.B \-stats
+Show current pinning statistics and exit.
+.TP
+.B \-retry\-pending
+Process all pending assets and exit.
+.TP
+.B \-gc
+Run IPFS garbage collection and exit.
+.TP
 .B \-update
 Check for and install the latest version from GitHub.
+.SH API SERVER OPTIONS
 .TP
 .B \-serve
 Start the API server for remote management.
 .TP
-.B \-api-port \fIport\fR
-Port for the API server (default: 8085).
+.B \-api\-port \fIport\fR
+Port for the API server (default: 8085). Use with \-\-serve.
 .TP
-.B \-api-bind \fIaddress\fR
-Bind address for the API server (default: 0.0.0.0).
+.B \-api\-bind \fIaddress\fR
+Bind address for the API server (default: 0.0.0.0). Use with \-\-serve.
 .TP
-.B \-list-wallets
-List all tracked wallets and exit.
+.B \-api\-token \fItoken\fR
+Set API token. WARNING: visible in ps output; prefer PORCUPIN_API_TOKEN environment variable.
 .TP
-.B \-add-wallet \fIaddress\fR
-Add a wallet address to track and exit.
+.B \-allow\-public
+Allow public IP connections. Use with \-\-serve.
 .TP
-.B \-remove-wallet \fIaddress\fR
-Remove a wallet address (stop tracking) and exit.
+.B \-tls\-cert \fIpath\fR
+Path to TLS certificate file. Use with \-\-serve.
 .TP
-.B \-version
-Show version information and exit.
+.B \-tls\-key \fIpath\fR
+Path to TLS private key file. Use with \-\-serve.
+.TP
+.B \-regenerate\-token
+Regenerate API token and exit.
+.SH IPFS OPTIONS
+.TP
+.B \-ipfs\-port \fIport\fR
+IPFS swarm port (default: 4001, 0 = use config value).
+.SH ENVIRONMENT
+.TP
+.B PORCUPIN_API_TOKEN
+API authentication token (preferred over \-\-api\-token flag).
 .SH EXAMPLES
-.B Start the server in background:
+Start the daemon:
 .RS
-porcupin-server --serve &
+.nf
+porcupin
+.fi
 .RE
 .PP
-.B Update to latest version:
+Start with remote API access:
 .RS
-porcupin-server --update
+.nf
+porcupin \-\-serve \-\-api\-port 8085
+.fi
+.RE
+.PP
+Add a wallet:
+.RS
+.nf
+porcupin \-\-add\-wallet tz1abc... \-\-alias "My Wallet"
+.fi
+.RE
+.PP
+View and modify settings:
+.RS
+.nf
+porcupin settings list
+porcupin settings backup.max_concurrency
+porcupin settings backup.max\-concurrency 2
+.fi
+.RE
+.PP
+Run with a custom data directory (systemd):
+.RS
+.nf
+sudo \-u porcupin porcupin \-\-data /var/lib/porcupin \-\-serve
+.fi
+.RE
+.PP
+Update to the latest version:
+.RS
+.nf
+porcupin \-\-update
+.fi
 .RE
 .SH FILES
+.TP
 .I ~/.porcupin/config.yaml
-.RS
-Configuration file.
-.RE
+Configuration file (auto\-created with defaults on first run).
+.TP
 .I ~/.porcupin/porcupin.db
-.RS
-SQLite database.
-.RE
+SQLite database for wallet and asset tracking.
+.TP
+.I ~/.porcupin/ipfs/
+Embedded IPFS repository (pinned content storage).
 .SH AUTHOR
 Developed by skllzrmy.tez
 .SH SEE ALSO
