@@ -1294,7 +1294,8 @@ func TestGetFailedAssets(t *testing.T) {
 
 	var resp Response
 	json.NewDecoder(rr.Body).Decode(&resp)
-	assets := resp.Data.([]interface{})
+	data := resp.Data.(map[string]interface{})
+	assets := data["assets"].([]interface{})
 
 	if len(assets) != 2 {
 		t.Errorf("got %d failed assets, want 2", len(assets))

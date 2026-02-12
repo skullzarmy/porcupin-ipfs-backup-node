@@ -6,6 +6,26 @@ export function formatBytes(bytes: number): string {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
 
+/** Compare two semver-like strings (e.g. "0.3.3-rc4"). Returns -1 if a < b, 0 if equal, 1 if a > b. */
+export function compareSemver(a: string, b: string): number {
+    const normalize = (v: string) => v.replace(/^v/, "").split(/[.-]/);
+    const pa = normalize(a);
+    const pb = normalize(b);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const na = parseInt(pa[i] || "0", 10);
+        const nb = parseInt(pb[i] || "0", 10);
+        if (!isNaN(na) && !isNaN(nb)) {
+            if (na !== nb) return na < nb ? -1 : 1;
+        } else {
+            const sa = pa[i] || "";
+            const sb = pb[i] || "";
+            if (sa < sb) return -1;
+            if (sa > sb) return 1;
+        }
+    }
+    return 0;
+}
+
 /**
  * Formats an error into a user-friendly string.
  * Handles:

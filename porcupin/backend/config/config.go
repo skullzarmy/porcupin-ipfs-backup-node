@@ -191,3 +191,21 @@ func (c *Config) SaveConfig(path string) error {
 
 	return nil
 }
+
+// EnsureConfigFile creates the config file with defaults if it doesn't exist.
+// Returns true if a new file was created, false if it already existed.
+func EnsureConfigFile(path string) (bool, error) {
+	if _, err := os.Stat(path); err == nil {
+		// File already exists
+		return false, nil
+	} else if !os.IsNotExist(err) {
+		return false, err
+	}
+
+	// File doesn't exist — write defaults
+	cfg := DefaultConfig()
+	if err := cfg.SaveConfig(path); err != nil {
+		return false, fmt.Errorf("failed to create default config: %w", err)
+	}
+	return true, nil
+}
