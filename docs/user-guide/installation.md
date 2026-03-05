@@ -17,7 +17,7 @@ This guide covers installing Porcupin on all supported platforms.
 | **Linux Server (ARM64)**  | ARM64        | `porcupin-server-linux-arm64`  | Headless, Pi 4/5/Zero 2 W  |
 | **macOS Server (Intel)**  | x64          | `porcupin-server-darwin-amd64` | Headless macOS Intel               |
 | **macOS Server (ARM)**    | ARM64        | `porcupin-server-darwin-arm64` | Headless macOS M1/M2/M3            |
-| **Docker**                | Any          | `ghcr.io/skullzarmy/porcupin`  | Any platform with Docker           |
+| **Docker**                | Any          | `ghcr.io/skullzarmy/porcupin-ipfs-backup-node` | Any platform with Docker           |
 
 All downloads available at [Releases](https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases/latest).
 
@@ -338,10 +338,9 @@ sudo -u porcupin porcupin --data /var/lib/porcupin --list-wallets
 Create a `docker-compose.yml`:
 
 ```yaml
-version: "3.8"
 services:
     porcupin:
-        image: ghcr.io/skullzarmy/porcupin:latest
+        image: ghcr.io/skullzarmy/porcupin-ipfs-backup-node:latest
         container_name: porcupin
         restart: unless-stopped
         volumes:
@@ -357,16 +356,16 @@ volumes:
 
 ```bash
 # Start
-docker-compose up -d
+docker compose up -d
 
 # Add a wallet
-docker-compose exec porcupin porcupin --add-wallet tz1YourWalletAddress
+docker compose exec porcupin porcupin-server --add-wallet tz1YourWalletAddress
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Stop
-docker-compose down
+docker compose down
 ```
 
 ### Docker Run
@@ -381,10 +380,10 @@ docker run -d \
   --restart unless-stopped \
   -v porcupin-data:/home/porcupin/.porcupin \
   -p 4001:4001 \
-  ghcr.io/skullzarmy/porcupin:latest
+  ghcr.io/skullzarmy/porcupin-ipfs-backup-node:latest
 
 # Add a wallet
-docker exec porcupin porcupin --add-wallet tz1YourWalletAddress
+docker exec porcupin porcupin-server --add-wallet tz1YourWalletAddress
 
 # View logs
 docker logs -f porcupin
