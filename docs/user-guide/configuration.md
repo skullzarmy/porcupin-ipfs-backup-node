@@ -198,7 +198,7 @@ docker run -d \
   -e PORCUPIN_API_TOKEN=prcpn_your_token \
   -p 8085:8085 \
   -v /mnt/data:/home/porcupin/.porcupin \
-  ghcr.io/skullzarmy/porcupin:latest --serve
+  ghcr.io/skullzarmy/porcupin-ipfs-backup-node:latest --serve
 ```
 
 ---

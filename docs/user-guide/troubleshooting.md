@@ -284,7 +284,9 @@ Use 64-bit Raspberry Pi OS. The 32-bit binary is not provided.
 
 Raspberry Pi 4 with 2GB may struggle. 4GB+ recommended.
 
-### Docker: Permission denied
+
+
+### Docker: Permission denied (Volume mapping)
 
 If running as non-root:
 
@@ -293,7 +295,7 @@ If running as non-root:
 docker run -d \
   --user $(id -u):$(id -g) \
   -v /path/to/data:/home/porcupin/.porcupin \
-  ghcr.io/skullzarmy/porcupin
+  ghcr.io/skullzarmy/porcupin-ipfs-backup-node
 ```
 
 ---

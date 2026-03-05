@@ -1,6 +1,6 @@
 services:
   porcupin:
-    build: .
+    image: ghcr.io/skullzarmy/porcupin-ipfs-backup-node:latest
     container_name: porcupin
     restart: unless-stopped
     volumes:
