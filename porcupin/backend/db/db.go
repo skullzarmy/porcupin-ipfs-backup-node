@@ -12,6 +12,7 @@ const (
 	StatusPinned            = "pinned"
 	StatusFailed            = "failed"
 	StatusFailedUnavailable = "failed_unavailable"
+	StatusSkipped           = "not_pinnable"
 )
 
 // Database wraps gorm.DB with additional helper methods
@@ -113,6 +114,24 @@ func InitDB(db *gorm.DB) error {
 		}
 	}
 
+	// Migration: Reclassify non-IPFS URIs that were incorrectly stored as failed assets.
+	// HTTP/HTTPS assets can never be pinned; they should be terminal and excluded from failure counts.
+	if err := db.Where("key = ?", "migration_fix_nonicfs_assets_v1").First(&setting).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			if err := db.Exec(`UPDATE assets SET status = ?, retry_count = 0, error_msg = ''
+				WHERE error_msg = 'Not an IPFS URI'
+				OR (status IN (?, ?, ?) AND uri NOT LIKE 'ipfs://%' AND uri NOT LIKE '%/ipfs/%')`,
+				StatusSkipped, StatusPending, StatusFailed, StatusFailedUnavailable).Error; err != nil {
+				return err
+			}
+			if err := db.Create(&Setting{Key: "migration_fix_nonicfs_assets_v1", Value: "true"}).Error; err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -200,7 +219,7 @@ func (d *Database) GetAssetStats() (map[string]int64, error) {
 	stats := make(map[string]int64)
 	
 	// Count by status
-	statuses := []string{StatusPending, StatusPinned, StatusFailed, StatusFailedUnavailable}
+	statuses := []string{StatusPending, StatusPinned, StatusFailed, StatusFailedUnavailable, StatusSkipped}
 	for _, status := range statuses {
 		var count int64
 		if err := d.Model(&Asset{}).Where("status = ?", status).Count(&count).Error; err != nil {

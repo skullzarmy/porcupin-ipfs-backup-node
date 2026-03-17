@@ -5,6 +5,7 @@ import {
     UpdateSettings,
     ResetDatabase,
     GetIPFSRepoPath,
+    GetIPFSHealth,
     GetStorageLocation,
     ListStorageLocations,
     BrowseForFolder,
@@ -16,12 +17,15 @@ import {
     TestRemoteConnection,
     isRemote,
 } from "../lib/backend";
-// Updates are always client-scoped — use Wails bindings directly
+// Updates and Logs are always client-scoped — use Wails bindings directly
 import {
     CheckForUpdates,
+    ExportDiagnosticReport,
+    ExportLogs,
+    GetLogs,
+    GetVersion,
     InstallUpdate,
     RestartApp,
-    GetVersion,
 } from "../../wailsjs/go/main/App";
 import { useConnection } from "../lib/connection";
 import { ConfirmModal } from "./ConfirmModal";
@@ -29,22 +33,25 @@ import UpdateModal from "./UpdateModal";
 import { EventsOn, LogInfo, LogError } from "../../wailsjs/runtime/runtime";
 import {
     AlertTriangle,
-    HardDrive,
+    Download,
+    FileText,
     FolderOpen,
+    HardDrive,
+    Loader,
+    Monitor,
+    Moon,
+    Plug,
+    RefreshCcw,
+    Search,
+    Server,
+    Sun,
+    Unplug,
     Usb,
     Wifi,
-    RefreshCcw,
     Check,
     X,
-    Sun,
-    Moon,
-    Monitor,
-    Server,
-    Plug,
-    Unplug,
-    Search,
 } from "lucide-react";
-import type { api, main, storage } from "../../wailsjs/go/models";
+import type { api, logging, main, storage } from "../../wailsjs/go/models";
 import { formatBytes, compareSemver } from "../utils";
 
 interface SettingsProps {
@@ -97,7 +104,9 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
     const [showUpdateProgress, setShowUpdateProgress] = useState(false);
     const [updateError, setUpdateError] = useState("");
     const [updateSuccess, setUpdateSuccess] = useState(false);
-    const [updateProgress, setUpdateProgress] = useState<{phase: string, message: string, percent: number} | undefined>(undefined);
+    const [updateProgress, setUpdateProgress] = useState<
+        { phase: string; message: string; percent: number } | undefined
+    >(undefined);
 
     // Theme state
     // activeSection removed as it was unused
@@ -142,6 +151,17 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
     const [discoveredServers, setDiscoveredServers] = useState<api.DiscoveredServer[]>([]);
     const [scanning, setScanning] = useState(false);
 
+    // IPFS connectivity check state
+    const [connectivityChecking, setConnectivityChecking] = useState(false);
+    const [connectivityResult, setConnectivityResult] = useState<{ online: boolean; peers: number; message: string } | null>(null);
+
+    // Logs & Diagnostics state
+    const [logs, setLogs] = useState<logging.Entry[]>([]);
+    const [logLevel, setLogLevel] = useState("");
+    const [logExporting, setLogExporting] = useState(false);
+    const [diagExporting, setDiagExporting] = useState(false);
+    const [exportError, setExportError] = useState("");
+
     const loadSettings = useCallback(async () => {
         try {
             // Always get client version from local Wails binding
@@ -150,7 +170,9 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
 
             // Use allSettled so one failure doesn't block the others
             const [cfgRes, storageRes, pathRes] = await Promise.allSettled([
-                GetConfig(), GetStorageInfo(), GetIPFSRepoPath()
+                GetConfig(),
+                GetStorageInfo(),
+                GetIPFSRepoPath(),
             ]);
 
             if (storageRes.status === "fulfilled") setStorageInfo(storageRes.value);
@@ -308,6 +330,33 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
             unsubClearComplete();
         };
     }, [loadSettings, onStatsChange]);
+
+    useEffect(() => {
+        const fetchLogs = async () => {
+            try {
+                const entries = await GetLogs(200, logLevel);
+                setLogs(entries || []);
+            } catch {
+                // Non-fatal — log viewer is best-effort
+            }
+        };
+        fetchLogs();
+        const interval = setInterval(fetchLogs, 5000);
+        return () => clearInterval(interval);
+    }, [logLevel]);
+
+    const handleCheckConnectivity = async () => {
+        setConnectivityChecking(true);
+        setConnectivityResult(null);
+        try {
+            const result = await GetIPFSHealth();
+            setConnectivityResult({ online: result.is_online, peers: result.peer_count, message: result.message });
+        } catch {
+            setConnectivityResult({ online: false, peers: 0, message: "Connection check failed" });
+        } finally {
+            setConnectivityChecking(false);
+        }
+    };
 
     const handleSave = async () => {
         setSaving(true);
@@ -488,7 +537,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                             <Monitor size={16} />
                             System
                         </button>
-                </div>
+                    </div>
                 </div>
             </div>
 
@@ -500,13 +549,16 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                         <span className="label">Current Version:</span>
                         <span className="value">{appVersion || "Loading..."}</span>
                         {isRemote() && connectionState.serverVersion && (
-                            <span className="value" style={{ marginLeft: '12px', color: 'var(--text-secondary)', fontSize: '13px' }}>
+                            <span
+                                className="value"
+                                style={{ marginLeft: "12px", color: "var(--text-secondary)", fontSize: "13px" }}
+                            >
                                 (Server: v{connectionState.serverVersion})
                             </span>
                         )}
                     </div>
-                    <div className="migration-actions" style={{ marginTop: '16px' }}>
-                         <button 
+                    <div className="migration-actions" style={{ marginTop: "16px" }}>
+                        <button
                             className="btn-primary"
                             onClick={async () => {
                                 try {
@@ -522,9 +574,9 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                                     setShowUpdateProgress(true);
                                 }
                             }}
-                         >
+                        >
                             Check for Updates
-                         </button>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -552,11 +604,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
             />
 
             {/* Listener for update progress */}
-            {showUpdateProgress && (
-                <UpdateProgressListener 
-                    onProgress={(data) => setUpdateProgress(data)}
-                />
-            )}
+            {showUpdateProgress && <UpdateProgressListener onProgress={(data) => setUpdateProgress(data)} />}
 
             <UpdateModal
                 isOpen={showUpdateProgress}
@@ -564,12 +612,12 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                 success={updateSuccess}
                 progress={updateProgress}
                 onRestart={async () => {
-                   try {
-                       await RestartApp();
-                   } catch (e: any) {
-                       console.error("Restart failed", e);
-                       setUpdateError("Restart failed: " + e.toString());
-                   }
+                    try {
+                        await RestartApp();
+                    } catch (e: any) {
+                        console.error("Restart failed", e);
+                        setUpdateError("Restart failed: " + e.toString());
+                    }
                 }}
             />
 
@@ -809,6 +857,28 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                         </div>
                     )}
                 </div>
+                <div className="form-group">
+                    <label>IPFS Connectivity</label>
+                    <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={handleCheckConnectivity}
+                        disabled={connectivityChecking}
+                    >
+                        {connectivityChecking ? <Loader size={14} className="spin" /> : <Wifi size={14} />}
+                        {connectivityChecking ? "Checking…" : "Check Connectivity"}
+                    </button>
+                    {connectivityResult && (
+                        <span
+                            className="hint"
+                            style={{ color: connectivityResult.online ? "var(--accent-success)" : "var(--accent-danger)" }}
+                        >
+                            {connectivityResult.online
+                                ? `Online — ${connectivityResult.peers} peer${connectivityResult.peers === 1 ? "" : "s"} connected`
+                                : `Offline — ${connectivityResult.message}`}
+                        </span>
+                    )}
+                </div>
             </div>
 
             {/* Sync Defaults */}
@@ -869,12 +939,17 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                             {connectionState.serverVersion && (
                                 <span className="server-version">v{connectionState.serverVersion}</span>
                             )}
-                            {connectionState.serverVersion && appVersion && compareSemver(connectionState.serverVersion, appVersion) < 0 && (
-                                <div className="warning-notice" style={{ marginTop: '8px' }}>
-                                    <AlertTriangle size={14} />
-                                    <span>Server is running v{connectionState.serverVersion} — client is v{appVersion}. Update the server via <code>porcupin --update</code>.</span>
-                                </div>
-                            )}
+                            {connectionState.serverVersion &&
+                                appVersion &&
+                                compareSemver(connectionState.serverVersion, appVersion) < 0 && (
+                                    <div className="warning-notice" style={{ marginTop: "8px" }}>
+                                        <AlertTriangle size={14} />
+                                        <span>
+                                            Server is running v{connectionState.serverVersion} — client is v{appVersion}
+                                            . Update the server via <code>porcupin --update</code>.
+                                        </span>
+                                    </div>
+                                )}
                         </div>
                         <button type="button" onClick={() => disconnect()} className="btn-secondary">
                             <Unplug size={14} />
@@ -1147,6 +1222,108 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                     {saving ? "Saving..." : "Save Settings"}
                 </button>
                 {message && <span className="message">{message}</span>}
+            </div>
+
+            {/* Logs & Diagnostics */}
+            <div className="settings-section" id="logs-diagnostics">
+                <h3>
+                    <FileText size={18} />
+                    Logs &amp; Diagnostics
+                    {isRemote() && <span className="hint" style={{ fontWeight: 400, fontSize: "12px", marginLeft: 6 }}>(local client)</span>}
+                </h3>
+                <div className="log-filter">
+                    <button
+                        type="button"
+                        className={logLevel === "" ? "btn-primary" : "btn-secondary"}
+                        onClick={() => setLogLevel("")}
+                    >
+                        All
+                    </button>
+                    <button
+                        type="button"
+                        className={logLevel === "WARN" ? "btn-primary" : "btn-secondary"}
+                        onClick={() => setLogLevel("WARN")}
+                    >
+                        Warnings+
+                    </button>
+                    <button
+                        type="button"
+                        className={logLevel === "ERROR" ? "btn-primary" : "btn-secondary"}
+                        onClick={() => setLogLevel("ERROR")}
+                    >
+                        Errors Only
+                    </button>
+                </div>
+                <div className="log-list">
+                    {logs.length === 0 ? (
+                        <div className="log-empty">No log entries.</div>
+                    ) : (
+                        logs.map((entry, i) => (
+                            <div key={i} className={`log-row log-level-${entry.level.toLowerCase()}`}>
+                                <span className="log-time">
+                                    {typeof entry.time === "string" ? entry.time.slice(0, 19).replace("T", " ") : ""}
+                                </span>
+                                <span className="log-badge">{entry.level}</span>
+                                <span className="log-message">{entry.message}</span>
+                            </div>
+                        ))
+                    )}
+                </div>
+                <div className="log-actions">
+                    <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={logExporting}
+                        onClick={async () => {
+                            setLogExporting(true);
+                            setExportError("");
+                            try {
+                                const text = await ExportLogs();
+                                const a = document.createElement("a");
+                                a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+                                a.download = `porcupin-logs-${new Date().toISOString().slice(0, 10)}.txt`;
+                                a.click();
+                                URL.revokeObjectURL(a.href);
+                            } catch (err: unknown) {
+                                setExportError("Export failed: " + String(err));
+                            } finally {
+                                setLogExporting(false);
+                            }
+                        }}
+                    >
+                        <Download size={14} />
+                        {logExporting ? "Exporting..." : "Export Logs"}
+                    </button>
+                    <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={diagExporting}
+                        onClick={async () => {
+                            setDiagExporting(true);
+                            setExportError("");
+                            try {
+                                const text = await ExportDiagnosticReport();
+                                const a = document.createElement("a");
+                                a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+                                a.download = `porcupin-diagnostic-${new Date().toISOString().slice(0, 10)}.txt`;
+                                a.click();
+                                URL.revokeObjectURL(a.href);
+                            } catch (err: unknown) {
+                                setExportError("Export failed: " + String(err));
+                            } finally {
+                                setDiagExporting(false);
+                            }
+                        }}
+                    >
+                        <Download size={14} />
+                        {diagExporting ? "Exporting..." : "Export Diagnostic Report"}
+                    </button>
+                </div>
+                {exportError && (
+                    <p style={{ color: "var(--accent-danger)", fontSize: "12px", margin: "4px 0 0" }}>
+                        {exportError}
+                    </p>
+                )}
             </div>
 
             {/* Danger Zone */}

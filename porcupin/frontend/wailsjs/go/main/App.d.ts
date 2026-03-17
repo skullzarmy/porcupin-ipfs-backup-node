@@ -4,10 +4,11 @@ import {updater} from '../models';
 import {api} from '../models';
 import {db} from '../models';
 import {config} from '../models';
+import {ipfs} from '../models';
+import {logging} from '../models';
 import {storage} from '../models';
 import {main} from '../models';
 import {core} from '../models';
-import {ipfs} from '../models';
 
 export function AddWallet(arg1:string,arg2:string):Promise<void>;
 
@@ -27,6 +28,10 @@ export function DeleteWalletWithUnpin(arg1:string):Promise<void>;
 
 export function DiscoverServers():Promise<Array<api.DiscoveredServer>>;
 
+export function ExportDiagnosticReport():Promise<string>;
+
+export function ExportLogs():Promise<string>;
+
 export function GetAssetGatewayURL(arg1:number):Promise<Record<string, string>>;
 
 export function GetAssetStats():Promise<Record<string, number>>;
@@ -37,7 +42,11 @@ export function GetConfig():Promise<config.Config>;
 
 export function GetFailedAssets():Promise<Array<db.Asset>>;
 
+export function GetIPFSHealth():Promise<ipfs.NodeHealthResult>;
+
 export function GetIPFSRepoPath():Promise<string>;
+
+export function GetLogs(arg1:number,arg2:string):Promise<Array<logging.Entry>>;
 
 export function GetMigrationStatus():Promise<storage.MigrationStatus>;
 

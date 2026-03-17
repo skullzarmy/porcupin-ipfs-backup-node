@@ -23,6 +23,8 @@ type HealthResponse struct {
 	Status    string `json:"status"`
 	Version   string `json:"version"`
 	Timestamp string `json:"timestamp"`
+	IsOnline  bool   `json:"is_online"`
+	PeerCount int    `json:"peer_count"`
 }
 
 // ProxyRequest represents a generic HTTP request to proxy to the remote server

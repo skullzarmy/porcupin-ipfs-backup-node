@@ -58,10 +58,17 @@ func (h *Handlers) SetIPFS(node *ipfs.Node) {
 // GetHealth returns the server health status
 // GET /api/v1/health
 func (h *Handlers) GetHealth(w http.ResponseWriter, r *http.Request) {
-	resp := map[string]string{
-		"status":    "ok",
-		"version":   h.version,
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	resp := map[string]interface{}{
+		"status":     "ok",
+		"version":    h.version,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
+		"is_online":  false,
+		"peer_count": 0,
+	}
+	if h.ipfs != nil {
+		health := h.ipfs.Health(r.Context())
+		resp["is_online"] = health.IsOnline
+		resp["peer_count"] = health.PeerCount
 	}
 	WriteJSONRaw(w, http.StatusOK, resp)
 }

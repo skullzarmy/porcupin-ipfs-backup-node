@@ -446,6 +446,43 @@ export namespace db {
 
 export namespace ipfs {
 	
+	export class NodeHealthResult {
+	    is_online: boolean;
+	    peer_count: number;
+	    message: string;
+	    // Go type: time
+	    checked_at: any;
+	
+	    static createFrom(source: any = {}) {
+	        return new NodeHealthResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.is_online = source["is_online"];
+	        this.peer_count = source["peer_count"];
+	        this.message = source["message"];
+	        this.checked_at = this.convertValues(source["checked_at"], null);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class VerifyResult {
 	    cid: string;
 	    is_pinned: boolean;
@@ -465,6 +502,46 @@ export namespace ipfs {
 	        this.size = source["size"];
 	        this.error = source["error"];
 	    }
+	}
+
+}
+
+export namespace logging {
+	
+	export class Entry {
+	    // Go type: time
+	    time: any;
+	    level: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Entry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.time = this.convertValues(source["time"], null);
+	        this.level = source["level"];
+	        this.message = source["message"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

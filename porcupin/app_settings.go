@@ -5,11 +5,15 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"porcupin/backend/config"
 	"porcupin/backend/ipfs"
+	"porcupin/backend/logging"
 	"porcupin/backend/storage"
+	"porcupin/backend/version"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -343,4 +347,98 @@ func (a *App) BrowseForFolder() (string, error) {
 	return wailsRuntime.OpenDirectoryDialog(a.ctx, wailsRuntime.OpenDialogOptions{
 		Title: "Select Storage Location",
 	})
+}
+
+// GetLogs returns recent log entries from the in-memory ring buffer.
+// minLevel: "INFO", "WARN", "ERROR", or "" for all entries.
+func (a *App) GetLogs(limit int, minLevel string) []logging.Entry {
+	if a.logRing == nil {
+		return nil
+	}
+	return a.logRing.Entries(limit, minLevel)
+}
+
+// ExportLogs returns all buffered log entries as formatted plain text.
+func (a *App) ExportLogs() string {
+	if a.logRing == nil {
+		return ""
+	}
+	return a.logRing.ExportText()
+}
+
+// ExportDiagnosticReport bundles version, OS, logs, crash files, and stats into a plain text report.
+func (a *App) ExportDiagnosticReport() string {
+	var sb strings.Builder
+
+	sb.WriteString("Porcupin Diagnostic Report\n")
+	sb.WriteString("==========================\n\n")
+	fmt.Fprintf(&sb, "App Version: %s\n", version.Version)
+	fmt.Fprintf(&sb, "Go Version:  %s\n", runtime.Version())
+	fmt.Fprintf(&sb, "OS/Arch:     %s/%s\n", runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&sb, "Generated:   %s\n\n", time.Now().Format(time.RFC3339))
+
+	// Config summary (sensitive fields redacted)
+	sb.WriteString("Configuration\n")
+	sb.WriteString("-------------\n")
+	if a.config != nil {
+		fmt.Fprintf(&sb, "MaxStorageGB:       %d\n", a.config.Backup.MaxStorageGB)
+		fmt.Fprintf(&sb, "MaxConcurrency:     %d\n", a.config.Backup.MaxConcurrency)
+		fmt.Fprintf(&sb, "MinFreeDiskSpaceGB: %d\n", a.config.Backup.MinFreeDiskSpaceGB)
+		fmt.Fprintf(&sb, "PinTimeout:         %s\n", a.config.IPFS.PinTimeout)
+		fmt.Fprintf(&sb, "SwarmPort:          %d\n", a.config.IPFS.SwarmPort)
+		fmt.Fprintf(&sb, "RepoPath:           %s\n", a.config.IPFS.RepoPath)
+		authPassDisplay := ""
+		if a.config.Server.AuthPass != "" {
+			authPassDisplay = "[redacted]"
+		}
+		fmt.Fprintf(&sb, "AuthEnabled:        %v\n", a.config.Server.EnableAuth)
+		fmt.Fprintf(&sb, "AuthPass:           %s\n", authPassDisplay)
+	}
+	sb.WriteString("\n")
+
+	// Asset stats
+	sb.WriteString("Asset Statistics\n")
+	sb.WriteString("----------------\n")
+	if a.database != nil {
+		if stats, err := a.database.GetAssetStats(); err == nil {
+			for k, v := range stats {
+				fmt.Fprintf(&sb, "%s: %d\n", k, v)
+			}
+		} else {
+			fmt.Fprintf(&sb, "Error reading stats: %v\n", err)
+		}
+	}
+	sb.WriteString("\n")
+
+	// In-memory log buffer
+	sb.WriteString("Recent Logs (ring buffer)\n")
+	sb.WriteString("-------------------------\n")
+	if a.logRing != nil {
+		sb.WriteString(a.logRing.ExportText())
+	} else {
+		sb.WriteString("(logging not initialized)\n")
+	}
+	sb.WriteString("\n")
+
+	// Crash reports
+	homeDir, _ := os.UserHomeDir()
+	logsDir := filepath.Join(homeDir, ".porcupin", "logs")
+	crashFiles, _ := filepath.Glob(filepath.Join(logsDir, "crash-*.txt"))
+	if len(crashFiles) > 0 {
+		for _, cf := range crashFiles {
+			fmt.Fprintf(&sb, "Crash Report: %s\n", filepath.Base(cf))
+			sb.WriteString("---\n")
+			data, err := os.ReadFile(cf)
+			if err != nil {
+				fmt.Fprintf(&sb, "(error reading: %v)\n", err)
+			} else {
+				sb.Write(data)
+			}
+			sb.WriteString("\n")
+		}
+	} else {
+		sb.WriteString("No crash reports found.\n")
+	}
+
+	return sb.String()
 }

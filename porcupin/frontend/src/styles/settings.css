@@ -154,7 +154,9 @@
     border-radius: 8px;
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
-    transition: border-color 0.2s, background 0.2s;
+    transition:
+        border-color 0.2s,
+        background 0.2s;
 }
 
 .toggle-option label:hover {
@@ -660,4 +662,85 @@
     background: var(--bg-hover);
     border-color: var(--danger);
     color: var(--danger);
+}
+
+/* Logs & Diagnostics section */
+.log-filter {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.log-list {
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-family: monospace;
+    font-size: 12px;
+    margin-bottom: 12px;
+}
+
+.log-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.log-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 10px;
+    border-bottom: 1px solid var(--border-color);
+    line-height: 1.4;
+}
+
+.log-row:last-child {
+    border-bottom: none;
+}
+
+.log-time {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 11px;
+}
+
+.log-badge {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+}
+
+.log-level-info .log-badge {
+    background: var(--accent-primary);
+    color: #fff;
+    opacity: 0.8;
+}
+
+.log-level-warn .log-badge {
+    background: var(--accent-warning);
+    color: #000;
+}
+
+.log-level-error .log-badge {
+    background: var(--accent-danger);
+    color: #fff;
+}
+
+.log-message {
+    flex: 1;
+    color: var(--text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.log-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }

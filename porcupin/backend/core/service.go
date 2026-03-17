@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"sync"
 	"time"
+
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"porcupin/backend/config"
 	"porcupin/backend/db"
@@ -67,6 +70,10 @@ type BackupService struct {
 	triggerCh chan string  // wallet address to sync
 	
 	watchedWallets map[string]bool // Track which wallets have active watchers
+
+	// Wails context for event emission (set after wails.Run starts)
+	wailsCtx       context.Context
+	lastIPFSOnline bool
 }
 
 // NewBackupService creates a new backup service
@@ -119,6 +126,11 @@ func (s *BackupService) run() {
 	
 	// Phase 2.5: Run integrity check in background to fix any missing asset records (e.g. from previous bugs)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("goroutine panic recovered", "goroutine", "integrity-check", "panic", r)
+			}
+		}()
 		log.Println("Running background integrity check...")
 		stats, err := s.manager.VerifyAndFixPins(s.ctx)
 		if err != nil {
@@ -372,6 +384,11 @@ func (s *BackupService) syncWallet(address string) {
 
 // retryWorker periodically retries failed and pending assets
 func (s *BackupService) retryWorker() {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("goroutine panic recovered", "goroutine", "retry-worker", "panic", r)
+		}
+	}()
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 	
@@ -467,6 +484,28 @@ func (s *BackupService) performHealthCheck() {
 			}
 		}
 	}
+
+	// IPFS connectivity check — emit event only on state change
+	if s.ipfs != nil {
+		health := s.ipfs.Health(s.ctx)
+		if health.IsOnline != s.lastIPFSOnline {
+			s.lastIPFSOnline = health.IsOnline
+			s.mu.RLock()
+			wCtx := s.wailsCtx
+			s.mu.RUnlock()
+			if wCtx != nil {
+				wailsRuntime.EventsEmit(wCtx, "ipfs:health", health)
+			}
+		}
+	}
+}
+
+// SetWailsCtx provides the Wails context needed to emit events to the frontend.
+// Call this from app.go after wails.Run() sets up the runtime.
+func (s *BackupService) SetWailsCtx(ctx context.Context) {
+	s.mu.Lock()
+	s.wailsCtx = ctx
+	s.mu.Unlock()
 }
 
 // Pause pauses the backup service

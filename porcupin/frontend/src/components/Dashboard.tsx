@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { GetSyncProgress, PauseBackup, ResumeBackup, IsBackupPaused, GetRecentActivity } from "../lib/backend";
-import type { core, db } from "../../wailsjs/go/models";
+import { GetSyncProgress, PauseBackup, ResumeBackup, IsBackupPaused, GetRecentActivity, GetIPFSHealth } from "../lib/backend";
+import type { core, db, ipfs } from "../../wailsjs/go/models";
 import { formatBytes } from "../utils";
 import { FailedAssets } from "./FailedAssets";
 import {
@@ -18,8 +18,10 @@ import {
     Wallet,
     Hourglass,
     Server,
+    Globe,
 } from "lucide-react";
 import logo from "../assets/images/logo.svg";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
 
 /** Asset statistics from the database */
 interface AssetStats {
@@ -28,6 +30,7 @@ interface AssetStats {
     failed: number;
     failed_unavailable: number;
     pending: number;
+    not_pinnable: number;
     disk_usage_bytes: number;
 }
 
@@ -42,6 +45,7 @@ export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
     const [isPaused, setIsPaused] = useState(false);
     const [showFailedModal, setShowFailedModal] = useState(false);
     const [recentActivity, setRecentActivity] = useState<db.Asset[]>([]);
+    const [ipfsHealth, setIpfsHealth] = useState<ipfs.NodeHealthResult | null>(null);
 
     useEffect(() => {
         const fetchStatus = async () => {
@@ -64,6 +68,24 @@ export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
         const interval = setInterval(fetchStatus, status?.state === "syncing" ? 1000 : 2000);
         return () => clearInterval(interval);
     }, [status?.state]);
+
+    useEffect(() => {
+        const fetchHealth = async () => {
+            try {
+                const result = await GetIPFSHealth();
+                setIpfsHealth(result);
+            } catch {
+                // Non-fatal
+            }
+        };
+        fetchHealth();
+        const cancel = EventsOn("ipfs:health", (data: ipfs.NodeHealthResult) => setIpfsHealth(data));
+        const interval = setInterval(fetchHealth, 30000);
+        return () => {
+            cancel();
+            clearInterval(interval);
+        };
+    }, []);
 
     const handleTogglePause = async () => {
         try {
@@ -166,6 +188,26 @@ export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
                         <p className="page-subtitle">Your NFTs are automatically backed up</p>
                     </div>
                     <div className="header-actions">
+                        <span
+                            className={`ipfs-health-dot ${
+                                ipfsHealth === null
+                                    ? "health-starting"
+                                    : ipfsHealth.is_online
+                                      ? "health-online"
+                                      : ipfsHealth.message === "Node not started"
+                                        ? "health-starting"
+                                        : "health-offline"
+                            }`}
+                            title={
+                                ipfsHealth === null
+                                    ? "IPFS node starting…"
+                                    : ipfsHealth.is_online
+                                      ? `IPFS online — ${ipfsHealth.peer_count} peers`
+                                      : `IPFS offline — ${ipfsHealth.message}`
+                            }
+                        >
+                            {ipfsHealth?.is_online ? `${ipfsHealth.peer_count} peers` : ipfsHealth === null ? "Starting…" : "Offline"}
+                        </span>
                         <span className={`status-badge ${getStatusClass()}`}>
                             {getStateIcon()} {getStateLabel()}
                         </span>
@@ -307,6 +349,16 @@ export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
                         <RefreshCw size={16} />
                         <span className="mini-stat-value">{status.pending_retries}</span>
                         <span className="mini-stat-label">Retries Queued</span>
+                    </div>
+                )}
+                {(stats.not_pinnable || 0) > 0 && (
+                    <div
+                        className="mini-stat"
+                        title="These assets are hosted on HTTP/HTTPS and cannot be pinned to IPFS"
+                    >
+                        <Globe size={16} />
+                        <span className="mini-stat-value">{stats.not_pinnable}</span>
+                        <span className="mini-stat-label">Not Pinnable</span>
                     </div>
                 )}
             </div>

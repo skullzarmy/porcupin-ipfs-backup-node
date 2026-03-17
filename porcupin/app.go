@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"porcupin/backend/db"
 	"porcupin/backend/indexer"
 	"porcupin/backend/ipfs"
+	"porcupin/backend/logging"
 	"porcupin/backend/updater"
 	"porcupin/backend/version"
 
@@ -30,11 +32,13 @@ type App struct {
 	indexer       *indexer.Indexer
 	backupService *core.BackupService
 	updater       *updater.Manager
+	logRing       *logging.RingHandler
+	logFile       *os.File
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
-	return &App{}
+func NewApp(logRing *logging.RingHandler, logFile *os.File) *App {
+	return &App{logRing: logRing, logFile: logFile}
 }
 
 // startup is called when the app starts
@@ -92,7 +96,15 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	if err := ipfsNode.Start(ctx); err != nil {
-		log.Fatalf("Failed to start IPFS node: %v", err)
+		log.Printf("Failed to start IPFS node: %v", err)
+		wailsRuntime.MessageDialog(ctx, wailsRuntime.MessageDialogOptions{
+			Type:  wailsRuntime.ErrorDialog,
+			Title: "Startup Failed",
+			Message: "Could not start the IPFS node.\n\nA previous instance may still be " +
+				"shutting down. Please wait 30 seconds and try again.\n\n" +
+				"If this persists, restart your computer.\n\nError: " + err.Error(),
+		})
+		os.Exit(1)
 	}
 
 	a.ipfsNode = ipfsNode
@@ -116,6 +128,11 @@ func (a *App) startup(ctx context.Context) {
 
 		// Check for updates in background
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("goroutine panic recovered", "goroutine", "update-checker", "panic", r)
+				}
+			}()
 			// Wait a bit for UI to be ready
 			time.Sleep(5 * time.Second)
 			if info, err := a.updater.CheckForUpdates(ctx); err == nil && info.Available {
@@ -126,12 +143,18 @@ func (a *App) startup(ctx context.Context) {
 	
 	// Initialize disk usage in background (don't block startup)
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("goroutine panic recovered", "goroutine", "disk-usage-init", "panic", r)
+			}
+		}()
 		a.backupService.GetManager().MarkDiskUsageDirty()
 		a.backupService.GetManager().UpdateDiskUsage()
 	}()
 	
 	// Start the automatic backup service
 	a.backupService.Start(ctx)
+	a.backupService.SetWailsCtx(ctx)
 	log.Println("Backup service started - auto-syncing enabled")
 
 	log.Println("Porcupin startup complete!")
@@ -139,6 +162,15 @@ func (a *App) startup(ctx context.Context) {
 
 // shutdown is called during application termination
 func (a *App) shutdown(ctx context.Context) {
+	// Hard deadline: guarantee the process exits even if IPFS close hangs or
+	// WebKitGTK lingers. ShutdownTimeout is 30s for IPFS; 35s gives it a fair
+	// chance before we force exit and let the OS reclaim all ports.
+	go func() {
+		time.Sleep(35 * time.Second)
+		log.Println("Forced process exit — shutdown exceeded 35 seconds")
+		os.Exit(0)
+	}()
+
 	log.Println("Porcupin shutting down...")
 
 	if a.backupService != nil {
@@ -152,6 +184,10 @@ func (a *App) shutdown(ctx context.Context) {
 	}
 
 	log.Println("Porcupin shutdown complete")
+
+	if a.logFile != nil {
+		a.logFile.Close()
+	}
 }
 
 // domReady is called after front-end resources have been loaded
@@ -184,4 +220,12 @@ func (a *App) GetStatus() map[string]interface{} {
 // GetVersion returns the current version of Porcupin
 func (a *App) GetVersion() string {
 	return version.Version
+}
+
+// GetIPFSHealth returns current peer connectivity status from the embedded IPFS node.
+func (a *App) GetIPFSHealth() ipfs.NodeHealthResult {
+	if a.ipfsNode == nil {
+		return ipfs.NodeHealthResult{IsOnline: false, Message: "Node not initialized"}
+	}
+	return a.ipfsNode.Health(a.ctx)
 }

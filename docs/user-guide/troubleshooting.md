@@ -121,9 +121,9 @@ backup:
 
 This means the content isn't available anywhere on IPFS. This happens when:
 
--   The original host stopped pinning
--   No one else has a copy
--   The IPFS gateway is temporarily down
+- The original host stopped pinning
+- No one else has a copy
+- The IPFS gateway is temporarily down
 
 **What you can do:**
 
@@ -135,14 +135,14 @@ This means the content isn't available anywhere on IPFS. This happens when:
 
 **For large collections (1000+ NFTs):**
 
--   First sync always takes time
--   Reduce `max_concurrency` to avoid overwhelming your connection
--   Be patient - it's a one-time process
+- First sync always takes time
+- Reduce `max_concurrency` to avoid overwhelming your connection
+- Be patient - it's a one-time process
 
 **For ongoing syncs:**
 
--   Check your internet connection
--   Look at logs for errors
+- Check your internet connection
+- Look at logs for errors
 
 ---
 
@@ -162,8 +162,8 @@ Porcupin pauses when free space drops below `min_free_disk_space_gb`.
 
 **macOS:** Time Machine snapshots may be holding deleted data. Either:
 
--   Wait for macOS to thin snapshots automatically
--   Manually thin: `sudo tmutil thinlocalsnapshots / 9999999999999 1`
+- Wait for macOS to thin snapshots automatically
+- Manually thin: `sudo tmutil thinlocalsnapshots / 9999999999999 1`
 
 **All platforms:** IPFS garbage collection runs after clearing. This can take time for large repos.
 
@@ -256,8 +256,8 @@ Ensure outbound HTTPS (port 443) is allowed.
 
 Check if port 4001 is open:
 
--   **Router:** Forward port 4001 TCP/UDP
--   **Firewall:** Allow port 4001
+- **Router:** Forward port 4001 TCP/UDP
+- **Firewall:** Allow port 4001
 
 Without peer connections, Porcupin can still pin but won't share with the network.
 
@@ -284,8 +284,6 @@ Use 64-bit Raspberry Pi OS. The 32-bit binary is not provided.
 
 Raspberry Pi 4 with 2GB may struggle. 4GB+ recommended.
 
-
-
 ### Docker: Permission denied (Volume mapping)
 
 If running as non-root:
@@ -298,6 +296,30 @@ docker run -d \
   ghcr.io/skullzarmy/porcupin-ipfs-backup-node
 ```
 
+### Linux: App crashes overnight
+
+Porcupin is designed to run 24/7. On Linux, the system may suspend to RAM after a period of inactivity, even with the screensaver disabled. This can cause the app to crash because the embedded WebKit browser does not handle suspend/resume gracefully.
+
+**To disable system suspend:**
+
+```bash
+sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+```
+
+**To re-enable later:**
+
+```bash
+sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target
+```
+
+**To verify current state:**
+
+```bash
+systemctl status sleep.target suspend.target
+```
+
+If the app has crashed, crash reports are saved to `~/.porcupin/logs/crash-*.txt`. You can also export a full diagnostic bundle from **Settings → Logs & Diagnostics → Export Diagnostic Report**.
+
 ---
 
 ## Getting Help
@@ -305,8 +327,9 @@ docker run -d \
 If your issue isn't listed:
 
 1. **Check logs:**
-
-    - Desktop: View → Developer Tools → Console
+    - Desktop: **Settings → Logs & Diagnostics** — view recent logs and export a diagnostic report
+    - Log files: `~/.porcupin/logs/porcupin-YYYY-MM-DD.log`
+    - Crash reports: `~/.porcupin/logs/crash-*.txt`
     - Headless: Check stdout/stderr or `journalctl -u porcupin`
     - Docker: `docker logs porcupin`
 

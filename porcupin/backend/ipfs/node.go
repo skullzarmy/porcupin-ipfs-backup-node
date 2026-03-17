@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -133,7 +134,18 @@ func (n *Node) Start(ctx context.Context) error {
 		},
 	}
 
-	node, err := core.NewNode(ctx, nodeOptions)
+	var node *core.IpfsNode
+	for attempt := 1; attempt <= 3; attempt++ {
+		node, err = core.NewNode(ctx, nodeOptions)
+		if err == nil {
+			break
+		}
+		if !isPortConflictError(err) {
+			return fmt.Errorf("failed to create node: %w", err)
+		}
+		log.Printf("Port %d in use (attempt %d/3), retrying in 2s...", n.swarmPort, attempt)
+		time.Sleep(2 * time.Second)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to create node: %w", err)
 	}
@@ -174,7 +186,13 @@ func (n *Node) Stop() error {
 	// when there are active libp2p connections or DHT operations
 	done := make(chan error, 1)
 	go func() {
-		done <- n.node.Close()
+		closeErr := n.node.Close()
+		if closeErr != nil {
+			log.Printf("IPFS deferred close completed with error: %v", closeErr)
+		} else {
+			log.Println("IPFS deferred close completed successfully")
+		}
+		done <- closeErr
 	}()
 
 	var closeErr error
@@ -209,6 +227,13 @@ func (n *Node) Stop() error {
 	}
 
 	return closeErr
+}
+
+// isPortConflictError returns true if the error indicates the swarm port is already bound.
+func isPortConflictError(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "address already in use") ||
+		strings.Contains(msg, "bind:")
 }
 
 // configureSwarmAddresses sets up the swarm listen addresses with the configured port
@@ -258,7 +283,36 @@ func (n *Node) GetSwarmPort() int {
 	return n.swarmPort
 }
 
-// Pin pins a CID to the local node with a timeout
+// NodeHealthResult holds the result of an IPFS node health check.
+type NodeHealthResult struct {
+	IsOnline  bool      `json:"is_online"`
+	PeerCount int       `json:"peer_count"`
+	Message   string    `json:"message"`
+	CheckedAt time.Time `json:"checked_at"`
+}
+
+// Health queries the number of connected swarm peers and returns an IsOnline result.
+// Uses a 10-second timeout and never mutates node state.
+func (n *Node) Health(ctx context.Context) NodeHealthResult {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	if n.api == nil {
+		return NodeHealthResult{IsOnline: false, Message: "Node not started", CheckedAt: time.Now()}
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	peers, err := n.api.Swarm().Peers(tctx)
+	if err != nil {
+		return NodeHealthResult{IsOnline: false, Message: "Health check failed: " + err.Error(), CheckedAt: time.Now()}
+	}
+	if len(peers) == 0 {
+		return NodeHealthResult{IsOnline: false, PeerCount: 0, Message: "Running but no peers connected", CheckedAt: time.Now()}
+	}
+	return NodeHealthResult{IsOnline: true, PeerCount: len(peers), Message: "Connected", CheckedAt: time.Now()}
+}
 func (n *Node) Pin(ctx context.Context, cidStr string, timeout time.Duration) error {
 	n.mu.RLock()
 	defer n.mu.RUnlock()

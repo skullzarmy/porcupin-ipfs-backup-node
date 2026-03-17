@@ -476,6 +476,11 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		return nil
 	}
 
+	// If it was previously classified as not pinnable (non-IPFS URI), leave it alone
+	if err == nil && existingAsset != nil && existingAsset.Status == db.StatusSkipped {
+		return nil
+	}
+
 	asset := &db.Asset{
 		NFTID:  nftID,
 		URI:    uri,
@@ -504,9 +509,12 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		return nil
 	}
 
-	// Skip non-IPFS URIs - we can only pin IPFS content
+	// Non-IPFS URIs (HTTP/HTTPS) cannot be pinned — mark terminal so they are never retried
 	if !strings.HasPrefix(uri, "ipfs://") && !strings.Contains(uri, "/ipfs/") {
 		log.Printf("Skipping non-IPFS URI: %s", uri)
+		asset.Status = db.StatusSkipped
+		asset.ErrorMsg = ""
+		bm.db.SaveAsset(asset)
 		return nil
 	}
 
@@ -964,10 +972,10 @@ func (bm *BackupManager) PinAssetByID(ctx context.Context, assetID uint64) error
 func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) error {
 	uri := asset.URI
 
-	// Skip non-IPFS URIs
+	// Non-IPFS URIs cannot be pinned — mark terminal so they are never retried
 	if !strings.HasPrefix(uri, "ipfs://") && !strings.Contains(uri, "/ipfs/") {
-		asset.Status = db.StatusFailed
-		asset.ErrorMsg = "Not an IPFS URI"
+		asset.Status = db.StatusSkipped
+		asset.ErrorMsg = ""
 		bm.db.SaveAsset(asset)
 		return fmt.Errorf("not an IPFS URI: %s", uri)
 	}
