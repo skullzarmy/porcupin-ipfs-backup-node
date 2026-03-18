@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +16,10 @@ import (
 	"porcupin/backend/db"
 	"porcupin/backend/indexer"
 )
+
+// errAssetSkipped is returned by pinAssetDirect when a URI is not an IPFS URI.
+// Callers use errors.Is to distinguish skipped assets from pin failures.
+var errAssetSkipped = errors.New("asset skipped: not an IPFS URI")
 
 // SyncProgress represents the current sync operation progress
 type SyncProgress struct {
@@ -970,7 +975,7 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 		if err := bm.db.SaveAsset(asset); err != nil {
 			log.Printf("Warning: failed to save skipped status for asset %s: %v", uri, err)
 		}
-		return nil
+		return errAssetSkipped
 	}
 
 	// Check storage limit
@@ -1103,8 +1108,11 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 			atomic.AddInt64(&pCount, 1)
 			err := bm.pinAssetDirect(ctx, &a)
 			if err != nil {
-				atomic.AddInt64(&fCount, 1)
-				log.Printf("Failed to pin pending asset %s: %v", a.URI, err)
+				if !errors.Is(err, errAssetSkipped) {
+					atomic.AddInt64(&fCount, 1)
+					log.Printf("Failed to pin pending asset %s: %v", a.URI, err)
+				}
+				// errAssetSkipped: asset is now marked terminal in DB; not a failure
 			} else {
 				atomic.AddInt64(&pinCount, 1)
 			}

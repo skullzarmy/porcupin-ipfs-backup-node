@@ -27,7 +27,7 @@ type RingHandler struct {
 }
 
 // NewRingHandler creates a RingHandler with the given capacity and minimum log level.
-// Capacity is clamped to a minimum of 1000 to prevent modulo-by-zero panics.
+// If capacity is <= 0, it defaults to 1000 to prevent modulo-by-zero panics on first write.
 func NewRingHandler(capacity int, minLevel slog.Level) *RingHandler {
 	if capacity <= 0 {
 		capacity = 1000

@@ -617,6 +617,12 @@ func (s *BackupService) Stop() {
 	}
 	s.wg.Wait()
 	s.manager.Shutdown()
+
+	// Reset watcher tracking so the next Start() re-launches watchers.
+	// Old watchers exit when their captured ctx is cancelled above.
+	s.mu.Lock()
+	s.watchedWallets = make(map[string]bool)
+	s.mu.Unlock()
 }
 
 // UpdateIPFS replaces the IPFS node and storage manager refs (used after storage migration).

@@ -232,10 +232,10 @@ func (n *Node) Stop() error {
 }
 
 // isPortConflictError returns true if the error indicates the swarm port is already bound.
+// Checks for EADDRINUSE specifically to avoid misclassifying other bind failures
+// (e.g., permission denied) as retryable port conflicts.
 func isPortConflictError(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "address already in use") ||
-		strings.Contains(msg, "bind:")
+	return strings.Contains(err.Error(), "address already in use")
 }
 
 // configureSwarmAddresses sets up the swarm listen addresses with the configured port

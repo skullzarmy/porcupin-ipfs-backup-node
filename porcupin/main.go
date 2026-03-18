@@ -126,6 +126,10 @@ func main() {
 	})
 
 	if runErr != nil {
+		// OnShutdown was never called — close the log file to avoid fd leak.
+		if logFile != nil {
+			logFile.Close()
+		}
 		println("Error:", runErr.Error())
 	}
 }
