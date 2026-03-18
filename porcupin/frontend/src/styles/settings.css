@@ -1,7 +1,3 @@
-.settings {
-    max-width: 720px;
-}
-
 .settings-section {
     background: var(--bg-card);
     border: 1px solid var(--border-color);
