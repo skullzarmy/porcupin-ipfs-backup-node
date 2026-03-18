@@ -117,7 +117,7 @@ func InitDB(db *gorm.DB) error {
 	// Migration: Reclassify non-IPFS URIs that were incorrectly stored as failed assets.
 	// HTTP/HTTPS assets can never be pinned; they should be terminal and excluded from failure counts.
 	setting = Setting{}
-	if err := db.Where("key = ?", "migration_fix_nonicfs_assets_v1").First(&setting).Error; err != nil {
+	if err := db.Where("key = ?", "migration_fix_nonipfs_assets_v1").First(&setting).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			if err := db.Exec(`UPDATE assets SET status = ?, retry_count = 0, error_msg = ''
 				WHERE error_msg = 'Not an IPFS URI'
@@ -125,7 +125,7 @@ func InitDB(db *gorm.DB) error {
 				StatusSkipped, StatusPending, StatusFailed, StatusFailedUnavailable).Error; err != nil {
 				return err
 			}
-			if err := db.Create(&Setting{Key: "migration_fix_nonicfs_assets_v1", Value: "true"}).Error; err != nil {
+			if err := db.Create(&Setting{Key: "migration_fix_nonipfs_assets_v1", Value: "true"}).Error; err != nil {
 				return err
 			}
 		} else {
@@ -169,9 +169,10 @@ func (d *Database) SetSetting(key, value string) error {
 	return d.Save(&Setting{Key: key, Value: value}).Error
 }
 
-// SaveNFT saves or updates an NFT (upsert by token_id + contract_address)
+// SaveNFT saves or updates an NFT (upsert by token_id + contract_address).
+// Uses FirstOrCreate to find-or-insert by the unique key, then Save to apply all fields.
+// Not atomic across concurrent writers — relies on the unique index to prevent duplicates.
 func (d *Database) SaveNFT(nft *NFT) error {
-	// Atomic upsert: FirstOrCreate ensures no duplicate, then Save updates fields
 	var existing NFT
 	result := d.Where("token_id = ? AND contract_address = ?", nft.TokenID, nft.ContractAddress).
 		FirstOrCreate(&existing)

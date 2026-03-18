@@ -427,23 +427,27 @@ func (a *App) ExportDiagnosticReport() string {
 	sb.WriteString("\n")
 
 	// Crash reports
-	homeDir, _ := os.UserHomeDir()
-	logsDir := filepath.Join(homeDir, ".porcupin", "logs")
-	crashFiles, _ := filepath.Glob(filepath.Join(logsDir, "crash-*.txt"))
-	if len(crashFiles) > 0 {
-		for _, cf := range crashFiles {
-			fmt.Fprintf(&sb, "Crash Report: %s\n", filepath.Base(cf))
-			sb.WriteString("---\n")
-			data, err := os.ReadFile(cf)
-			if err != nil {
-				fmt.Fprintf(&sb, "(error reading: %v)\n", err)
-			} else {
-				sb.Write(data)
-			}
-			sb.WriteString("\n")
-		}
+	homeDir, homeErr := os.UserHomeDir()
+	if homeErr != nil {
+		fmt.Fprintf(&sb, "Could not locate crash reports: %v\n", homeErr)
 	} else {
-		sb.WriteString("No crash reports found.\n")
+		logsDir := filepath.Join(homeDir, ".porcupin", "logs")
+		crashFiles, _ := filepath.Glob(filepath.Join(logsDir, "crash-*.txt"))
+		if len(crashFiles) > 0 {
+			for _, cf := range crashFiles {
+				fmt.Fprintf(&sb, "Crash Report: %s\n", filepath.Base(cf))
+				sb.WriteString("---\n")
+				data, err := os.ReadFile(cf)
+				if err != nil {
+					fmt.Fprintf(&sb, "(error reading: %v)\n", err)
+				} else {
+					sb.Write(data)
+				}
+				sb.WriteString("\n")
+			}
+		} else {
+			sb.WriteString("No crash reports found.\n")
+		}
 	}
 
 	return sb.String()

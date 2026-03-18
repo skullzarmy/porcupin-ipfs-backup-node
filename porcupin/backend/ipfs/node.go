@@ -107,7 +107,9 @@ func (n *Node) Start(ctx context.Context) error {
 		if strings.Contains(err.Error(), "lock") {
 			lockFile := filepath.Join(n.repoPath, "repo.lock")
 			log.Printf("Repo locked, removing stale lock file and retrying: %s", lockFile)
-			os.Remove(lockFile)
+			if removeErr := os.Remove(lockFile); removeErr != nil {
+				log.Printf("Warning: failed to remove lock file %s: %v", lockFile, removeErr)
+			}
 			repo, err = fsrepo.Open(n.repoPath)
 		}
 		if err != nil {
@@ -291,17 +293,20 @@ type NodeHealthResult struct {
 // Health queries the number of connected swarm peers and returns an IsOnline result.
 // Uses a 10-second timeout and never mutates node state.
 func (n *Node) Health(ctx context.Context) NodeHealthResult {
+	// Copy api ref under lock and release immediately — Swarm().Peers() can block
+	// for up to 10 seconds and holding RLock that long would delay Stop()/Start().
 	n.mu.RLock()
-	defer n.mu.RUnlock()
+	api := n.api
+	n.mu.RUnlock()
 
-	if n.api == nil {
+	if api == nil {
 		return NodeHealthResult{IsOnline: false, Message: "Node not started", CheckedAt: time.Now()}
 	}
 
 	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	peers, err := n.api.Swarm().Peers(tctx)
+	peers, err := api.Swarm().Peers(tctx)
 	if err != nil {
 		return NodeHealthResult{IsOnline: false, Message: "Health check failed: " + err.Error(), CheckedAt: time.Now()}
 	}

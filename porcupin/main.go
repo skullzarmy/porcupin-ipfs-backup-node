@@ -32,7 +32,9 @@ func main() {
 		log.Fatalf("Cannot determine home directory: %v", err)
 	}
 	dataDir := filepath.Join(homeDir, ".porcupin")
-	os.MkdirAll(filepath.Join(dataDir, "logs"), 0755)
+	if err := os.MkdirAll(filepath.Join(dataDir, "logs"), 0755); err != nil {
+		log.Printf("Warning: could not create logs directory: %v", err)
+	}
 
 	ringHandler := logging.NewRingHandler(1000, slog.LevelInfo)
 
@@ -55,10 +57,12 @@ func main() {
 	log.SetOutput(slog.NewLogLogger(slog.Default().Handler(), slog.LevelInfo).Writer())
 	log.SetFlags(0) // slog adds its own timestamps; suppress log package's prefix
 
-	// Crash recovery: write a report file if main() panics
+	// Crash recovery: write a report file if main() panics, then exit non-zero
+	// so the OS/systemd registers the process as crashed.
 	defer func() {
 		if r := recover(); r != nil {
 			logging.WriteCrashReport(dataDir, r, ringHandler)
+			os.Exit(1)
 		}
 	}()
 
