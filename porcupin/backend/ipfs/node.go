@@ -104,20 +104,26 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 	}
 
-	// Open repo — if it fails with a lock error, remove the stale lock and retry once.
+	// Open repo. On a lock error, give a legitimately-running process a few seconds
+	// to finish its cleanup before deciding the lock is stale. Only remove the lock
+	// file as a last resort, to avoid corrupting a repo that another instance owns.
 	repo, err := fsrepo.Open(n.repoPath)
-	if err != nil {
-		if strings.Contains(err.Error(), "lock") {
+	if err != nil && strings.Contains(err.Error(), "lock") {
+		log.Printf("IPFS repo is locked — waiting 3s for any running process to release it...")
+		time.Sleep(3 * time.Second)
+		repo, err = fsrepo.Open(n.repoPath)
+		if err != nil && strings.Contains(err.Error(), "lock") {
+			// Still locked after wait — assume it is a stale lock from a crashed process.
 			lockFile := filepath.Join(n.repoPath, "repo.lock")
-			log.Printf("IPFS repo is locked (a previous process may not have shut down cleanly). Removing stale lock file and retrying: %s", lockFile)
+			log.Printf("IPFS repo still locked after wait; removing stale lock file: %s", lockFile)
 			if removeErr := os.Remove(lockFile); removeErr != nil {
 				log.Printf("Warning: failed to remove lock file %s: %v", lockFile, removeErr)
 			}
 			repo, err = fsrepo.Open(n.repoPath)
 		}
-		if err != nil {
-			return fmt.Errorf("failed to open repo: %w", err)
-		}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to open repo: %w", err)
 	}
 
 	// Update swarm port in existing repo config if it differs
