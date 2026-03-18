@@ -146,7 +146,7 @@ func (s *BackupService) run() {
 		if err != nil {
 			log.Printf("Background integrity check failed: %v", err)
 		} else {
-			log.Printf("Background integrity check complete: %d checked, %d fixed, %d errors", stats["checked"], stats["fixed"], stats["errors"])
+			log.Printf("Background integrity check complete: %d checked, %d processed, %d errors", stats["checked"], stats["processed"], stats["errors"])
 		}
 	}()
 	

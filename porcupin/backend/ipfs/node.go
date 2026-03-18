@@ -2,14 +2,17 @@ package ipfs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ipfs/kubo/config"
@@ -143,8 +146,10 @@ func (n *Node) Start(ctx context.Context) error {
 			repo.Close()
 			return fmt.Errorf("failed to create node: %w", err)
 		}
-		log.Printf("Port %d in use (attempt %d/3), retrying in 2s...", n.swarmPort, attempt)
-		time.Sleep(2 * time.Second)
+		if attempt < 3 {
+			log.Printf("Port %d in use (attempt %d/3), retrying in 2s...", n.swarmPort, attempt)
+			time.Sleep(2 * time.Second)
+		}
 	}
 	if err != nil {
 		repo.Close()
@@ -232,9 +237,19 @@ func (n *Node) Stop() error {
 }
 
 // isPortConflictError returns true if the error indicates the swarm port is already bound.
-// Checks for EADDRINUSE specifically to avoid misclassifying other bind failures
-// (e.g., permission denied) as retryable port conflicts.
+// Checks via errors.As for net.OpError / syscall.EADDRINUSE, with a string-match fallback
+// for cases where the error is wrapped inside IPFS/multiaddr layers.
 func isPortConflictError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if errors.Is(opErr.Err, syscall.EADDRINUSE) {
+			return true
+		}
+	}
+	// Fallback: covers errors wrapped so deeply that errors.As can't reach the OpError
 	return strings.Contains(err.Error(), "address already in use")
 }
 

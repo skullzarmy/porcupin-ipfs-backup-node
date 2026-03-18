@@ -668,9 +668,9 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 	log.Println("Starting VerifyAndFixPins...")
 	
 	stats := map[string]int{
-		"checked": 0,
-		"fixed":   0,
-		"errors":  0,
+		"checked":   0,
+		"processed": 0,
+		"errors":    0,
 	}
 
 	// 1. Get all NFTs from DB
@@ -737,7 +737,7 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 				log.Printf("VerifyAndFix: Error processing NFT %d (%s): %v", nft.ID, nft.Name, err)
 				stats["errors"]++
 			} else {
-				stats["fixed"]++
+				stats["processed"]++
 			}
 		}
 		
