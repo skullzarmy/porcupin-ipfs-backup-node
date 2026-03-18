@@ -970,7 +970,7 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 		if err := bm.db.SaveAsset(asset); err != nil {
 			log.Printf("Warning: failed to save skipped status for asset %s: %v", uri, err)
 		}
-		return fmt.Errorf("not an IPFS URI: %s", uri)
+		return nil
 	}
 
 	// Check storage limit

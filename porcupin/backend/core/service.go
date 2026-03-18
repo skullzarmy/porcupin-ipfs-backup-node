@@ -209,8 +209,6 @@ func (s *BackupService) run() {
 			if !s.IsPaused() {
 				s.performHealthCheck()
 			}
-			// Always update disk usage on health check interval too
-			s.manager.UpdateDiskUsage()
 
 		case <-s.fullSyncCh:
 			// User-triggered full sync — runs synchronously inside run() so it is
@@ -310,13 +308,16 @@ func (s *BackupService) startWatching() {
 	}
 }
 
-// watchWallet sets up WebSocket watching for a single wallet
+// watchWallet sets up WebSocket watching for a single wallet.
+// Captures s.ctx at call time so this watcher is tied to the current
+// service lifecycle and is not affected by future Stop/Start cycles.
 func (s *BackupService) watchWallet(address string) {
-	s.watchWalletWithRetry(address, 0)
+	s.watchWalletWithRetry(address, 0, s.ctx)
 }
 
-// watchWalletWithRetry is the internal implementation with crash counter
-func (s *BackupService) watchWalletWithRetry(address string, crashCount int) {
+// watchWalletWithRetry is the internal implementation with crash counter.
+// ctx is the service context captured when this watcher was launched.
+func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx context.Context) {
 	// Give up after too many crashes - rely on health check polling instead
 	if crashCount >= 5 {
 		log.Printf("WebSocket watcher for %s crashed too many times (%d), disabling. Will use polling.", address, crashCount)
@@ -327,14 +328,14 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int) {
 	defer func() {
 		if r := recover(); r != nil {
 			// Don't restart if the service has been stopped
-			if s.ctx.Err() != nil {
+			if ctx.Err() != nil {
 				return
 			}
 			log.Printf("WebSocket watcher for %s crashed (%d): %v, will restart in 60s", address, crashCount+1, r)
 			time.Sleep(60 * time.Second)
 			// Only restart if still running after the sleep
-			if s.ctx.Err() == nil {
-				go s.watchWalletWithRetry(address, crashCount+1)
+			if ctx.Err() == nil {
+				go s.watchWalletWithRetry(address, crashCount+1, ctx)
 			}
 		}
 	}()
@@ -362,14 +363,14 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int) {
 	for {
 		// Check context before attempting connection
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 			idx.Close()
 			return
 		default:
 		}
-		
+
 		// Listen blocks until connection closes or context cancelled
-		if err := idx.Listen(s.ctx, address); err != nil {
+		if err := idx.Listen(ctx, address); err != nil {
 			log.Printf("WebSocket connection failed for %s: %v, reconnecting in 30s", address, err)
 			time.Sleep(30 * time.Second)
 			continue

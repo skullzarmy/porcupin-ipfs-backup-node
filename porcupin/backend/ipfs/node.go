@@ -140,17 +140,20 @@ func (n *Node) Start(ctx context.Context) error {
 			break
 		}
 		if !isPortConflictError(err) {
+			repo.Close()
 			return fmt.Errorf("failed to create node: %w", err)
 		}
 		log.Printf("Port %d in use (attempt %d/3), retrying in 2s...", n.swarmPort, attempt)
 		time.Sleep(2 * time.Second)
 	}
 	if err != nil {
+		repo.Close()
 		return fmt.Errorf("failed to create node: %w", err)
 	}
 
 	api, err := coreapi.NewCoreAPI(node)
 	if err != nil {
+		node.Close()
 		return fmt.Errorf("failed to create core api: %w", err)
 	}
 
