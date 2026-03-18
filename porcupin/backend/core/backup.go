@@ -49,8 +49,7 @@ type BackupManager struct {
 	config   *config.Config
 	mu       sync.RWMutex
 	workers  chan struct{}
-	shutdown chan struct{}
-	
+
 	// Pause control
 	pauseMu  sync.RWMutex
 	isPaused bool
@@ -81,9 +80,15 @@ func NewBackupManager(ipfsNode IPFSClient, idx *indexer.Indexer, database *db.Da
 		db:       database,
 		config:   cfg,
 		workers:  make(chan struct{}, concurrency),
-		shutdown: make(chan struct{}),
 		progress: SyncProgress{Phase: "idle"},
 	}
+}
+
+// UpdateIPFS replaces the IPFS node reference (used after storage migration).
+func (bm *BackupManager) UpdateIPFS(node IPFSClient) {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+	bm.ipfs = node
 }
 
 // SetPaused sets the pause state
@@ -243,30 +248,33 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 
 	log.Printf("Found %d unique NFTs with %d unique assets for %s", len(tokenMap), totalAssets, address)
 
-	// 5. Process each NFT
+	// 5. Process each NFT (bounded concurrency)
 	var wg sync.WaitGroup
-	processed := 0
-	total := len(tokenMap)
-	
+	var processed int64
+	total := int64(len(tokenMap))
+	sem := make(chan struct{}, 10) // limit to 10 concurrent goroutines
+
 	for _, token := range tokenMap {
 		// Check for pause before starting new work
 		if bm.IsPaused() {
 			log.Printf("Sync paused, stopping NFT processing")
 			break
 		}
-		
+
+		sem <- struct{}{} // acquire slot
 		wg.Add(1)
 		go func(t indexer.Token) {
+			defer func() { <-sem }() // release slot
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("Panic processing NFT %s:%s - %v", t.Contract.Address, t.TokenID, r)
 				}
 				// Update progress
+				cur := atomic.AddInt64(&processed, 1)
 				bm.updateProgress(func(p *SyncProgress) {
 					p.ProcessedNFTs++
-					processed++
-					if t.Metadata != nil && processed < total {
+					if t.Metadata != nil && cur < total {
 						p.CurrentItem = t.Metadata.Name
 					} else {
 						p.CurrentItem = "Finishing..."
@@ -363,8 +371,6 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 		defer func() { <-bm.workers }()
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-bm.shutdown:
-		return fmt.Errorf("backup manager shutdown")
 	}
 
 	// If metadata is nil, try to fetch it from the chain
@@ -425,23 +431,23 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 	var assets []assetEntry
 	
 	// Add artifact (main content)
-	if token.Metadata.ArtifactURI != "" {
+	if token.Metadata.ArtifactURI != "" && isIPFSURI(token.Metadata.ArtifactURI) {
 		assets = append(assets, assetEntry{token.Metadata.ArtifactURI, "artifact"})
 	}
-	
+
 	// Add display URI if different from artifact
-	if token.Metadata.DisplayURI != "" && token.Metadata.DisplayURI != token.Metadata.ArtifactURI {
+	if token.Metadata.DisplayURI != "" && token.Metadata.DisplayURI != token.Metadata.ArtifactURI && isIPFSURI(token.Metadata.DisplayURI) {
 		assets = append(assets, assetEntry{token.Metadata.DisplayURI, "display"})
 	}
-	
+
 	// Add thumbnail if different from artifact
-	if token.Metadata.ThumbnailURI != "" && token.Metadata.ThumbnailURI != token.Metadata.ArtifactURI {
+	if token.Metadata.ThumbnailURI != "" && token.Metadata.ThumbnailURI != token.Metadata.ArtifactURI && isIPFSURI(token.Metadata.ThumbnailURI) {
 		assets = append(assets, assetEntry{token.Metadata.ThumbnailURI, "thumbnail"})
 	}
 	
 	// Add additional formats
 	for _, format := range token.Metadata.Formats {
-		if format.URI != "" {
+		if format.URI != "" && isIPFSURI(format.URI) {
 			assets = append(assets, assetEntry{format.URI, "format"})
 		}
 	}
@@ -492,7 +498,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		asset.ID = existingAsset.ID
 		asset.RetryCount = existingAsset.RetryCount
 		// If it was failed, reset to pending
-		if strings.Contains(existingAsset.Status, "failed") {
+		if existingAsset.Status == db.StatusFailed || existingAsset.Status == db.StatusFailedUnavailable {
 			asset.Status = db.StatusPending
 			asset.ErrorMsg = ""
 		} else {
@@ -652,10 +658,6 @@ func (bm *BackupManager) downloadMetadata(ctx context.Context, uri string) ([]by
 // VerifyAndFixPins iterates through all NFTs and ensures their assets are properly tracked and pinned
 // This fixes data loss from the previous "pause bug" where assets weren't saved to DB
 func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, error) {
-	bm.mu.Lock()
-	// check if already running?
-	bm.mu.Unlock()
-
 	log.Println("Starting VerifyAndFixPins...")
 	
 	stats := map[string]int{
@@ -728,9 +730,7 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 				log.Printf("VerifyAndFix: Error processing NFT %d (%s): %v", nft.ID, nft.Name, err)
 				stats["errors"]++
 			} else {
-				// We don't easily know if we "fixed" it without checking DB state change, 
-				// but let's assume if it succeeded we're good.
-				// We could count it if we modified processNFT to return "created" count, but keeping it simple.
+				stats["fixed"]++
 			}
 		}
 		
@@ -811,7 +811,7 @@ func ExtractCIDFromURI(uri string) string {
 	} else {
 		// Find /ipfs/ in the URI (for gateway URLs)
 		const ipfsPrefix = "/ipfs/"
-		idx := indexOf(uri, ipfsPrefix)
+		idx := strings.Index(uri, ipfsPrefix)
 		if idx != -1 {
 			cid = uri[idx+len(ipfsPrefix):]
 		}
@@ -822,12 +822,12 @@ func ExtractCIDFromURI(uri string) string {
 	}
 
 	// Strip query parameters (e.g., ?fxhash=...)
-	if qIdx := indexOf(cid, "?"); qIdx != -1 {
+	if qIdx := strings.Index(cid, "?"); qIdx != -1 {
 		cid = cid[:qIdx]
 	}
 
 	// Strip trailing path (e.g., /index.html) - keep only the CID
-	if slashIdx := indexOf(cid, "/"); slashIdx != -1 {
+	if slashIdx := strings.Index(cid, "/"); slashIdx != -1 {
 		cid = cid[:slashIdx]
 	}
 
@@ -842,21 +842,10 @@ func isTimeoutError(err error) bool {
 	return err == context.DeadlineExceeded || err.Error() == "context deadline exceeded"
 }
 
-// indexOf returns the index of substr in s, or -1 if not found
-func indexOf(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
-}
-
 // Shutdown gracefully shuts down the backup manager
 func (bm *BackupManager) Shutdown() {
 	// Update disk usage one final time before shutdown
 	bm.UpdateDiskUsage()
-	close(bm.shutdown)
 }
 
 // MarkDiskUsageDirty marks that disk usage needs recalculation
@@ -892,13 +881,13 @@ func hasIPFSContent(m *indexer.TokenMetadata) bool {
 	if m == nil {
 		return false
 	}
-	// Check main URIs
-	if m.ArtifactURI != "" || m.DisplayURI != "" || m.ThumbnailURI != "" {
+	// Check main URIs — only count IPFS URIs
+	if isIPFSURI(m.ArtifactURI) || isIPFSURI(m.DisplayURI) || isIPFSURI(m.ThumbnailURI) {
 		return true
 	}
 	// Check formats array
 	for _, f := range m.Formats {
-		if f.URI != "" {
+		if isIPFSURI(f.URI) {
 			return true
 		}
 	}
@@ -1076,13 +1065,17 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 		// Early exit checks
 		select {
 		case <-ctx.Done():
-			goto Finish
+			break
 		default:
+		}
+
+		if ctx.Err() != nil {
+			break
 		}
 
 		if bm.IsPaused() {
 			log.Printf("Paused, stopping pending asset processing")
-			goto Finish
+			break
 		}
 
 		wg.Add(1)
@@ -1095,8 +1088,6 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 			case bm.workers <- struct{}{}:
 				defer func() { <-bm.workers }()
 			case <-ctx.Done():
-				return
-			case <-bm.shutdown:
 				return
 			}
 
@@ -1118,7 +1109,6 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 
 	wg.Wait()
 
-Finish:
 	// Update disk usage after processing
 	bm.UpdateDiskUsage()
 

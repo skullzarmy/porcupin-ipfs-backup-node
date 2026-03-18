@@ -695,7 +695,6 @@ func (h *Handlers) GetAssets(w http.ResponseWriter, r *http.Request) {
 	// Build query
 	query := h.db.Model(&db.Asset{}).Preload("NFT")
 
-	status = r.URL.Query().Get("status")
 	search := r.URL.Query().Get("search")
 
 	if status != "" && status != "all" {
@@ -848,16 +847,7 @@ func (h *Handlers) RetryAllFailed(w http.ResponseWriter, r *http.Request) {
 			"retry_count": 0,
 		})
 
-	// Trigger pins if service available
-	if h.service != nil {
-		for _, asset := range assets {
-			go func(id uint64) {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-				defer cancel()
-				h.service.PinAsset(ctx, id)
-			}(asset.ID)
-		}
-	}
+	// Assets are now pending — the retryWorker will pick them up in batches
 
 	WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "retry queued for all failed assets",

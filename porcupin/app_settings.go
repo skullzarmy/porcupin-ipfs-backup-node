@@ -97,6 +97,7 @@ func (a *App) UpdateSettings(settings map[string]interface{}) error {
 	}
 	if v, ok := settings["max_concurrency"].(float64); ok {
 		a.config.Backup.MaxConcurrency = int(v)
+		// Note: takes effect on next app restart (worker pool is sized at init)
 	}
 	if v, ok := settings["min_free_disk_space_gb"].(float64); ok {
 		a.config.Backup.MinFreeDiskSpaceGB = int(v)
@@ -260,6 +261,7 @@ func (a *App) MigrateStorage(destPath string) error {
 			nodeErr = newNode.Start(a.ctx)
 			if nodeErr == nil {
 				a.ipfsNode = newNode
+				a.backupService.UpdateIPFS(newNode)
 			}
 		}
 		a.backupService.Start(a.ctx)
@@ -288,6 +290,9 @@ func (a *App) MigrateStorage(destPath string) error {
 	}
 
 	a.ipfsNode = newNode
+
+	// Update IPFS refs in backup service/manager before restarting
+	a.backupService.UpdateIPFS(newNode)
 
 	// Restart backup service
 	a.backupService.Start(a.ctx)
@@ -336,8 +341,9 @@ func (a *App) CancelMigration() error {
 	}
 	
 	a.ipfsNode = newNode
+	a.backupService.UpdateIPFS(newNode)
 	a.backupService.Start(a.ctx)
-	
+
 	log.Println("Services restarted after migration cancellation")
 	return nil
 }
@@ -441,4 +447,49 @@ func (a *App) ExportDiagnosticReport() string {
 	}
 
 	return sb.String()
+}
+
+// ExportLogsToFile opens a save dialog and writes the log buffer to the chosen path.
+// Returns the saved path, or "" if the user cancelled, or an error.
+func (a *App) ExportLogsToFile() (string, error) {
+	if a.logRing == nil {
+		return "", fmt.Errorf("logging not initialized")
+	}
+	text := a.logRing.ExportText()
+	defaultName := fmt.Sprintf("porcupin-logs-%s.txt", time.Now().Format("2006-01-02"))
+	path, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
+		Title:           "Save Log File",
+		DefaultFilename: defaultName,
+	})
+	if err != nil {
+		return "", fmt.Errorf("dialog error: %w", err)
+	}
+	if path == "" {
+		return "", nil // user cancelled
+	}
+	if err := os.WriteFile(path, []byte(text), 0644); err != nil {
+		return "", fmt.Errorf("failed to write log file: %w", err)
+	}
+	return path, nil
+}
+
+// ExportDiagnosticReportToFile opens a save dialog and writes the diagnostic report to the chosen path.
+// Returns the saved path, or "" if the user cancelled, or an error.
+func (a *App) ExportDiagnosticReportToFile() (string, error) {
+	text := a.ExportDiagnosticReport()
+	defaultName := fmt.Sprintf("porcupin-diagnostic-%s.txt", time.Now().Format("2006-01-02"))
+	path, err := wailsRuntime.SaveFileDialog(a.ctx, wailsRuntime.SaveDialogOptions{
+		Title:           "Save Diagnostic Report",
+		DefaultFilename: defaultName,
+	})
+	if err != nil {
+		return "", fmt.Errorf("dialog error: %w", err)
+	}
+	if path == "" {
+		return "", nil // user cancelled
+	}
+	if err := os.WriteFile(path, []byte(text), 0644); err != nil {
+		return "", fmt.Errorf("failed to write diagnostic report: %w", err)
+	}
+	return path, nil
 }

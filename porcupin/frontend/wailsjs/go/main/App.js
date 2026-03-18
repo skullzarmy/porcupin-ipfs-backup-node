@@ -42,8 +42,16 @@ export function ExportDiagnosticReport() {
   return window['go']['main']['App']['ExportDiagnosticReport']();
 }
 
+export function ExportDiagnosticReportToFile() {
+  return window['go']['main']['App']['ExportDiagnosticReportToFile']();
+}
+
 export function ExportLogs() {
   return window['go']['main']['App']['ExportLogs']();
+}
+
+export function ExportLogsToFile() {
+  return window['go']['main']['App']['ExportLogsToFile']();
 }
 
 export function GetAssetGatewayURL(arg1) {

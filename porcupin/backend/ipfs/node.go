@@ -78,17 +78,6 @@ func (n *Node) Start(ctx context.Context) error {
 
 	log.Printf("IPFS node starting (repo: %s, swarm port: %d)...", n.repoPath, n.swarmPort)
 
-	// Remove stale lock file if it exists from a previous unclean shutdown
-	// This can happen after a crash, forced quit, or migration
-	lockFile := filepath.Join(n.repoPath, "repo.lock")
-	if _, err := os.Stat(lockFile); err == nil {
-		log.Printf("Removing stale repo lock file before start: %s", lockFile)
-		if err := os.Remove(lockFile); err != nil {
-			log.Printf("Warning: failed to remove stale lock file: %v", err)
-			// Continue anyway - fsrepo.Open will give a clearer error if needed
-		}
-	}
-
 	// Setup plugins
 	if err := setupPlugins(""); err != nil {
 		return fmt.Errorf("failed to setup plugins: %w", err)
@@ -103,7 +92,7 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 		// Configure swarm addresses with custom port
 		n.configureSwarmAddresses(cfg)
-		
+
 		// Apply profile-specific configuration (e.g., low power settings)
 		applyProfileConfig(cfg)
 
@@ -112,10 +101,18 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 	}
 
-	// Open repo
+	// Open repo — if it fails with a lock error, remove the stale lock and retry once.
 	repo, err := fsrepo.Open(n.repoPath)
 	if err != nil {
-		return fmt.Errorf("failed to open repo: %w", err)
+		if strings.Contains(err.Error(), "lock") {
+			lockFile := filepath.Join(n.repoPath, "repo.lock")
+			log.Printf("Repo locked, removing stale lock file and retrying: %s", lockFile)
+			os.Remove(lockFile)
+			repo, err = fsrepo.Open(n.repoPath)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to open repo: %w", err)
+		}
 	}
 
 	// Update swarm port in existing repo config if it differs

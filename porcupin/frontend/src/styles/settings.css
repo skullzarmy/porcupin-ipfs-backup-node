@@ -365,14 +365,7 @@
     animation: spin 1s linear infinite;
 }
 
-@keyframes spin {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
-}
+/* @keyframes spin is defined in base.css */
 
 .migration-info {
     margin-bottom: 16px;
@@ -743,4 +736,82 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+/* Notice banners */
+.info-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--accent-primary);
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.warning-notice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--accent-warning);
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+/* Clear Data Progress */
+.clear-progress {
+    padding: 20px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+.clear-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 500;
+    margin-bottom: 12px;
+}
+
+.clear-info {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.clear-info p {
+    margin: 4px 0;
+}
+
+.clear-stats {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+/* Confirm Dialog */
+.confirm-dialog {
+    padding: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: var(--radius-md);
+}
+
+.confirm-dialog p {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    line-height: 1.5;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 12px;
 }

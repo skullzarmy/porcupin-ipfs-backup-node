@@ -19,6 +19,8 @@
     --accent-warning: #f59e0b;
     --accent-danger: #ef4444;
     --accent-info: #3b82f6;
+    --text-secondary-rgb: 148, 163, 184;
+    --accent-danger-rgb: 239, 68, 68;
     --border-color: #1e1e2e;
     --border-subtle: #2a2a3a;
     --radius-sm: 6px;
@@ -47,6 +49,8 @@
     --accent-warning: #d97706;
     --accent-danger: #dc2626;
     --accent-info: #2563eb;
+    --text-secondary-rgb: 71, 85, 105;
+    --accent-danger-rgb: 220, 38, 38;
     --border-color: #e2e8f0;
     --border-subtle: #cbd5e1;
     --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -72,6 +76,8 @@
         --accent-warning: #d97706;
         --accent-danger: #dc2626;
         --accent-info: #2563eb;
+        --text-secondary-rgb: 71, 85, 105;
+        --accent-danger-rgb: 220, 38, 38;
         --border-color: #e2e8f0;
         --border-subtle: #cbd5e1;
         --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -95,7 +101,11 @@ body,
 }
 
 body {
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family:
+        "Inter",
+        -apple-system,
+        BlinkMacSystemFont,
+        sans-serif;
     -webkit-font-smoothing: antialiased;
     overflow: hidden;
 }

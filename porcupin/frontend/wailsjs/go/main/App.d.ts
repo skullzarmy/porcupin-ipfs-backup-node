@@ -30,7 +30,11 @@ export function DiscoverServers():Promise<Array<api.DiscoveredServer>>;
 
 export function ExportDiagnosticReport():Promise<string>;
 
+export function ExportDiagnosticReportToFile():Promise<string>;
+
 export function ExportLogs():Promise<string>;
+
+export function ExportLogsToFile():Promise<string>;
 
 export function GetAssetGatewayURL(arg1:number):Promise<Record<string, string>>;
 

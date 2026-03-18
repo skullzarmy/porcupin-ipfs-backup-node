@@ -21,7 +21,7 @@ interface AssetStats {
     failed: number;
     failed_unavailable: number;
     pending: number;
-    not_pinnable: number;
+    skipped: number;
     disk_usage_bytes: number;
     total_size_bytes: number;
 }
@@ -223,7 +223,7 @@ function AppContent() {
 
                 {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
 
-                {activeTab === "settings" && <Settings onStatsChange={updateStats} scrollToSection={scrollToSection} />}
+                {activeTab === "settings" && <Settings onStatsChange={updateStats} scrollToSection={scrollToSection} onScrolled={() => setScrollToSection("")} />}
 
                 {activeTab === "about" && <About />}
             </main>

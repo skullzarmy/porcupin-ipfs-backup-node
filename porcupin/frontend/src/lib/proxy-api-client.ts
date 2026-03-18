@@ -162,7 +162,7 @@ export class ProxyAPIClient {
             pending: stats.pending_assets,
             failed: stats.failed_assets,
             failed_unavailable: 0,
-            not_pinnable: 0, // remote server does not expose this stat separately
+            skipped: 0, // remote server does not expose this stat separately
             disk_usage_bytes: Math.round(stats.storage_used_gb * 1024 * 1024 * 1024),
             total: stats.total_assets,
         };

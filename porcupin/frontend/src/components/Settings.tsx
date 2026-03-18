@@ -20,8 +20,8 @@ import {
 // Updates and Logs are always client-scoped — use Wails bindings directly
 import {
     CheckForUpdates,
-    ExportDiagnosticReport,
-    ExportLogs,
+    ExportDiagnosticReportToFile,
+    ExportLogsToFile,
     GetLogs,
     GetVersion,
     InstallUpdate,
@@ -57,9 +57,10 @@ import { formatBytes, compareSemver } from "../utils";
 interface SettingsProps {
     onStatsChange: () => void;
     scrollToSection?: string;
+    onScrolled?: () => void;
 }
 
-export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
+export function Settings({ onStatsChange, scrollToSection, onScrolled }: SettingsProps) {
     const [storageInfo, setStorageInfo] = useState<main.StorageInfo | null>(null);
     const [repoPath, setRepoPath] = useState("");
     const [saving, setSaving] = useState(false);
@@ -70,14 +71,16 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
     useEffect(() => {
         if (scrollToSection) {
             // Small timeout to allow render
-            setTimeout(() => {
+            const timer = setTimeout(() => {
                 const element = document.getElementById(scrollToSection);
                 if (element) {
                     element.scrollIntoView({ behavior: "smooth" });
                 }
+                onScrolled?.();
             }, 100);
+            return () => clearTimeout(timer);
         }
-    }, [scrollToSection]);
+    }, [scrollToSection, onScrolled]);
 
     // Form state
     const [maxStorageGB, setMaxStorageGB] = useState(0);
@@ -101,6 +104,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
     // Update State
     const [showUpdateConfirm, setShowUpdateConfirm] = useState(false);
     const [updateInfo, setUpdateInfo] = useState<any>(null);
+    const [updateCheckMsg, setUpdateCheckMsg] = useState("");
     const [showUpdateProgress, setShowUpdateProgress] = useState(false);
     const [updateError, setUpdateError] = useState("");
     const [updateSuccess, setUpdateSuccess] = useState(false);
@@ -135,6 +139,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
         getSavedConfigs,
         saveConfig,
         removeConfig,
+        refreshServerVersion,
     } = useConnection();
     const [remoteHost, setRemoteHost] = useState("");
     const [remotePort, setRemotePort] = useState("8085");
@@ -161,6 +166,7 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
     const [logExporting, setLogExporting] = useState(false);
     const [diagExporting, setDiagExporting] = useState(false);
     const [exportError, setExportError] = useState("");
+    const [exportSuccess, setExportSuccess] = useState("");
 
     const loadSettings = useCallback(async () => {
         try {
@@ -245,23 +251,6 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
         };
         checkMigrationStatus();
 
-        // Poll for migration status while in progress
-        const pollInterval = setInterval(async () => {
-            try {
-                const status = await GetMigrationStatus();
-                if (status?.in_progress) {
-                    setMigrating(true);
-                    setMigrationStatus(status);
-                } else if (status?.error) {
-                    // Migration finished with error
-                    setMigrating(false);
-                    setMessage("Migration failed: " + status.error);
-                }
-            } catch {
-                // Ignore polling errors
-            }
-        }, 1000);
-
         // Listen for migration events
         const unsubStart = EventsOn("storage:migration:start", (data) => {
             console.log("Migration started:", data);
@@ -318,7 +307,6 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
         });
 
         return () => {
-            clearInterval(pollInterval);
             unsubStart();
             unsubProgress();
             unsubError();
@@ -561,22 +549,30 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                         <button
                             className="btn-primary"
                             onClick={async () => {
+                                setUpdateCheckMsg("");
                                 try {
+                                    if (isRemote() && connectionState.remoteConfig) {
+                                        await refreshServerVersion();
+                                    }
                                     const info = await CheckForUpdates();
                                     if (info.available) {
                                         setUpdateInfo(info);
                                         setShowUpdateConfirm(true);
                                     } else {
-                                        setMessage("You're running the latest version.");
+                                        setUpdateCheckMsg("You're running the latest version.");
                                     }
                                 } catch (err) {
-                                    setUpdateError("Error checking: " + err);
-                                    setShowUpdateProgress(true);
+                                    setUpdateCheckMsg("Error checking for updates: " + err);
                                 }
                             }}
                         >
                             Check for Updates
                         </button>
+                        {updateCheckMsg && (
+                            <span style={{ marginLeft: "12px", fontSize: "13px", color: "var(--text-secondary)" }}>
+                                {updateCheckMsg}
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -1277,13 +1273,10 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                         onClick={async () => {
                             setLogExporting(true);
                             setExportError("");
+                            setExportSuccess("");
                             try {
-                                const text = await ExportLogs();
-                                const a = document.createElement("a");
-                                a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-                                a.download = `porcupin-logs-${new Date().toISOString().slice(0, 10)}.txt`;
-                                a.click();
-                                URL.revokeObjectURL(a.href);
+                                const path = await ExportLogsToFile();
+                                if (path) setExportSuccess(`Saved to: ${path}`);
                             } catch (err: unknown) {
                                 setExportError("Export failed: " + String(err));
                             } finally {
@@ -1301,13 +1294,10 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                         onClick={async () => {
                             setDiagExporting(true);
                             setExportError("");
+                            setExportSuccess("");
                             try {
-                                const text = await ExportDiagnosticReport();
-                                const a = document.createElement("a");
-                                a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
-                                a.download = `porcupin-diagnostic-${new Date().toISOString().slice(0, 10)}.txt`;
-                                a.click();
-                                URL.revokeObjectURL(a.href);
+                                const path = await ExportDiagnosticReportToFile();
+                                if (path) setExportSuccess(`Saved to: ${path}`);
                             } catch (err: unknown) {
                                 setExportError("Export failed: " + String(err));
                             } finally {
@@ -1319,6 +1309,11 @@ export function Settings({ onStatsChange, scrollToSection }: SettingsProps) {
                         {diagExporting ? "Exporting..." : "Export Diagnostic Report"}
                     </button>
                 </div>
+                {exportSuccess && (
+                    <p style={{ color: "var(--accent-success)", fontSize: "12px", margin: "4px 0 0" }}>
+                        {exportSuccess}
+                    </p>
+                )}
                 {exportError && (
                     <p style={{ color: "var(--accent-danger)", fontSize: "12px", margin: "4px 0 0" }}>
                         {exportError}

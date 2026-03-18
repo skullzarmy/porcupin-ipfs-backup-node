@@ -168,7 +168,7 @@ func (a *App) shutdown(ctx context.Context) {
 	go func() {
 		time.Sleep(35 * time.Second)
 		log.Println("Forced process exit — shutdown exceeded 35 seconds")
-		os.Exit(0)
+		os.Exit(1)
 	}()
 
 	log.Println("Porcupin shutting down...")
@@ -205,8 +205,14 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 
 // GetStatus returns the current status of the application
 func (a *App) GetStatus() map[string]interface{} {
-	stats, _ := a.database.GetAssetStats()
-	wallets, _ := a.GetWallets()
+	stats, err := a.database.GetAssetStats()
+	if err != nil {
+		log.Printf("GetStatus: failed to get asset stats: %v", err)
+	}
+	wallets, err := a.GetWallets()
+	if err != nil {
+		log.Printf("GetStatus: failed to get wallets: %v", err)
+	}
 	
 	return map[string]interface{}{
 		"running":       true,
@@ -223,9 +229,10 @@ func (a *App) GetVersion() string {
 }
 
 // GetIPFSHealth returns current peer connectivity status from the embedded IPFS node.
+// Uses background context so health checks remain valid during shutdown.
 func (a *App) GetIPFSHealth() ipfs.NodeHealthResult {
 	if a.ipfsNode == nil {
 		return ipfs.NodeHealthResult{IsOnline: false, Message: "Node not initialized"}
 	}
-	return a.ipfsNode.Health(a.ctx)
+	return a.ipfsNode.Health(context.Background())
 }

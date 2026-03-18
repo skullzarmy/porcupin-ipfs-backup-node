@@ -80,14 +80,18 @@ func (c *RemoteClient) Health(ctx context.Context) (*HealthResponse, error) {
 	
 	log.Printf("RemoteClient: Response status: %d", resp.StatusCode)
 	
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 	
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("RemoteClient: Error response: %s", string(body))
-		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, string(body))
+		errBody := string(body)
+		if len(errBody) > 200 {
+			errBody = errBody[:200] + "..."
+		}
+		log.Printf("RemoteClient: Error response: %s", errBody)
+		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, errBody)
 	}
 	
 	var health HealthResponse
@@ -129,13 +133,12 @@ func (c *RemoteClient) Proxy(ctx context.Context, proxyReq ProxyRequest) (*Proxy
 	}
 	defer resp.Body.Close()
 	
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 	
 	log.Printf("RemoteClient.Proxy: Response status: %d, body length: %d", resp.StatusCode, len(body))
-	log.Printf("RemoteClient.Proxy: Response body: %s", string(body))
 	
 	// Collect response headers
 	headers := make(map[string]string)

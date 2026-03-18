@@ -30,7 +30,7 @@ interface AssetStats {
     failed: number;
     failed_unavailable: number;
     pending: number;
-    not_pinnable: number;
+    skipped: number;
     disk_usage_bytes: number;
 }
 
@@ -64,10 +64,9 @@ export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
         };
 
         fetchStatus();
-        // Poll every 2 seconds normally, faster when actively syncing
-        const interval = setInterval(fetchStatus, status?.state === "syncing" ? 1000 : 2000);
+        const interval = setInterval(fetchStatus, 2000);
         return () => clearInterval(interval);
-    }, [status?.state]);
+    }, []);
 
     useEffect(() => {
         const fetchHealth = async () => {
@@ -351,13 +350,13 @@ export function Dashboard({ stats, walletCount, onNavigate }: DashboardProps) {
                         <span className="mini-stat-label">Retries Queued</span>
                     </div>
                 )}
-                {(stats.not_pinnable || 0) > 0 && (
+                {(stats.skipped || 0) > 0 && (
                     <div
                         className="mini-stat"
                         title="These assets are hosted on HTTP/HTTPS and cannot be pinned to IPFS"
                     >
                         <Globe size={16} />
-                        <span className="mini-stat-value">{stats.not_pinnable}</span>
+                        <span className="mini-stat-value">{stats.skipped}</span>
                         <span className="mini-stat-label">Not Pinnable</span>
                     </div>
                 )}

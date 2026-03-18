@@ -12,7 +12,7 @@ const (
 	StatusPinned            = "pinned"
 	StatusFailed            = "failed"
 	StatusFailedUnavailable = "failed_unavailable"
-	StatusSkipped           = "not_pinnable"
+	StatusSkipped           = "skipped"
 )
 
 // Database wraps gorm.DB with additional helper methods
@@ -116,6 +116,7 @@ func InitDB(db *gorm.DB) error {
 
 	// Migration: Reclassify non-IPFS URIs that were incorrectly stored as failed assets.
 	// HTTP/HTTPS assets can never be pinned; they should be terminal and excluded from failure counts.
+	setting = Setting{}
 	if err := db.Where("key = ?", "migration_fix_nonicfs_assets_v1").First(&setting).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			if err := db.Exec(`UPDATE assets SET status = ?, retry_count = 0, error_msg = ''
@@ -125,6 +126,21 @@ func InitDB(db *gorm.DB) error {
 				return err
 			}
 			if err := db.Create(&Setting{Key: "migration_fix_nonicfs_assets_v1", Value: "true"}).Error; err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	}
+
+	// Migration: Rename "not_pinnable" status to "skipped" to align constant name and DB value.
+	setting = Setting{}
+	if err := db.Where("key = ?", "migration_rename_not_pinnable_v1").First(&setting).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			if err := db.Exec(`UPDATE assets SET status = 'skipped' WHERE status = 'not_pinnable'`).Error; err != nil {
+				return err
+			}
+			if err := db.Create(&Setting{Key: "migration_rename_not_pinnable_v1", Value: "true"}).Error; err != nil {
 				return err
 			}
 		} else {
@@ -155,14 +171,15 @@ func (d *Database) SetSetting(key, value string) error {
 
 // SaveNFT saves or updates an NFT (upsert by token_id + contract_address)
 func (d *Database) SaveNFT(nft *NFT) error {
-	// First try to find existing NFT
+	// Atomic upsert: FirstOrCreate ensures no duplicate, then Save updates fields
 	var existing NFT
-	err := d.Where("token_id = ? AND contract_address = ?", nft.TokenID, nft.ContractAddress).First(&existing).Error
-	if err == nil {
-		// Found existing - update it
-		nft.ID = existing.ID
-		nft.CreatedAt = existing.CreatedAt
+	result := d.Where("token_id = ? AND contract_address = ?", nft.TokenID, nft.ContractAddress).
+		FirstOrCreate(&existing)
+	if result.Error != nil {
+		return result.Error
 	}
+	nft.ID = existing.ID
+	nft.CreatedAt = existing.CreatedAt
 	return d.Save(nft).Error
 }
 

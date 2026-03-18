@@ -225,7 +225,6 @@ function createRemoteBackend(client: ProxyAPIClient): Backend {
         VerifyAsset: (id) => client.verifyAsset(id),
 
         // NFT operations
-        // NFT operations
         GetNFTsWithAssets: (page, limit, status, search) => client.getNFTsWithAssets(page, limit, status, search),
 
         // Service control

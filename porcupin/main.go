@@ -27,7 +27,10 @@ var icon []byte
 func main() {
 	// --- Logging setup ---
 	// Determine data directory early so we can open the log file before anything else.
-	homeDir, _ := os.UserHomeDir()
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("Cannot determine home directory: %v", err)
+	}
 	dataDir := filepath.Join(homeDir, ".porcupin")
 	os.MkdirAll(filepath.Join(dataDir, "logs"), 0755)
 
