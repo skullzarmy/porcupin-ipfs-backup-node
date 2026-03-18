@@ -66,9 +66,10 @@ type BackupService struct {
 	isPaused  bool
 	
 	// Channels for coordination
-	pauseCh   chan struct{}
-	resumeCh  chan struct{}
-	triggerCh chan string  // wallet address to sync
+	pauseCh    chan struct{}
+	resumeCh   chan struct{}
+	triggerCh  chan string  // wallet address to sync
+	fullSyncCh chan struct{} // signal run() to perform a full catch-up sync
 	
 	watchedWallets map[string]bool // Track which wallets have active watchers
 
@@ -92,9 +93,10 @@ func NewBackupService(ipfsNode *ipfs.Node, idx *indexer.Indexer, database *db.Da
 		ipfs:      ipfsNode,
 		storage:   storageMgr,
 		status:    ServiceStatus{State: StateStopped},
-		pauseCh:   make(chan struct{}),
-		resumeCh:  make(chan struct{}),
-		triggerCh: make(chan string, 100),
+		pauseCh:    make(chan struct{}),
+		resumeCh:   make(chan struct{}),
+		triggerCh:  make(chan string, 100),
+		fullSyncCh: make(chan struct{}, 1), // buffer of 1 coalesces rapid triggers
 		watchedWallets: make(map[string]bool),
 	}
 }
@@ -209,6 +211,13 @@ func (s *BackupService) run() {
 			}
 			// Always update disk usage on health check interval too
 			s.manager.UpdateDiskUsage()
+
+		case <-s.fullSyncCh:
+			// User-triggered full sync — runs synchronously inside run() so it is
+			// covered by the WaitGroup and shutdown waits for it to complete.
+			if !s.IsPaused() {
+				s.performCatchUpSync()
+			}
 		}
 	}
 }
@@ -317,10 +326,16 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int) {
 	// Recover from panics in the WebSocket library
 	defer func() {
 		if r := recover(); r != nil {
+			// Don't restart if the service has been stopped
+			if s.ctx.Err() != nil {
+				return
+			}
 			log.Printf("WebSocket watcher for %s crashed (%d): %v, will restart in 60s", address, crashCount+1, r)
 			time.Sleep(60 * time.Second)
-			// Restart the watcher with incremented crash count
-			go s.watchWalletWithRetry(address, crashCount+1)
+			// Only restart if still running after the sleep
+			if s.ctx.Err() == nil {
+				go s.watchWalletWithRetry(address, crashCount+1)
+			}
 		}
 	}()
 
@@ -585,9 +600,13 @@ func (s *BackupService) TriggerSync(address string) {
 	}
 }
 
-// TriggerFullSync triggers a full sync for all wallets
+// TriggerFullSync signals the run() loop to perform a full catch-up sync.
+// Uses a buffered channel (cap 1) so multiple rapid calls coalesce into one sync.
 func (s *BackupService) TriggerFullSync() {
-	go s.performCatchUpSync()
+	select {
+	case s.fullSyncCh <- struct{}{}:
+	default: // a sync is already queued; do nothing
+	}
 }
 
 // Stop stops the backup service and waits for goroutines to exit.

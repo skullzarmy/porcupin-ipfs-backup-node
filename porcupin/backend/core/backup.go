@@ -520,7 +520,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		log.Printf("Skipping non-IPFS URI: %s", uri)
 		asset.Status = db.StatusSkipped
 		asset.ErrorMsg = ""
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save skipped status for asset %s: %v", uri, err)
+		}
 		return nil
 	}
 
@@ -965,7 +967,9 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	if !strings.HasPrefix(uri, "ipfs://") && !strings.Contains(uri, "/ipfs/") {
 		asset.Status = db.StatusSkipped
 		asset.ErrorMsg = ""
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save skipped status for asset %s: %v", uri, err)
+		}
 		return fmt.Errorf("not an IPFS URI: %s", uri)
 	}
 

@@ -106,7 +106,7 @@ func (n *Node) Start(ctx context.Context) error {
 	if err != nil {
 		if strings.Contains(err.Error(), "lock") {
 			lockFile := filepath.Join(n.repoPath, "repo.lock")
-			log.Printf("Repo locked, removing stale lock file and retrying: %s", lockFile)
+			log.Printf("IPFS repo is locked (a previous process may not have shut down cleanly). Removing stale lock file and retrying: %s", lockFile)
 			if removeErr := os.Remove(lockFile); removeErr != nil {
 				log.Printf("Warning: failed to remove lock file %s: %v", lockFile, removeErr)
 			}
