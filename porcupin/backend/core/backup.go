@@ -252,7 +252,7 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 	var wg sync.WaitGroup
 	var processed int64
 	total := int64(len(tokenMap))
-	sem := make(chan struct{}, 10) // limit to 10 concurrent goroutines
+	sem := make(chan struct{}, cap(bm.workers)) // match configured concurrency
 
 	for _, token := range tokenMap {
 		// Check for pause before starting new work

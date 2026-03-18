@@ -562,7 +562,7 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled }: Setting
                                         setUpdateCheckMsg("You're running the latest version.");
                                     }
                                 } catch (err) {
-                                    setUpdateCheckMsg("Error checking for updates: " + err);
+                                    setUpdateCheckMsg("Error checking for updates: " + (err instanceof Error ? err.message : String(err)));
                                 }
                             }}
                         >

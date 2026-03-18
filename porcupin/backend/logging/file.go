@@ -16,20 +16,23 @@ func OpenLogFile(dataDir string, retainDays int) (*os.File, error) {
 		return nil, err
 	}
 
-	// Rotate: delete files older than retainDays
-	cutoff := time.Now().AddDate(0, 0, -retainDays)
-	if entries, err := os.ReadDir(logsDir); err == nil {
-		for _, entry := range entries {
-			if entry.IsDir() {
-				continue
-			}
-			name := entry.Name()
-			// Only rotate our own log files (porcupin-*.log)
-			if !strings.HasPrefix(name, "porcupin-") || !strings.HasSuffix(name, ".log") {
-				continue
-			}
-			if info, err := entry.Info(); err == nil && info.ModTime().Before(cutoff) {
-				os.Remove(filepath.Join(logsDir, name))
+	// Rotate: delete files older than retainDays.
+	// Skip entirely if retainDays <= 0 to avoid accidentally deleting all logs.
+	if retainDays > 0 {
+		cutoff := time.Now().AddDate(0, 0, -retainDays)
+		if entries, err := os.ReadDir(logsDir); err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() {
+					continue
+				}
+				name := entry.Name()
+				// Only rotate our own log files (porcupin-*.log)
+				if !strings.HasPrefix(name, "porcupin-") || !strings.HasSuffix(name, ".log") {
+					continue
+				}
+				if info, err := entry.Info(); err == nil && info.ModTime().Before(cutoff) {
+					os.Remove(filepath.Join(logsDir, name))
+				}
 			}
 		}
 	}
