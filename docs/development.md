@@ -353,10 +353,10 @@ npm run dev
 
 ## Code Style
 
--   **Go:** Follow standard Go formatting (`gofmt`, `goimports`)
--   **TypeScript/React:** Prettier + ESLint (configured in frontend)
--   Use meaningful commit messages ([Conventional Commits](https://www.conventionalcommits.org/))
--   Add tests for new functionality
+- **Go:** Follow standard Go formatting (`gofmt`, `goimports`)
+- **TypeScript/React:** Prettier + ESLint (configured in frontend)
+- Use meaningful commit messages ([Conventional Commits](https://www.conventionalcommits.org/))
+- Add tests for new functionality
 
 See [CONTRIBUTING.md](../CONTRIBUTING.md) for full style guidelines.
 

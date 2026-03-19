@@ -270,14 +270,31 @@ sudo systemctl start porcupin
 
 The REST API is documented in the source code. Key endpoints:
 
-| Endpoint               | Description            |
-| ---------------------- | ---------------------- |
-| `GET /api/v1/health`   | Health check (no auth) |
-| `GET /api/v1/status`   | Service status         |
-| `GET /api/v1/stats`    | Asset statistics       |
-| `GET /api/v1/wallets`  | List wallets           |
-| `POST /api/v1/wallets` | Add wallet             |
-| `POST /api/v1/sync`    | Trigger sync           |
+| Endpoint               | Description                                               |
+| ---------------------- | --------------------------------------------------------- |
+| `GET /api/v1/health`   | Health check (no auth) — returns `is_online` and `peer_count` |
+| `GET /api/v1/status`   | Service status                                            |
+| `GET /api/v1/stats`    | Asset statistics                                          |
+| `GET /api/v1/wallets`  | List wallets                                              |
+| `POST /api/v1/wallets` | Add wallet                                                |
+| `POST /api/v1/sync`    | Trigger sync                                              |
+
+### Health Endpoint Response
+
+The `/api/v1/health` endpoint returns IPFS connectivity information:
+
+```json
+{
+  "status": "ok",
+  "version": "0.3.4-rc5",
+  "timestamp": "2026-03-18T12:00:00Z",
+  "is_online": true,
+  "peer_count": 42
+}
+```
+
+- `is_online` — whether the IPFS node has connected peers
+- `peer_count` — number of currently connected IPFS swarm peers
 
 All endpoints except `/health` require:
 

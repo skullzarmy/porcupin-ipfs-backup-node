@@ -16,8 +16,8 @@ Porcupin ensures YOUR collection stays available by running your own IPFS node t
 
 Similar, but better:
 
--   **Downloads:** Save files to your computer, but they're not on IPFS
--   **Porcupin:** Pins to IPFS AND shares with the network, so others can access them too
+- **Downloads:** Save files to your computer, but they're not on IPFS
+- **Porcupin:** Pins to IPFS AND shares with the network, so others can access them too
 
 ### Does Porcupin upload my NFTs somewhere?
 
@@ -31,9 +31,9 @@ No. Porcupin doesn't upload anything. It downloads existing IPFS content and pin
 
 Depends on your collection:
 
--   **Small collection (50 NFTs):** 1-5 GB
--   **Medium collection (500 NFTs):** 10-50 GB
--   **Large collection (5000+ NFTs):** 100+ GB
+- **Small collection (50 NFTs):** 1-5 GB
+- **Medium collection (500 NFTs):** 10-50 GB
+- **Large collection (5000+ NFTs):** 100+ GB
 
 High-resolution images and videos take more space.
 
@@ -57,8 +57,8 @@ ipfs:
 
 ### How much bandwidth does it use?
 
--   **Initial sync:** High (downloading all your NFTs)
--   **Ongoing:** Low (only new NFTs + occasional sharing)
+- **Initial sync:** High (downloading all your NFTs)
+- **Ongoing:** Low (only new NFTs + occasional sharing)
 
 IPFS also shares content with others, but this is minimal.
 
@@ -82,8 +82,8 @@ Any Tezos wallet address (tz1, tz2, tz3, KT1). You don't need the private key - 
 
 Both by default! You can configure per-wallet:
 
--   **Owned:** NFTs currently in your wallet
--   **Created:** NFTs you minted (even if sold)
+- **Owned:** NFTs currently in your wallet
+- **Created:** NFTs you minted (even if sold)
 
 ### How often does it check for new NFTs?
 
@@ -106,8 +106,9 @@ Some NFTs have assets stored at HTTP/HTTPS URLs instead of IPFS. Since these can
 ### How do I know if my IPFS node is connected?
 
 The Dashboard shows a health indicator dot next to the navigation:
--   **Green** = IPFS node is online and connected to peers (with peer count displayed)
--   **Red** = IPFS node is offline or has no peers
+
+- **Green** = IPFS node is online and connected to peers (with peer count displayed)
+- **Red** = IPFS node is offline or has no peers
 
 You can also check connectivity from **Settings → Check Connectivity**.
 
@@ -117,11 +118,11 @@ Technically yes - you can add any wallet address. But please be respectful of ot
 
 ### Where are the logs?
 
--   **Desktop**: Go to **Settings → Logs & Diagnostics** to view recent logs with level filtering, export logs, or export a full diagnostic report.
--   **Log files on disk**: `~/.porcupin/logs/porcupin-YYYY-MM-DD.log`
--   **Crash reports**: `~/.porcupin/logs/crash-*.txt`
--   **Headless/systemd**: `journalctl -u porcupin -f`
--   **Docker**: `docker logs porcupin`
+- **Desktop**: Go to **Settings → Logs & Diagnostics** to view recent logs with level filtering, export logs, or export a full diagnostic report.
+- **Log files on disk**: `~/.porcupin/logs/porcupin-YYYY-MM-DD.log`
+- **Crash reports**: `~/.porcupin/logs/crash-*.txt`
+- **Headless/systemd**: `journalctl -u porcupin -f`
+- **Docker**: `docker logs porcupin`
 
 ---
 
@@ -139,7 +140,7 @@ By default, IPFS nodes only keep files temporarily. "Pinning" tells your node to
 
 Not required, but recommended for best sharing:
 
--   **Port 4001 (TCP/UDP):** IPFS swarm connections (configurable via `ipfs.swarm_port` in config or `--ipfs-port` CLI flag)
+- **Port 4001 (TCP/UDP):** IPFS swarm connections (configurable via `ipfs.swarm_port` in config or `--ipfs-port` CLI flag)
 
 Without port forwarding, Porcupin still works but may share content less efficiently.
 
@@ -157,22 +158,13 @@ Or via CLI: `porcupin --ipfs-port 4002`
 
 NFT content is already public on the blockchain. Porcupin doesn't add any private data. Your wallet addresses are not secret - they're on the public blockchain.
 
-### Where are the log files?
-
-Porcupin writes daily log files and crash reports:
-
--   **Log files:** `~/.porcupin/logs/porcupin-YYYY-MM-DD.log`
--   **Crash reports:** `~/.porcupin/logs/crash-*.txt`
--   **Desktop app:** View logs in **Settings > Logs & Diagnostics**, or export a full diagnostic report
--   **Headless:** Check stdout/stderr or `journalctl -u porcupin`
-
 ### Can I run multiple instances?
 
 Yes! You can run Porcupin on multiple computers with the same wallets. This provides:
 
--   Redundancy (if one goes offline)
--   Better sharing with the network
--   Faster access from different locations
+- Redundancy (if one goes offline)
+- Better sharing with the network
+- Faster access from different locations
 
 ---
 
@@ -201,10 +193,10 @@ Yes! You can run Porcupin on multiple computers with the same wallets. This prov
 
 Porcupin IS an IPFS node, but with:
 
--   Automatic Tezos NFT discovery
--   Wallet tracking
--   Nice UI for management
--   "Set and forget" operation
+- Automatic Tezos NFT discovery
+- Wallet tracking
+- Nice UI for management
+- "Set and forget" operation
 
 ---
 
@@ -226,5 +218,5 @@ Set a storage limit or use external storage. See [Configuration](configuration.m
 
 ## Other Questions?
 
--   [GitHub Discussions](https://github.com/skullzarmy/porcupin-ipfs-backup-node/discussions)
--   [Open an Issue](https://github.com/skullzarmy/porcupin-ipfs-backup-node/issues)
+- [GitHub Discussions](https://github.com/skullzarmy/porcupin-ipfs-backup-node/discussions)
+- [Open an Issue](https://github.com/skullzarmy/porcupin-ipfs-backup-node/issues)

@@ -185,8 +185,8 @@ porcupin --serve
 
 This is the recommended approach for Docker and systemd deployments because:
 
--   The token isn't visible in `ps` output (unlike `--api-token` flag)
--   You can rotate the token without regenerating and restarting
+- The token isn't visible in `ps` output (unlike `--api-token` flag)
+- You can rotate the token without regenerating and restarting
 
 **Note:** When `PORCUPIN_API_TOKEN` is set, it takes precedence over the auto-generated token file.
 
@@ -268,5 +268,5 @@ rm -rf ~/.porcupin
 
 ## Next Steps
 
--   **[Troubleshooting](troubleshooting.md)** - Common issues
--   **[FAQ](faq.md)** - Frequently asked questions
+- **[Troubleshooting](troubleshooting.md)** - Common issues
+- **[FAQ](faq.md)** - Frequently asked questions

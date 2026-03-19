@@ -253,6 +253,7 @@ porcupin-ipfs-backup-node/
 │   │   ├── db/                # SQLite database (GORM)
 │   │   ├── indexer/           # TZKT API integration
 │   │   ├── ipfs/              # Embedded Kubo IPFS node
+│   │   ├── logging/           # Structured slog, ring buffer, file rotation, crash reports
 │   │   └── storage/           # Storage management
 │   ├── cmd/headless/          # Headless server entry point
 │   └── frontend/              # React + Vite + TypeScript
@@ -278,6 +279,7 @@ porcupin-ipfs-backup-node/
 | BackupManager | `porcupin/backend/core/backup.go`  | Handles NFT processing and IPFS pinning |
 | Indexer       | `porcupin/backend/indexer/tzkt.go` | Fetches NFTs via TZKT API               |
 | IPFS Node     | `porcupin/backend/ipfs/node.go`    | Embedded Kubo node                      |
+| Logging       | `porcupin/backend/logging/`        | Structured slog with ring buffer, file rotation, crash reports |
 | Database      | `porcupin/backend/db/db.go`        | SQLite with GORM                        |
 
 ---

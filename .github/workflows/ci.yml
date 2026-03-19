@@ -20,16 +20,16 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             - name: Setup Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@v6
               with:
                   go-version: ${{ env.GO_VERSION }}
                   cache-dependency-path: porcupin/go.sum
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v5
               with:
                   node-version: "20"
 
@@ -55,7 +55,7 @@ jobs:
 
             - name: Upload coverage to Codecov
               if: matrix.os == 'ubuntu-latest'
-              uses: codecov/codecov-action@v4
+              uses: codecov/codecov-action@v5
               with:
                   file: porcupin/coverage.txt
                   flags: unittests
@@ -72,16 +72,16 @@ jobs:
     #
     #     steps:
     #         - name: Checkout
-    #           uses: actions/checkout@v4
+    #           uses: actions/checkout@v5
     #
     #         - name: Setup Go
-    #           uses: actions/setup-go@v5
+    #           uses: actions/setup-go@v6
     #           with:
     #               go-version: ${{ env.GO_VERSION }}
     #               cache-dependency-path: porcupin/go.sum
     #
     #         - name: Setup Node.js
-    #           uses: actions/setup-node@v4
+    #           uses: actions/setup-node@v5
     #           with:
     #               node-version: "20"
     #
@@ -102,16 +102,16 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             - name: Setup Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@v6
               with:
                   go-version: ${{ env.GO_VERSION }}
                   cache-dependency-path: porcupin/go.sum
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v5
               with:
                   node-version: "20"
 

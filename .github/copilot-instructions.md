@@ -27,7 +27,7 @@ The app automatically syncs on startup and watches for new NFTs:
 2. **Catch-up Sync**: Syncs all wallets that haven't been synced recently
 3. **Watch Mode**: WebSocket connections for real-time token balance updates
 4. **Retry Worker**: Background goroutine retries failed assets every 2 minutes
-5. **Health Checks**: Periodic checks (every 5 min) to catch missed updates
+5. **Health Checks**: Periodic IPFS health checks (every 5 min) with peer count via Swarm API; Dashboard shows online/offline indicator with connected peer count
 
 **Service States**: `starting` → `syncing` → `watching` (or `paused`)
 
@@ -36,7 +36,8 @@ The app automatically syncs on startup and watches for new NFTs:
 -   **BackupService** ([porcupin/backend/core/service.go](porcupin/backend/core/service.go)) - Orchestrates automatic sync lifecycle
 -   **BackupManager** ([porcupin/backend/core/backup.go](porcupin/backend/core/backup.go)) - Handles actual NFT processing and pinning
 -   **Indexer** ([porcupin/backend/indexer/tzkt.go](porcupin/backend/indexer/tzkt.go)) - Fetches NFTs via TZKT REST API + WebSocket
--   **IPFS Node** ([porcupin/backend/ipfs/node.go](porcupin/backend/ipfs/node.go)) - Embeds Kubo with Pin, Verify, Cat methods
+-   **IPFS Node** ([porcupin/backend/ipfs/node.go](porcupin/backend/ipfs/node.go)) - Embeds Kubo with Pin, Verify, Cat, Health methods
+-   **Logging** ([porcupin/backend/logging/](porcupin/backend/logging/)) - Structured slog with ring buffer, daily rotating log files, multi-handler fan-out, and crash report writer
 
 ### Key Patterns
 
@@ -45,10 +46,11 @@ The app automatically syncs on startup and watches for new NFTs:
 1. Adding method to `App` struct
 2. Running `wails dev` to regenerate `frontend/wailsjs/go/main/App.{js,d.ts}`
 
-**Asset Status Flow**: `pending` → `pinned` | `failed` | `failed_unavailable`
+**Asset Status Flow**: `pending` → `pinned` | `failed` | `failed_unavailable` | `skipped`
 
 -   Status constants defined in [porcupin/backend/db/db.go](porcupin/backend/db/db.go)
 -   `failed_unavailable` indicates timeout (content not on IPFS network)
+-   `skipped` indicates non-IPFS URIs (HTTP/HTTPS) that cannot be pinned
 
 **Concurrency**: `BackupManager.workers` channel implements semaphore limiting concurrent pins (default: 5)
 
@@ -93,15 +95,23 @@ YAML config loaded from `~/.porcupin/config.yaml`. Defaults in [porcupin/backend
 ## Upcoming Features
 
 -   **Docker deployment**: Container support planned for headless server mode
--   **TZKT WebSocket**: Real-time updates via `Indexer.Listen()` - currently scaffolded in [porcupin/backend/indexer/tzkt.go](porcupin/backend/indexer/tzkt.go)
+
+## Logging & Crash Recovery
+
+-   **Structured logging** via `slog` with fan-out to stderr, in-memory ring buffer (1000 entries), and daily rotating log files (`~/.porcupin/logs/porcupin-YYYY-MM-DD.log`)
+-   Standard library `log` output is bridged through `slog`
+-   **Crash recovery**: `recover()` wrappers on all goroutines; crash reports written to `~/.porcupin/logs/crash-*.txt` with goroutine stacks and recent log entries
+-   **In-app log viewer** in Settings with level filtering (All/Info/Warn/Error) and export functionality
+-   **Diagnostic report export** includes version, OS, config summary, asset stats, and recent logs
 
 ## Frontend
 
 React + Vite + TypeScript in [porcupin/frontend](porcupin/frontend). Single-page app with tabs:
 
--   Dashboard (stats polling every 5s)
+-   Dashboard (stats polling every 5s, IPFS health indicator with peer count)
 -   Wallet management
 -   Asset browser with pagination
+-   Settings (server connection, storage migration, log viewer with level filtering, export logs/diagnostics, check IPFS connectivity, check for updates)
 
 Call Go via: `import { MethodName } from "../wailsjs/go/main/App"`
 

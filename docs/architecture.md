@@ -203,52 +203,52 @@ erDiagram
 
 ### 4.1. Backend (Go)
 
--   **Concurrency**: Uses Go routines and channels for the worker pool. WaitGroup tracking ensures graceful shutdown waits for all goroutines to complete.
--   **Resilience**: Implements exponential backoff for network requests. Panic recovery wrappers on all unprotected goroutines.
--   **IPFS**: Uses `github.com/ipfs/kubo/core` for direct node integration, bypassing the HTTP API overhead for local operations.
--   **Logging**: Structured logging via `slog` with a multi-handler fan-out to stderr, an in-memory ring buffer (1000 entries), and daily rotating log files.
--   **Health Monitoring**: Periodic IPFS health checks reporting online/offline status and connected peer count via Kubo's Swarm API.
+- **Concurrency**: Uses Go routines and channels for the worker pool. WaitGroup tracking ensures graceful shutdown waits for all goroutines to complete.
+- **Resilience**: Implements exponential backoff for network requests. Panic recovery wrappers on all unprotected goroutines.
+- **IPFS**: Uses `github.com/ipfs/kubo/core` for direct node integration, bypassing the HTTP API overhead for local operations.
+- **Logging**: Structured logging via `slog` with a multi-handler fan-out to stderr, an in-memory ring buffer (1000 entries), and daily rotating log files.
+- **Health Monitoring**: Periodic IPFS health checks reporting online/offline status and connected peer count via Kubo's Swarm API.
 
 ### 4.2. Logging & Diagnostics
 
 Porcupin uses a structured logging subsystem built on Go's `log/slog`:
 
--   **Multi-handler fan-out**: Log records are sent simultaneously to stderr, an in-memory ring buffer, and daily rotating log files.
--   **In-memory ring buffer**: The most recent 1000 log entries are kept in memory for the UI log viewer (`GetLogs` Wails binding).
--   **Rolling log files**: Daily log files written to `~/.porcupin/logs/porcupin-YYYY-MM-DD.log` with configurable retention.
--   **Crash reports**: A panic recovery wrapper captures goroutine stacks and writes crash reports to `~/.porcupin/logs/crash-*.txt`.
--   **Export**: Users can export logs and full diagnostic reports (including system info, config, and recent logs) via native file dialogs from the Settings UI.
+- **Multi-handler fan-out**: Log records are sent simultaneously to stderr, an in-memory ring buffer, and daily rotating log files.
+- **In-memory ring buffer**: The most recent 1000 log entries are kept in memory for the UI log viewer (`GetLogs` Wails binding).
+- **Rolling log files**: Daily log files written to `~/.porcupin/logs/porcupin-YYYY-MM-DD.log` with configurable retention.
+- **Crash reports**: A panic recovery wrapper captures goroutine stacks and writes crash reports to `~/.porcupin/logs/crash-*.txt`.
+- **Export**: Users can export logs and full diagnostic reports (including system info, config, and recent logs) via native file dialogs from the Settings UI.
 
-| Component    | Package                        | Purpose                                      |
-| ------------ | ------------------------------ | -------------------------------------------- |
-| Multi-handler| `backend/logging/multi.go`     | Fan-out slog handler (stderr + ring + file)  |
-| Ring buffer  | `backend/logging/ring.go`      | In-memory log storage for UI log viewer      |
-| File handler | `backend/logging/file.go`      | Daily rolling log files with retention        |
-| Crash report | `backend/logging/crash.go`     | Panic recovery and crash report writer        |
+| Component     | Package                    | Purpose                                     |
+| ------------- | -------------------------- | ------------------------------------------- |
+| Multi-handler | `backend/logging/multi.go` | Fan-out slog handler (stderr + ring + file) |
+| Ring buffer   | `backend/logging/ring.go`  | In-memory log storage for UI log viewer     |
+| File handler  | `backend/logging/file.go`  | Daily rolling log files with retention      |
+| Crash report  | `backend/logging/crash.go` | Panic recovery and crash report writer      |
 
 ### 4.3. IPFS Health Monitoring
 
 The backend periodically checks IPFS node health and exposes the result to the frontend:
 
--   **Health check**: `NodeHealthResult` struct with `IsOnline` (bool) and `PeerCount` (int) via Kubo's Swarm API.
--   **Dashboard indicator**: Green/red health dot in the navigation bar.
--   **Wails events**: `ipfs:health` event emitted on state changes so the frontend updates without polling.
--   **Remote mode**: Health data is served via the `/api/v1/health` endpoint with `is_online` and `peer_count` fields.
+- **Health check**: `NodeHealthResult` struct with `IsOnline` (bool) and `PeerCount` (int) via Kubo's Swarm API.
+- **Dashboard indicator**: Green/red health dot in the navigation bar.
+- **Wails events**: `ipfs:health` event emitted on state changes so the frontend updates without polling.
+- **Remote mode**: Health data is served via the `/api/v1/health` endpoint with `is_online` and `peer_count` fields.
 
 ### 4.4. Frontend (React + Wails)
 
--   **Communication**: Wails generates Javascript bindings for Go methods.
--   **State**: React Query handles polling the local backend for status updates (e.g., "5/100 Assets Pinned").
+- **Communication**: Wails generates Javascript bindings for Go methods.
+- **State**: React Query handles polling the local backend for status updates (e.g., "5/100 Assets Pinned").
 
 ### 4.5. REST API (Headless Server)
 
 The headless server exposes a REST API for remote management:
 
--   **Router**: chi (lightweight, composable HTTP router)
--   **Authentication**: Bearer token with bcrypt-hashed storage
--   **Rate Limiting**: Per-IP (10 req/s) and global (100 req/s) limits
--   **IP Filtering**: Private IP ranges only by default (RFC 1918)
--   **Service Discovery**: mDNS (Bonjour/Avahi) for automatic LAN discovery
+- **Router**: chi (lightweight, composable HTTP router)
+- **Authentication**: Bearer token with bcrypt-hashed storage
+- **Rate Limiting**: Per-IP (10 req/s) and global (100 req/s) limits
+- **IP Filtering**: Private IP ranges only by default (RFC 1918)
+- **Service Discovery**: mDNS (Bonjour/Avahi) for automatic LAN discovery
 
 | Component  | Package                        | Purpose                     |
 | ---------- | ------------------------------ | --------------------------- |
@@ -259,6 +259,6 @@ The headless server exposes a REST API for remote management:
 
 ### 4.6. Security & Isolation
 
--   **Docker**: The headless version runs in a distroless container to minimize attack surface.
--   **Local Storage**: Data is stored in `XDG_DATA_HOME/porcupin` (Linux) or `~/Library/Application Support/porcupin` (macOS), ensuring standard OS compliance.
--   **Token Security**: API tokens are shown once on generation; only bcrypt hashes are stored.
+- **Docker**: The headless version runs in a distroless container to minimize attack surface.
+- **Local Storage**: Data is stored in `XDG_DATA_HOME/porcupin` (Linux) or `~/Library/Application Support/porcupin` (macOS), ensuring standard OS compliance.
+- **Token Security**: API tokens are shown once on generation; only bcrypt hashes are stored.

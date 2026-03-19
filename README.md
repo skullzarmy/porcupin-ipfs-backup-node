@@ -30,29 +30,29 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 
 ## 📖 Documentation
 
-| I want to...                    | Go here                                     |
-| ------------------------------- | ------------------------------------------- |
-| **Install and use Porcupin**    | **[User Guide](docs/user-guide/README.md)** |
-| **Build from source**           | [Developer Guide](docs/development.md)      |
-| **Update Porcupin**             | [Updating Guide](docs/user-guide/updating.md)|
+| I want to...                    | Go here                                               |
+| ------------------------------- | ----------------------------------------------------- |
+| **Install and use Porcupin**    | **[User Guide](docs/user-guide/README.md)**           |
+| **Build from source**           | [Developer Guide](docs/development.md)                |
+| **Update Porcupin**             | [Updating Guide](docs/user-guide/updating.md)         |
 | **Data Backup & Recovery**      | [Backup Strategy](docs/user-guide/backup-strategy.md) |
-| **Contribute code**             | [Contributing Guide](CONTRIBUTING.md)       |
-| **Understand the architecture** | [Architecture Docs](docs/architecture.md)   |
+| **Contribute code**             | [Contributing Guide](CONTRIBUTING.md)                 |
+| **Understand the architecture** | [Architecture Docs](docs/architecture.md)             |
 
 ---
 
 ## ✨ Features
 
--   🦔 **Set and Forget** — Add wallets once, Porcupin handles the rest
--   📌 **IPFS Pinning** — Embedded Kubo node, no external services needed
--   🔄 **Real-time Sync** — Watches for new NFTs via TZKT
--   💻 **Cross-Platform** — macOS, Windows, Linux, Raspberry Pi, Docker
--   🌐 **Remote Server Mode** — Run headless on NAS/Pi, manage from desktop app
--   📊 **Dashboard** — Track sync status, storage usage, connected peers, and asset health
--   🩺 **IPFS Health Monitoring** — Live online/offline indicator with connected peer count
--   📋 **Built-in Log Viewer** — View, filter, and export logs directly from Settings
--   🛡️ **Crash Diagnostics** — Rolling log files, panic recovery, and exportable diagnostic reports
--   🔒 **Self-Sovereign** — Your data stays on your machine
+- 🦔 **Set and Forget** — Add wallets once, Porcupin handles the rest
+- 📌 **IPFS Pinning** — Embedded Kubo node, no external services needed
+- 🔄 **Real-time Sync** — Watches for new NFTs via TZKT
+- 💻 **Cross-Platform** — macOS, Windows, Linux, Raspberry Pi, Docker
+- 🌐 **Remote Server Mode** — Run headless on NAS/Pi, manage from desktop app
+- 📊 **Dashboard** — Track sync status, storage usage, connected peers, and asset health
+- 🩺 **IPFS Health Monitoring** — Live online/offline indicator with connected peer count
+- 📋 **Built-in Log Viewer** — View, filter, and export logs directly from Settings
+- 🛡️ **Crash Diagnostics** — Rolling log files, panic recovery, and exportable diagnostic reports
+- 🔒 **Self-Sovereign** — Your data stays on your machine
 
 ---
 
@@ -62,12 +62,12 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 
 ### Quick Links
 
--   [Which binary do I need?](docs/user-guide/installation.md#quick-reference-which-binary-do-i-need)
--   [Desktop App](docs/user-guide/installation.md#desktop-app-gui) (macOS, Windows, Linux)
--   [Headless Server](docs/user-guide/installation.md#headless-server-no-gui) (Ubuntu, Raspberry Pi)
--   [Docker](docs/user-guide/installation.md#docker)
--   [Configuration](docs/user-guide/configuration.md)
--   [Troubleshooting](docs/user-guide/troubleshooting.md)
+- [Which binary do I need?](docs/user-guide/installation.md#quick-reference-which-binary-do-i-need)
+- [Desktop App](docs/user-guide/installation.md#desktop-app-gui) (macOS, Windows, Linux)
+- [Headless Server](docs/user-guide/installation.md#headless-server-no-gui) (Ubuntu, Raspberry Pi)
+- [Docker](docs/user-guide/installation.md#docker)
+- [Configuration](docs/user-guide/configuration.md)
+- [Troubleshooting](docs/user-guide/troubleshooting.md)
 
 ### Supported Platforms
 
@@ -78,7 +78,7 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 | Windows x64           |      ✅       |       —        |   ✅   |
 | Windows ARM64         |      ✅       |       —        |   ✅   |
 | Linux x64             |      ✅       |       ✅       |   ✅   |
-| Linux ARM64 (Pi)      |      —        |       ✅       |   ✅   |
+| Linux ARM64 (Pi)      |       —       |       ✅       |   ✅   |
 
 ---
 
@@ -88,10 +88,10 @@ We welcome contributions from developers of all skill levels! Please read our [C
 
 **Quick links:**
 
--   [Code of Conduct](CONTRIBUTING.md#code-of-conduct)
--   [How to Contribute](CONTRIBUTING.md#how-can-i-contribute)
--   [Development Setup](CONTRIBUTING.md#development-setup)
--   [Style Guidelines](CONTRIBUTING.md#style-guidelines)
+- [Code of Conduct](CONTRIBUTING.md#code-of-conduct)
+- [How to Contribute](CONTRIBUTING.md#how-can-i-contribute)
+- [Development Setup](CONTRIBUTING.md#development-setup)
+- [Style Guidelines](CONTRIBUTING.md#style-guidelines)
 
 ### Good First Issues
 
@@ -126,10 +126,10 @@ You are free to use, modify, and distribute this software. We just ask that you 
 
 This project was made possible by these incredible open-source technologies:
 
--   **[Wails](https://wails.io)** — The Go/React desktop application framework
--   **[Kubo IPFS](https://github.com/ipfs/kubo)** — The implementation of IPFS used for embedded pinning
--   **[TZKT](https://tzkt.io)** — The premier Tezos API and Indexer
--   **[Go](https://go.dev)** — The language that powers the backend
+- **[Wails](https://wails.io)** — The Go/React desktop application framework
+- **[Kubo IPFS](https://github.com/ipfs/kubo)** — The implementation of IPFS used for embedded pinning
+- **[TZKT](https://tzkt.io)** — The premier Tezos API and Indexer
+- **[Go](https://go.dev)** — The language that powers the backend
 
 ### Special Thanks
 

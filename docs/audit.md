@@ -78,9 +78,9 @@ This document outlines potential security and reliability risks identified durin
 
 **Mitigation**:
 
--   Tokens are hashed with bcrypt before storage (plaintext never persisted)
--   Constant-time comparison to prevent timing attacks
--   Tokens shown only once at generation time
+- Tokens are hashed with bcrypt before storage (plaintext never persisted)
+- Constant-time comparison to prevent timing attacks
+- Tokens shown only once at generation time
 
 ### Rate Limiting
 
@@ -88,9 +88,9 @@ This document outlines potential security and reliability risks identified durin
 
 **Mitigation**: Dual-layer rate limiting implemented:
 
--   Per-IP: 10 requests/second
--   Global: 100 requests/second
--   Rate limit headers returned (`X-RateLimit-*`) for client visibility
+- Per-IP: 10 requests/second
+- Global: 100 requests/second
+- Rate limit headers returned (`X-RateLimit-*`) for client visibility
 
 ### IP Spoofing via Proxies
 

@@ -10,11 +10,11 @@ Get Porcupin running and backing up your NFTs in 5 minutes.
 
 Open the app. You'll see the Dashboard showing:
 
--   **IPFS Health** indicator (green = online with connected peers, red = offline)
--   **Pinned**: 0 (number of backed up assets)
--   **Pending**: 0 (assets waiting to be pinned)
--   **Failed**: 0 (assets that couldn't be retrieved)
--   **Skipped**: 0 (non-IPFS assets like HTTP URLs that can't be pinned)
+- **IPFS Health** indicator (green = online with connected peers, red = offline)
+- **Pinned**: 0 (number of backed up assets)
+- **Pending**: 0 (assets waiting to be pinned)
+- **Failed**: 0 (assets that couldn't be retrieved)
+- **Skipped**: 0 (non-IPFS assets like HTTP URLs that can't be pinned)
 
 ### Step 2: Add Your Wallet
 
@@ -38,10 +38,10 @@ Watch the Dashboard as numbers go up! The first sync may take a while if you hav
 
 That's it! Porcupin will:
 
--   **Run in the background** when you close the window (check system tray)
--   **Watch for new NFTs** automatically
--   **Retry failed downloads** periodically
--   **Share content** with the IPFS network
+- **Run in the background** when you close the window (check system tray)
+- **Watch for new NFTs** automatically
+- **Retry failed downloads** periodically
+- **Share content** with the IPFS network
 
 ---
 
@@ -110,25 +110,25 @@ You can also run Porcupin using Docker or Docker Compose.
 
 ### Automatic Sync
 
--   Porcupin checks for new NFTs every few minutes
--   When you receive/mint a new NFT, it's automatically backed up
+- Porcupin checks for new NFTs every few minutes
+- When you receive/mint a new NFT, it's automatically backed up
 
 ### Failed Assets
 
--   Some NFTs have broken/missing IPFS content
--   These are marked as "Failed (Unavailable)"
--   Porcupin periodically retries them in case they come back online
+- Some NFTs have broken/missing IPFS content
+- These are marked as "Failed (Unavailable)"
+- Porcupin periodically retries them in case they come back online
 
 ### Skipped Assets
 
--   NFTs with non-IPFS URIs (HTTP/HTTPS links) are automatically marked as "Skipped"
--   These cannot be pinned to IPFS and are excluded from failure counts
+- NFTs with non-IPFS URIs (HTTP/HTTPS links) are automatically marked as "Skipped"
+- These cannot be pinned to IPFS and are excluded from failure counts
 
 ### Storage Growth
 
--   Your `~/.porcupin/ipfs` folder will grow as you pin more content
--   Monitor disk usage in the Dashboard or with `porcupin --stats`
--   Set storage limits in [Configuration](configuration.md)
+- Your `~/.porcupin/ipfs` folder will grow as you pin more content
+- Monitor disk usage in the Dashboard or with `porcupin --stats`
+- Set storage limits in [Configuration](configuration.md)
 
 ---
 
@@ -151,9 +151,9 @@ porcupin --add-wallet tz1YourWallet --sync-owned --no-sync-created
 
 For large collections, consider:
 
--   **macOS**: External SSD or NAS
--   **Linux**: Mount an external drive to `~/.porcupin/ipfs`
--   **Docker**: Use a bind mount to a larger disk
+- **macOS**: External SSD or NAS
+- **Linux**: Mount an external drive to `~/.porcupin/ipfs`
+- **Docker**: Use a bind mount to a larger disk
 
 See [Configuration](configuration.md) for details.
 
@@ -161,16 +161,15 @@ See [Configuration](configuration.md) for details.
 
 You can run Porcupin on multiple machines with the same wallets. Each will:
 
--   Independently pin all content
--   Help serve content to the IPFS network
--   Provide redundancy if one machine goes offline
+- Independently pin all content
+- Help serve content to the IPFS network
+- Provide redundancy if one machine goes offline
 
 ---
 
 ## Next Steps
 
--   **[Configuration](configuration.md)** - Storage limits, external drives, advanced settings
--   **[Updating](updating.md)** - How to keep Porcupin up to date
--   **[Troubleshooting](troubleshooting.md)** - Common issues
--   **[FAQ](faq.md)** - Frequently asked questions
-
+- **[Configuration](configuration.md)** - Storage limits, external drives, advanced settings
+- **[Updating](updating.md)** - How to keep Porcupin up to date
+- **[Troubleshooting](troubleshooting.md)** - Common issues
+- **[FAQ](faq.md)** - Frequently asked questions

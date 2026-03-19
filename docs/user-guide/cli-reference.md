@@ -73,9 +73,9 @@ API server starting on http://192.168.1.50:8085
 
 The API token is **shown only once** when first generated. It cannot be retrieved afterward.
 
--   **File storage:** `~/.porcupin/.api-token-hash` (stores bcrypt hash, not plaintext)
--   **Environment override:** Set `PORCUPIN_API_TOKEN` to use a specific token
--   **Flag override:** `--api-token <token>` (WARNING: visible in `ps`, prefer env var)
+- **File storage:** `~/.porcupin/.api-token-hash` (stores bcrypt hash, not plaintext)
+- **Environment override:** Set `PORCUPIN_API_TOKEN` to use a specific token
+- **Flag override:** `--api-token <token>` (WARNING: visible in `ps`, prefer env var)
 
 To get a new token:
 
@@ -218,9 +218,9 @@ porcupin --retry-pending
 
 This is useful when:
 
--   A previous sync was interrupted (killed, crashed, etc.)
--   Assets were created but never pinned
--   You want to resume incomplete work
+- A previous sync was interrupted (killed, crashed, etc.)
+- Assets were created but never pinned
+- You want to resume incomplete work
 
 **Note:** This starts the IPFS node, processes pending assets, then exits. It does not start the full daemon.
 
@@ -376,7 +376,7 @@ When running as a daemon:
 
 ## See Also
 
--   [Installation Guide](installation.md) - Installing Porcupin
--   [Quick Start Guide](quickstart.md) - Getting started
--   [Configuration](configuration.md) - Config file options
--   [Troubleshooting](troubleshooting.md) - Common issues
+- [Installation Guide](installation.md) - Installing Porcupin
+- [Quick Start Guide](quickstart.md) - Getting started
+- [Configuration](configuration.md) - Config file options
+- [Troubleshooting](troubleshooting.md) - Common issues

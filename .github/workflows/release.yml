@@ -23,16 +23,16 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             - name: Setup Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@v6
               with:
                   go-version: ${{ env.GO_VERSION }}
                   cache-dependency-path: porcupin/go.sum
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v5
               with:
                   node-version: ${{ env.NODE_VERSION }}
 
@@ -91,16 +91,16 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             - name: Setup Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@v6
               with:
                   go-version: ${{ env.GO_VERSION }}
                   cache-dependency-path: porcupin/go.sum
 
             - name: Setup Node.js
-              uses: actions/setup-node@v4
+              uses: actions/setup-node@v5
               with:
                   node-version: ${{ env.NODE_VERSION }}
 
@@ -144,7 +144,7 @@ jobs:
               run: ${{ matrix.package_cmd }}
 
             - name: Upload artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: ${{ matrix.artifact }}
                   path: porcupin/build/bin/${{ matrix.package_file }}
@@ -171,10 +171,10 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             - name: Setup Go
-              uses: actions/setup-go@v5
+              uses: actions/setup-go@v6
               with:
                   go-version: ${{ env.GO_VERSION }}
                   cache-dependency-path: porcupin/go.sum
@@ -188,7 +188,7 @@ jobs:
               run: go build -o build/bin/${{ matrix.artifact }} ./cmd/headless
 
             - name: Upload artifact
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v5
               with:
                   name: ${{ matrix.artifact }}
                   path: porcupin/build/bin/${{ matrix.artifact }}
@@ -203,7 +203,7 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             - name: Set up QEMU
               uses: docker/setup-qemu-action@v3
@@ -249,10 +249,10 @@ jobs:
 
         steps:
             - name: Checkout
-              uses: actions/checkout@v4
+              uses: actions/checkout@v5
 
             - name: Download all artifacts
-              uses: actions/download-artifact@v4
+              uses: actions/download-artifact@v5
               with:
                   path: artifacts
 
