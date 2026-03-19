@@ -283,8 +283,3 @@ require (
 )
 
 // replace github.com/wailsapp/wails/v2 v2.11.0 => /Users/joepeterson/go/pkg/mod
-
-replace (
-	github.com/cockroachdb/pebble => github.com/cockroachdb/pebble v1.1.2
-	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20250825161204-c5933d9347a5
-)
