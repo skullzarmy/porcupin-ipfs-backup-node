@@ -2,13 +2,17 @@ package ipfs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/ipfs/kubo/config"
@@ -77,17 +81,6 @@ func (n *Node) Start(ctx context.Context) error {
 
 	log.Printf("IPFS node starting (repo: %s, swarm port: %d)...", n.repoPath, n.swarmPort)
 
-	// Remove stale lock file if it exists from a previous unclean shutdown
-	// This can happen after a crash, forced quit, or migration
-	lockFile := filepath.Join(n.repoPath, "repo.lock")
-	if _, err := os.Stat(lockFile); err == nil {
-		log.Printf("Removing stale repo lock file before start: %s", lockFile)
-		if err := os.Remove(lockFile); err != nil {
-			log.Printf("Warning: failed to remove stale lock file: %v", err)
-			// Continue anyway - fsrepo.Open will give a clearer error if needed
-		}
-	}
-
 	// Setup plugins
 	if err := setupPlugins(""); err != nil {
 		return fmt.Errorf("failed to setup plugins: %w", err)
@@ -102,7 +95,7 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 		// Configure swarm addresses with custom port
 		n.configureSwarmAddresses(cfg)
-		
+
 		// Apply profile-specific configuration (e.g., low power settings)
 		applyProfileConfig(cfg)
 
@@ -111,9 +104,16 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 	}
 
-	// Open repo
+	// Open repo. If locked, surface a clear user-facing error rather than automatically
+	// removing the lock file. OS file locks (flock) are released by the kernel when a
+	// process exits — including crashes and SIGKILL — so a stale lock from a previous
+	// run is self-healing. Automatic removal risks corrupting a live repo.
 	repo, err := fsrepo.Open(n.repoPath)
 	if err != nil {
+		if strings.Contains(err.Error(), "lock") {
+			lockFile := filepath.Join(n.repoPath, "repo.lock")
+			return fmt.Errorf("IPFS repository is locked by another process. If Porcupin is not already running, delete %s and try again", lockFile)
+		}
 		return fmt.Errorf("failed to open repo: %w", err)
 	}
 
@@ -133,13 +133,34 @@ func (n *Node) Start(ctx context.Context) error {
 		},
 	}
 
-	node, err := core.NewNode(ctx, nodeOptions)
+	var node *core.IpfsNode
+	for attempt := 1; attempt <= 3; attempt++ {
+		node, err = core.NewNode(ctx, nodeOptions)
+		if err == nil {
+			break
+		}
+		if !isPortConflictError(err) {
+			repo.Close()
+			return fmt.Errorf("failed to create node: %w", err)
+		}
+		if attempt < 3 {
+			log.Printf("Port %d in use (attempt %d/3), retrying in 2s...", n.swarmPort, attempt)
+			select {
+			case <-time.After(2 * time.Second):
+			case <-ctx.Done():
+				repo.Close()
+				return ctx.Err()
+			}
+		}
+	}
 	if err != nil {
+		repo.Close()
 		return fmt.Errorf("failed to create node: %w", err)
 	}
 
 	api, err := coreapi.NewCoreAPI(node)
 	if err != nil {
+		node.Close()
 		return fmt.Errorf("failed to create core api: %w", err)
 	}
 
@@ -174,10 +195,17 @@ func (n *Node) Stop() error {
 	// when there are active libp2p connections or DHT operations
 	done := make(chan error, 1)
 	go func() {
-		done <- n.node.Close()
+		closeErr := n.node.Close()
+		if closeErr != nil {
+			log.Printf("IPFS deferred close completed with error: %v", closeErr)
+		} else {
+			log.Println("IPFS deferred close completed successfully")
+		}
+		done <- closeErr
 	}()
 
 	var closeErr error
+	timedOut := false
 	select {
 	case err := <-done:
 		closeErr = err
@@ -188,27 +216,44 @@ func (n *Node) Stop() error {
 		}
 	case <-time.After(ShutdownTimeout):
 		log.Printf("IPFS node shutdown timed out after %v, forcing closure", ShutdownTimeout)
-		// Node didn't close in time - this can happen when libp2p connections are stuck
-		// We need to proceed anyway, so we'll clean up the lock file manually
+		timedOut = true
 	}
 
 	// Clear our references regardless of how we exited
 	n.node = nil
 	n.api = nil
 
-	// Remove the repo lock file if it exists - this is necessary when:
-	// 1. The node didn't shut down cleanly (timeout)
-	// 2. We need to allow migration to proceed
-	// 3. We need to allow a new node to start at a different location
-	lockFile := filepath.Join(repoPath, "repo.lock")
-	if _, err := os.Stat(lockFile); err == nil {
-		log.Printf("Removing stale repo lock file: %s", lockFile)
-		if err := os.Remove(lockFile); err != nil {
-			log.Printf("Warning: failed to remove lock file: %v", err)
+	// Only remove the repo lock file after a timeout — if the node closed
+	// cleanly, Kubo already released the lock. Removing unconditionally
+	// risks deleting a lock that a concurrent process legitimately holds.
+	if timedOut {
+		lockFile := filepath.Join(repoPath, "repo.lock")
+		if _, err := os.Stat(lockFile); err == nil {
+			log.Printf("Removing stale repo lock file after timeout: %s", lockFile)
+			if err := os.Remove(lockFile); err != nil {
+				log.Printf("Warning: failed to remove lock file: %v", err)
+			}
 		}
 	}
 
 	return closeErr
+}
+
+// isPortConflictError returns true if the error indicates the swarm port is already bound.
+// Checks via errors.As for net.OpError / syscall.EADDRINUSE, with a string-match fallback
+// for cases where the error is wrapped inside IPFS/multiaddr layers.
+func isPortConflictError(err error) bool {
+	if err == nil {
+		return false
+	}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		if errors.Is(opErr.Err, syscall.EADDRINUSE) {
+			return true
+		}
+	}
+	// Fallback: covers errors wrapped so deeply that errors.As can't reach the OpError
+	return strings.Contains(err.Error(), "address already in use")
 }
 
 // configureSwarmAddresses sets up the swarm listen addresses with the configured port
@@ -258,7 +303,39 @@ func (n *Node) GetSwarmPort() int {
 	return n.swarmPort
 }
 
-// Pin pins a CID to the local node with a timeout
+// NodeHealthResult holds the result of an IPFS node health check.
+type NodeHealthResult struct {
+	IsOnline  bool      `json:"is_online"`
+	PeerCount int       `json:"peer_count"`
+	Message   string    `json:"message"`
+	CheckedAt time.Time `json:"checked_at"`
+}
+
+// Health queries the number of connected swarm peers and returns an IsOnline result.
+// Uses a 10-second timeout and never mutates node state.
+func (n *Node) Health(ctx context.Context) NodeHealthResult {
+	// Copy api ref under lock and release immediately — Swarm().Peers() can block
+	// for up to 10 seconds and holding RLock that long would delay Stop()/Start().
+	n.mu.RLock()
+	api := n.api
+	n.mu.RUnlock()
+
+	if api == nil {
+		return NodeHealthResult{IsOnline: false, Message: "Node not started", CheckedAt: time.Now()}
+	}
+
+	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	peers, err := api.Swarm().Peers(tctx)
+	if err != nil {
+		return NodeHealthResult{IsOnline: false, Message: "Health check failed: " + err.Error(), CheckedAt: time.Now()}
+	}
+	if len(peers) == 0 {
+		return NodeHealthResult{IsOnline: false, PeerCount: 0, Message: "Running but no peers connected", CheckedAt: time.Now()}
+	}
+	return NodeHealthResult{IsOnline: true, PeerCount: len(peers), Message: "Connected", CheckedAt: time.Now()}
+}
 func (n *Node) Pin(ctx context.Context, cidStr string, timeout time.Duration) error {
 	n.mu.RLock()
 	defer n.mu.RUnlock()
@@ -581,20 +658,28 @@ func (n *Node) Cat(ctx context.Context, cidStr string, maxBytes int64) ([]byte, 
 }
 
 
-// Helper to setup plugins (required for Kubo)
+var pluginsOnce sync.Once
+var pluginsErr error
+
+// setupPlugins initializes Kubo plugins exactly once. Uses sync.Once so
+// it is safe to call on every Start() — including after Stop() restarts.
 func setupPlugins(externalPluginsPath string) error {
-	plugins, err := loader.NewPluginLoader(filepath.Join(externalPluginsPath, "plugins"))
-	if err != nil {
-		return fmt.Errorf("error loading plugins: %s", err)
-	}
+	pluginsOnce.Do(func() {
+		plugins, err := loader.NewPluginLoader(filepath.Join(externalPluginsPath, "plugins"))
+		if err != nil {
+			pluginsErr = fmt.Errorf("error loading plugins: %w", err)
+			return
+		}
 
-	if err := plugins.Initialize(); err != nil {
-		return fmt.Errorf("error initializing plugins: %s", err)
-	}
+		if err := plugins.Initialize(); err != nil {
+			pluginsErr = fmt.Errorf("error initializing plugins: %w", err)
+			return
+		}
 
-	if err := plugins.Inject(); err != nil {
-		return fmt.Errorf("error injecting plugins: %s", err)
-	}
-
-	return nil
+		if err := plugins.Inject(); err != nil {
+			pluginsErr = fmt.Errorf("error injecting plugins: %w", err)
+			return
+		}
+	})
+	return pluginsErr
 }

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,6 +16,10 @@ import (
 	"porcupin/backend/db"
 	"porcupin/backend/indexer"
 )
+
+// errAssetSkipped is returned by pinAssetDirect when a URI is not an IPFS URI.
+// Callers use errors.Is to distinguish skipped assets from pin failures.
+var errAssetSkipped = errors.New("asset skipped: not an IPFS URI")
 
 // SyncProgress represents the current sync operation progress
 type SyncProgress struct {
@@ -49,8 +54,7 @@ type BackupManager struct {
 	config   *config.Config
 	mu       sync.RWMutex
 	workers  chan struct{}
-	shutdown chan struct{}
-	
+
 	// Pause control
 	pauseMu  sync.RWMutex
 	isPaused bool
@@ -58,7 +62,7 @@ type BackupManager struct {
 	// Sync progress tracking
 	progressMu    sync.RWMutex
 	progress      SyncProgress
-	processedURIs sync.Map // tracks URIs processed in current sync to avoid double-counting
+	processedURIs atomic.Pointer[sync.Map] // tracks URIs processed in current sync to avoid double-counting
 	
 	// Disk usage tracking - update after pins, not on every pin
 	diskUsageDirty int32 // atomic flag: 1 if pins happened since last du
@@ -74,16 +78,31 @@ func NewBackupManager(ipfsNode IPFSClient, idx *indexer.Indexer, database *db.Da
 	}
 	
 	log.Printf("Initializing BackupManager with %d workers", concurrency)
-	
-	return &BackupManager{
+
+	bm := &BackupManager{
 		ipfs:     ipfsNode,
 		indexer:  idx,
 		db:       database,
 		config:   cfg,
 		workers:  make(chan struct{}, concurrency),
-		shutdown: make(chan struct{}),
 		progress: SyncProgress{Phase: "idle"},
 	}
+	bm.processedURIs.Store(new(sync.Map))
+	return bm
+}
+
+// UpdateIPFS replaces the IPFS node reference (used after storage migration).
+func (bm *BackupManager) UpdateIPFS(node IPFSClient) {
+	bm.mu.Lock()
+	defer bm.mu.Unlock()
+	bm.ipfs = node
+}
+
+// getIPFS returns the current IPFS client under a read lock.
+func (bm *BackupManager) getIPFS() IPFSClient {
+	bm.mu.RLock()
+	defer bm.mu.RUnlock()
+	return bm.ipfs
 }
 
 // SetPaused sets the pause state
@@ -150,7 +169,7 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 	})
 	
 	// Reset processed URIs for this sync
-	bm.processedURIs = sync.Map{}
+	bm.processedURIs.Store(new(sync.Map))
 
 	// Get wallet to check last synced level for incremental sync
 	wallet, err := bm.db.GetWallet(address)
@@ -243,30 +262,39 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 
 	log.Printf("Found %d unique NFTs with %d unique assets for %s", len(tokenMap), totalAssets, address)
 
-	// 5. Process each NFT
+	// 5. Process each NFT (bounded concurrency)
 	var wg sync.WaitGroup
-	processed := 0
-	total := len(tokenMap)
-	
+	var processed int64
+	total := int64(len(tokenMap))
+	sem := make(chan struct{}, cap(bm.workers)) // match configured concurrency
+
 	for _, token := range tokenMap {
 		// Check for pause before starting new work
 		if bm.IsPaused() {
 			log.Printf("Sync paused, stopping NFT processing")
 			break
 		}
-		
+
+		select {
+		case sem <- struct{}{}: // acquire slot
+		case <-ctx.Done():
+		}
+		if ctx.Err() != nil {
+			break
+		}
 		wg.Add(1)
 		go func(t indexer.Token) {
+			defer func() { <-sem }() // release slot
 			defer wg.Done()
 			defer func() {
 				if r := recover(); r != nil {
 					log.Printf("Panic processing NFT %s:%s - %v", t.Contract.Address, t.TokenID, r)
 				}
 				// Update progress
+				cur := atomic.AddInt64(&processed, 1)
 				bm.updateProgress(func(p *SyncProgress) {
 					p.ProcessedNFTs++
-					processed++
-					if t.Metadata != nil && processed < total {
+					if t.Metadata != nil && cur < total {
 						p.CurrentItem = t.Metadata.Name
 					} else {
 						p.CurrentItem = "Finishing..."
@@ -363,8 +391,6 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 		defer func() { <-bm.workers }()
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-bm.shutdown:
-		return fmt.Errorf("backup manager shutdown")
 	}
 
 	// If metadata is nil, try to fetch it from the chain
@@ -425,23 +451,23 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 	var assets []assetEntry
 	
 	// Add artifact (main content)
-	if token.Metadata.ArtifactURI != "" {
+	if token.Metadata.ArtifactURI != "" && isIPFSURI(token.Metadata.ArtifactURI) {
 		assets = append(assets, assetEntry{token.Metadata.ArtifactURI, "artifact"})
 	}
-	
+
 	// Add display URI if different from artifact
-	if token.Metadata.DisplayURI != "" && token.Metadata.DisplayURI != token.Metadata.ArtifactURI {
+	if token.Metadata.DisplayURI != "" && token.Metadata.DisplayURI != token.Metadata.ArtifactURI && isIPFSURI(token.Metadata.DisplayURI) {
 		assets = append(assets, assetEntry{token.Metadata.DisplayURI, "display"})
 	}
-	
+
 	// Add thumbnail if different from artifact
-	if token.Metadata.ThumbnailURI != "" && token.Metadata.ThumbnailURI != token.Metadata.ArtifactURI {
+	if token.Metadata.ThumbnailURI != "" && token.Metadata.ThumbnailURI != token.Metadata.ArtifactURI && isIPFSURI(token.Metadata.ThumbnailURI) {
 		assets = append(assets, assetEntry{token.Metadata.ThumbnailURI, "thumbnail"})
 	}
 	
 	// Add additional formats
 	for _, format := range token.Metadata.Formats {
-		if format.URI != "" {
+		if format.URI != "" && isIPFSURI(format.URI) {
 			assets = append(assets, assetEntry{format.URI, "format"})
 		}
 	}
@@ -457,8 +483,13 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 
 // backupAsset downloads and pins an asset to IPFS
 func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri string, assetType string) error {
+	// Lazy-init processedURIs — handles BackupManager built via struct literal (e.g. in tests)
+	// rather than NewBackupManager. CompareAndSwap is safe under concurrent access.
+	if bm.processedURIs.Load() == nil {
+		bm.processedURIs.CompareAndSwap(nil, new(sync.Map))
+	}
 	// Check if we've already processed this URI in this sync (deduplication)
-	if _, loaded := bm.processedURIs.LoadOrStore(uri, true); loaded {
+	if _, loaded := bm.processedURIs.Load().LoadOrStore(uri, true); loaded {
 		// Already processed in this sync, skip
 		return nil
 	}
@@ -476,6 +507,11 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		return nil
 	}
 
+	// If it was previously classified as not pinnable (non-IPFS URI), leave it alone
+	if err == nil && existingAsset != nil && existingAsset.Status == db.StatusSkipped {
+		return nil
+	}
+
 	asset := &db.Asset{
 		NFTID:  nftID,
 		URI:    uri,
@@ -487,7 +523,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		asset.ID = existingAsset.ID
 		asset.RetryCount = existingAsset.RetryCount
 		// If it was failed, reset to pending
-		if strings.Contains(existingAsset.Status, "failed") {
+		if existingAsset.Status == db.StatusFailed || existingAsset.Status == db.StatusFailedUnavailable {
 			asset.Status = db.StatusPending
 			asset.ErrorMsg = ""
 		} else {
@@ -504,9 +540,14 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		return nil
 	}
 
-	// Skip non-IPFS URIs - we can only pin IPFS content
+	// Non-IPFS URIs (HTTP/HTTPS) cannot be pinned — mark terminal so they are never retried
 	if !strings.HasPrefix(uri, "ipfs://") && !strings.Contains(uri, "/ipfs/") {
 		log.Printf("Skipping non-IPFS URI: %s", uri)
+		asset.Status = db.StatusSkipped
+		asset.ErrorMsg = ""
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save skipped status for asset %s: %v", uri, err)
+		}
 		return nil
 	}
 
@@ -523,7 +564,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		log.Printf("Storage limit reached, stopping backup")
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Storage limit reached"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		// Auto-pause to prevent further attempts
 		bm.SetPaused(true)
 		return fmt.Errorf("storage limit reached")
@@ -534,7 +577,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		log.Printf("Insufficient disk space, stopping backup")
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Insufficient disk space"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		// Auto-pause to prevent further attempts
 		bm.SetPaused(true)
 		return fmt.Errorf("insufficient disk space")
@@ -551,12 +596,16 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		if size > bm.config.IPFS.MaxFileSize {
 			asset.Status = db.StatusFailed
 			asset.ErrorMsg = fmt.Sprintf("File too large: %d bytes (max %d)", size, bm.config.IPFS.MaxFileSize)
-			bm.db.SaveAsset(asset)
+			if err := bm.db.SaveAsset(asset); err != nil {
+				log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+			}
 			return fmt.Errorf("file too large: %d bytes", size)
 		}
 		asset.SizeBytes = size
 		asset.MimeType = mimeType
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset metadata for %s: %v", uri, err)
+		}
 	}
 
 	// Extract CID from URI (if it's an IPFS URI)
@@ -564,7 +613,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	if cid == "" {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Invalid IPFS URI - could not extract CID"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		bm.updateProgress(func(p *SyncProgress) {
 			p.FailedAssets++
 		})
@@ -582,7 +633,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 			asset.Status = db.StatusFailed
 			asset.ErrorMsg = err.Error()
 		}
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		bm.updateProgress(func(p *SyncProgress) {
 			p.FailedAssets++
 		})
@@ -590,7 +643,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	}
 
 	// Get actual size from IPFS after pinning
-	if size, err := bm.ipfs.Stat(ctx, cid); err == nil && size > 0 {
+	if size, err := bm.getIPFS().Stat(ctx, cid); err == nil && size > 0 {
 		asset.SizeBytes = size
 	} else if err != nil {
 		log.Printf("Could not get size for %s: %v", cid, err)
@@ -600,8 +653,10 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	asset.Status = db.StatusPinned
 	now := time.Now()
 	asset.PinnedAt = &now
-	bm.db.SaveAsset(asset)
-	
+	if err := bm.db.SaveAsset(asset); err != nil {
+		log.Printf("Warning: failed to save pinned status for %s: %v", uri, err)
+	}
+
 	// Mark disk usage for update
 	bm.MarkDiskUsageDirty()
 
@@ -644,16 +699,12 @@ func (bm *BackupManager) downloadMetadata(ctx context.Context, uri string) ([]by
 // VerifyAndFixPins iterates through all NFTs and ensures their assets are properly tracked and pinned
 // This fixes data loss from the previous "pause bug" where assets weren't saved to DB
 func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, error) {
-	bm.mu.Lock()
-	// check if already running?
-	bm.mu.Unlock()
-
 	log.Println("Starting VerifyAndFixPins...")
 	
 	stats := map[string]int{
-		"checked": 0,
-		"fixed":   0,
-		"errors":  0,
+		"checked":   0,
+		"processed": 0,
+		"errors":    0,
 	}
 
 	// 1. Get all NFTs from DB
@@ -679,6 +730,11 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 		}
 		
 		for _, nft := range nfts {
+			select {
+			case <-ctx.Done():
+				return stats, ctx.Err()
+			default:
+			}
 			stats["checked"]++
 			
 			// Reconstruct Token/Metadata from DB record
@@ -720,9 +776,7 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 				log.Printf("VerifyAndFix: Error processing NFT %d (%s): %v", nft.ID, nft.Name, err)
 				stats["errors"]++
 			} else {
-				// We don't easily know if we "fixed" it without checking DB state change, 
-				// but let's assume if it succeeded we're good.
-				// We could count it if we modified processNFT to return "created" count, but keeping it simple.
+				stats["processed"]++
 			}
 		}
 		
@@ -756,7 +810,7 @@ func (bm *BackupManager) pinWithRetry(ctx context.Context, cid string, retryCoun
 			timeout = 60 * time.Second  // Cap at 60s per attempt
 		}
 		
-		err := bm.ipfs.Pin(ctx, cid, timeout)
+		err := bm.getIPFS().Pin(ctx, cid, timeout)
 		if err == nil {
 			return nil
 		}
@@ -803,7 +857,7 @@ func ExtractCIDFromURI(uri string) string {
 	} else {
 		// Find /ipfs/ in the URI (for gateway URLs)
 		const ipfsPrefix = "/ipfs/"
-		idx := indexOf(uri, ipfsPrefix)
+		idx := strings.Index(uri, ipfsPrefix)
 		if idx != -1 {
 			cid = uri[idx+len(ipfsPrefix):]
 		}
@@ -814,12 +868,12 @@ func ExtractCIDFromURI(uri string) string {
 	}
 
 	// Strip query parameters (e.g., ?fxhash=...)
-	if qIdx := indexOf(cid, "?"); qIdx != -1 {
+	if qIdx := strings.Index(cid, "?"); qIdx != -1 {
 		cid = cid[:qIdx]
 	}
 
 	// Strip trailing path (e.g., /index.html) - keep only the CID
-	if slashIdx := indexOf(cid, "/"); slashIdx != -1 {
+	if slashIdx := strings.Index(cid, "/"); slashIdx != -1 {
 		cid = cid[:slashIdx]
 	}
 
@@ -834,21 +888,10 @@ func isTimeoutError(err error) bool {
 	return err == context.DeadlineExceeded || err.Error() == "context deadline exceeded"
 }
 
-// indexOf returns the index of substr in s, or -1 if not found
-func indexOf(s, substr string) int {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return i
-		}
-	}
-	return -1
-}
-
 // Shutdown gracefully shuts down the backup manager
 func (bm *BackupManager) Shutdown() {
 	// Update disk usage one final time before shutdown
 	bm.UpdateDiskUsage()
-	close(bm.shutdown)
 }
 
 // MarkDiskUsageDirty marks that disk usage needs recalculation
@@ -859,7 +902,7 @@ func (bm *BackupManager) MarkDiskUsageDirty() {
 // UpdateDiskUsage recalculates disk usage if dirty and saves to DB
 func (bm *BackupManager) UpdateDiskUsage() {
 	if atomic.CompareAndSwapInt32(&bm.diskUsageDirty, 1, 0) {
-		repoPath := bm.ipfs.GetRepoPath()
+		repoPath := bm.getIPFS().GetRepoPath()
 		sizeBytes, err := GetDiskUsageBytes(repoPath)
 		if err != nil {
 			log.Printf("Failed to get disk usage: %v", err)
@@ -884,13 +927,13 @@ func hasIPFSContent(m *indexer.TokenMetadata) bool {
 	if m == nil {
 		return false
 	}
-	// Check main URIs
-	if m.ArtifactURI != "" || m.DisplayURI != "" || m.ThumbnailURI != "" {
+	// Check main URIs — only count IPFS URIs
+	if isIPFSURI(m.ArtifactURI) || isIPFSURI(m.DisplayURI) || isIPFSURI(m.ThumbnailURI) {
 		return true
 	}
 	// Check formats array
 	for _, f := range m.Formats {
-		if f.URI != "" {
+		if isIPFSURI(f.URI) {
 			return true
 		}
 	}
@@ -964,19 +1007,23 @@ func (bm *BackupManager) PinAssetByID(ctx context.Context, assetID uint64) error
 func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) error {
 	uri := asset.URI
 
-	// Skip non-IPFS URIs
+	// Non-IPFS URIs cannot be pinned — mark terminal so they are never retried
 	if !strings.HasPrefix(uri, "ipfs://") && !strings.Contains(uri, "/ipfs/") {
-		asset.Status = db.StatusFailed
-		asset.ErrorMsg = "Not an IPFS URI"
-		bm.db.SaveAsset(asset)
-		return fmt.Errorf("not an IPFS URI: %s", uri)
+		asset.Status = db.StatusSkipped
+		asset.ErrorMsg = ""
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save skipped status for asset %s: %v", uri, err)
+		}
+		return errAssetSkipped
 	}
 
 	// Check storage limit
 	if !bm.isWithinStorageLimit() {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Storage limit reached"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		return fmt.Errorf("storage limit reached")
 	}
 
@@ -984,7 +1031,9 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	if !bm.hasSufficientDiskSpace() {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Insufficient disk space"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		return fmt.Errorf("insufficient disk space")
 	}
 
@@ -994,12 +1043,16 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 		if size > bm.config.IPFS.MaxFileSize {
 			asset.Status = db.StatusFailed
 			asset.ErrorMsg = fmt.Sprintf("File too large: %d bytes", size)
-			bm.db.SaveAsset(asset)
+			if err := bm.db.SaveAsset(asset); err != nil {
+				log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+			}
 			return fmt.Errorf("file too large")
 		}
 		asset.SizeBytes = size
 		asset.MimeType = mimeType
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset metadata for %s: %v", uri, err)
+		}
 	}
 
 	// Extract CID from URI
@@ -1007,7 +1060,9 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	if cid == "" {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Invalid IPFS URI - could not extract CID"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		return fmt.Errorf("could not extract CID from URI: %s", uri)
 	}
 
@@ -1022,12 +1077,14 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 			asset.Status = db.StatusFailed
 			asset.ErrorMsg = err.Error()
 		}
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		return err
 	}
 
 	// Get actual size from IPFS after pinning
-	if size, err := bm.ipfs.Stat(ctx, cid); err == nil && size > 0 {
+	if size, err := bm.getIPFS().Stat(ctx, cid); err == nil && size > 0 {
 		asset.SizeBytes = size
 	}
 
@@ -1035,8 +1092,10 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	asset.Status = db.StatusPinned
 	now := time.Now()
 	asset.PinnedAt = &now
-	bm.db.SaveAsset(asset)
-	
+	if err := bm.db.SaveAsset(asset); err != nil {
+		log.Printf("Warning: failed to save pinned status for %s: %v", uri, err)
+	}
+
 	// Mark disk usage for update
 	bm.MarkDiskUsageDirty()
 
@@ -1066,29 +1125,31 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 
 	for _, asset := range assets {
 		// Early exit checks
-		select {
-		case <-ctx.Done():
-			goto Finish
-		default:
+		if ctx.Err() != nil {
+			break
 		}
 
 		if bm.IsPaused() {
 			log.Printf("Paused, stopping pending asset processing")
-			goto Finish
+			break
 		}
 
 		wg.Add(1)
 		// Capture loop variable
 		go func(a db.Asset) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Panic processing pending asset %s: %v", a.URI, r)
+					atomic.AddInt64(&fCount, 1)
+				}
+			}()
 
 			// Acquire worker slot
 			select {
 			case bm.workers <- struct{}{}:
 				defer func() { <-bm.workers }()
 			case <-ctx.Done():
-				return
-			case <-bm.shutdown:
 				return
 			}
 
@@ -1100,8 +1161,11 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 			atomic.AddInt64(&pCount, 1)
 			err := bm.pinAssetDirect(ctx, &a)
 			if err != nil {
-				atomic.AddInt64(&fCount, 1)
-				log.Printf("Failed to pin pending asset %s: %v", a.URI, err)
+				if !errors.Is(err, errAssetSkipped) {
+					atomic.AddInt64(&fCount, 1)
+					log.Printf("Failed to pin pending asset %s: %v", a.URI, err)
+				}
+				// errAssetSkipped: asset is now marked terminal in DB; not a failure
 			} else {
 				atomic.AddInt64(&pinCount, 1)
 			}
@@ -1110,7 +1174,6 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 
 	wg.Wait()
 
-Finish:
 	// Update disk usage after processing
 	bm.UpdateDiskUsage()
 

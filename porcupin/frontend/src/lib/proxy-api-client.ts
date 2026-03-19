@@ -112,6 +112,22 @@ export class ProxyAPIClient {
         return this.get("/api/v1/health");
     }
 
+    async getIPFSHealth(): Promise<ipfs.NodeHealthResult> {
+        const resp = await this.get<{
+            status: string;
+            version: string;
+            timestamp: string;
+            is_online?: boolean;
+            peer_count?: number;
+        }>("/api/v1/health");
+        return {
+            is_online: resp.is_online ?? false,
+            peer_count: resp.peer_count ?? 0,
+            message: resp.is_online ? "Connected" : "Node not reachable",
+            checked_at: resp.timestamp,
+        } as ipfs.NodeHealthResult;
+    }
+
     async getVersion(): Promise<string> {
         const resp = await this.get<{ data: { version: string } }>("/api/v1/version");
         return resp.data.version;
@@ -146,6 +162,7 @@ export class ProxyAPIClient {
             pending: stats.pending_assets,
             failed: stats.failed_assets,
             failed_unavailable: 0,
+            skipped: 0, // remote server does not expose this stat separately
             disk_usage_bytes: Math.round(stats.storage_used_gb * 1024 * 1024 * 1024),
             total: stats.total_assets,
         };

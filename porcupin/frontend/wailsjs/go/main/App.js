@@ -38,6 +38,22 @@ export function DiscoverServers() {
   return window['go']['main']['App']['DiscoverServers']();
 }
 
+export function ExportDiagnosticReport() {
+  return window['go']['main']['App']['ExportDiagnosticReport']();
+}
+
+export function ExportDiagnosticReportToFile() {
+  return window['go']['main']['App']['ExportDiagnosticReportToFile']();
+}
+
+export function ExportLogs() {
+  return window['go']['main']['App']['ExportLogs']();
+}
+
+export function ExportLogsToFile() {
+  return window['go']['main']['App']['ExportLogsToFile']();
+}
+
 export function GetAssetGatewayURL(arg1) {
   return window['go']['main']['App']['GetAssetGatewayURL'](arg1);
 }
@@ -58,8 +74,16 @@ export function GetFailedAssets() {
   return window['go']['main']['App']['GetFailedAssets']();
 }
 
+export function GetIPFSHealth() {
+  return window['go']['main']['App']['GetIPFSHealth']();
+}
+
 export function GetIPFSRepoPath() {
   return window['go']['main']['App']['GetIPFSRepoPath']();
+}
+
+export function GetLogs(arg1, arg2) {
+  return window['go']['main']['App']['GetLogs'](arg1, arg2);
 }
 
 export function GetMigrationStatus() {

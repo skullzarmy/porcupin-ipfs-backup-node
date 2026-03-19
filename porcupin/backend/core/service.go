@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"sync"
 	"time"
+
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"porcupin/backend/config"
 	"porcupin/backend/db"
@@ -56,17 +59,23 @@ type BackupService struct {
 	
 	ctx       context.Context
 	cancel    context.CancelFunc
-	
+	wg        sync.WaitGroup
+
 	mu        sync.RWMutex
 	status    ServiceStatus
 	isPaused  bool
 	
 	// Channels for coordination
-	pauseCh   chan struct{}
-	resumeCh  chan struct{}
-	triggerCh chan string  // wallet address to sync
+	pauseCh    chan struct{}
+	resumeCh   chan struct{}
+	triggerCh  chan string  // wallet address to sync
+	fullSyncCh chan struct{} // signal run() to perform a full catch-up sync
 	
 	watchedWallets map[string]bool // Track which wallets have active watchers
+
+	// Wails context for event emission (set after wails.Run starts)
+	wailsCtx       context.Context
+	lastIPFSOnline bool
 }
 
 // NewBackupService creates a new backup service
@@ -84,9 +93,10 @@ func NewBackupService(ipfsNode *ipfs.Node, idx *indexer.Indexer, database *db.Da
 		ipfs:      ipfsNode,
 		storage:   storageMgr,
 		status:    ServiceStatus{State: StateStopped},
-		pauseCh:   make(chan struct{}),
-		resumeCh:  make(chan struct{}),
-		triggerCh: make(chan string, 100),
+		pauseCh:    make(chan struct{}),
+		resumeCh:   make(chan struct{}),
+		triggerCh:  make(chan string, 100),
+		fullSyncCh: make(chan struct{}, 1), // buffer of 1 coalesces rapid triggers
 		watchedWallets: make(map[string]bool),
 	}
 }
@@ -94,18 +104,25 @@ func NewBackupService(ipfsNode *ipfs.Node, idx *indexer.Indexer, database *db.Da
 // Start begins the automatic backup service
 func (s *BackupService) Start(ctx context.Context) {
 	s.ctx, s.cancel = context.WithCancel(ctx)
-	
+
 	s.updateStatus(func(st *ServiceStatus) {
 		st.State = StateStarting
 		st.Message = "Initializing backup service..."
 	})
-	
+
 	// Start the main service loop
-	go s.run()
-	
+	s.wg.Add(3)
+	go func() {
+		defer s.wg.Done()
+		s.run()
+	}()
+
 	// Start the retry worker
-	go s.retryWorker()
-	
+	go func() {
+		defer s.wg.Done()
+		s.retryWorker()
+	}()
+
 	log.Println("Backup service started")
 }
 
@@ -119,12 +136,18 @@ func (s *BackupService) run() {
 	
 	// Phase 2.5: Run integrity check in background to fix any missing asset records (e.g. from previous bugs)
 	go func() {
+		defer s.wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				slog.Error("goroutine panic recovered", "goroutine", "integrity-check", "panic", r)
+			}
+		}()
 		log.Println("Running background integrity check...")
 		stats, err := s.manager.VerifyAndFixPins(s.ctx)
 		if err != nil {
 			log.Printf("Background integrity check failed: %v", err)
 		} else {
-			log.Printf("Background integrity check complete: %d checked, %d fixed, %d errors", stats["checked"], stats["fixed"], stats["errors"])
+			log.Printf("Background integrity check complete: %d checked, %d processed, %d errors", stats["checked"], stats["processed"], stats["errors"])
 		}
 	}()
 	
@@ -172,23 +195,28 @@ func (s *BackupService) run() {
 			
 		case walletAddr := <-s.triggerCh:
 			// Manual or WebSocket triggered sync for a specific wallet
-			if !s.isPaused {
+			if !s.IsPaused() {
 				s.syncWallet(walletAddr)
 			}
 			
 		case <-hotReloadTicker.C:
 			// fast check for new wallets added via CLI
-			if !s.isPaused {
+			if !s.IsPaused() {
 				s.checkForNewWallets()
 			}
 
 		case <-healthTicker.C:
 			// Periodic check - sync any wallets that haven't been synced in a while
-			if !s.isPaused {
+			if !s.IsPaused() {
 				s.performHealthCheck()
 			}
-			// Always update disk usage on health check interval too
-			s.manager.UpdateDiskUsage()
+
+		case <-s.fullSyncCh:
+			// User-triggered full sync — runs synchronously inside run() so it is
+			// covered by the WaitGroup and shutdown waits for it to complete.
+			if !s.IsPaused() {
+				s.performCatchUpSync()
+			}
 		}
 	}
 }
@@ -212,7 +240,7 @@ func (s *BackupService) performCatchUpSync() {
 	})
 	
 	for i, wallet := range wallets {
-		if s.isPaused {
+		if s.IsPaused() {
 			break
 		}
 		
@@ -281,13 +309,16 @@ func (s *BackupService) startWatching() {
 	}
 }
 
-// watchWallet sets up WebSocket watching for a single wallet
+// watchWallet sets up WebSocket watching for a single wallet.
+// Captures s.ctx at call time so this watcher is tied to the current
+// service lifecycle and is not affected by future Stop/Start cycles.
 func (s *BackupService) watchWallet(address string) {
-	s.watchWalletWithRetry(address, 0)
+	s.watchWalletWithRetry(address, 0, s.ctx)
 }
 
-// watchWalletWithRetry is the internal implementation with crash counter
-func (s *BackupService) watchWalletWithRetry(address string, crashCount int) {
+// watchWalletWithRetry is the internal implementation with crash counter.
+// ctx is the service context captured when this watcher was launched.
+func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx context.Context) {
 	// Give up after too many crashes - rely on health check polling instead
 	if crashCount >= 5 {
 		log.Printf("WebSocket watcher for %s crashed too many times (%d), disabling. Will use polling.", address, crashCount)
@@ -297,10 +328,18 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int) {
 	// Recover from panics in the WebSocket library
 	defer func() {
 		if r := recover(); r != nil {
+			// Don't restart if the service has been stopped
+			if ctx.Err() != nil {
+				return
+			}
 			log.Printf("WebSocket watcher for %s crashed (%d): %v, will restart in 60s", address, crashCount+1, r)
-			time.Sleep(60 * time.Second)
-			// Restart the watcher with incremented crash count
-			go s.watchWalletWithRetry(address, crashCount+1)
+			// Use a ctx-aware wait so shutdown is not delayed by up to 60s
+			select {
+			case <-time.After(60 * time.Second):
+			case <-ctx.Done():
+				return
+			}
+			go s.watchWalletWithRetry(address, crashCount+1, ctx)
 		}
 	}()
 
@@ -327,22 +366,32 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int) {
 	for {
 		// Check context before attempting connection
 		select {
-		case <-s.ctx.Done():
+		case <-ctx.Done():
 			idx.Close()
 			return
 		default:
 		}
-		
+
 		// Listen blocks until connection closes or context cancelled
-		if err := idx.Listen(s.ctx, address); err != nil {
+		if err := idx.Listen(ctx, address); err != nil {
 			log.Printf("WebSocket connection failed for %s: %v, reconnecting in 30s", address, err)
-			time.Sleep(30 * time.Second)
+			select {
+			case <-time.After(30 * time.Second):
+			case <-ctx.Done():
+				idx.Close()
+				return
+			}
 			continue
 		}
-		
+
 		// Connection closed normally, wait before reconnecting
 		log.Printf("WebSocket connection closed for %s, reconnecting in 30s", address)
-		time.Sleep(30 * time.Second)
+		select {
+		case <-time.After(30 * time.Second):
+		case <-ctx.Done():
+			idx.Close()
+			return
+		}
 	}
 }
 
@@ -372,6 +421,11 @@ func (s *BackupService) syncWallet(address string) {
 
 // retryWorker periodically retries failed and pending assets
 func (s *BackupService) retryWorker() {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("goroutine panic recovered", "goroutine", "retry-worker", "panic", r)
+		}
+	}()
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
 	
@@ -380,7 +434,7 @@ func (s *BackupService) retryWorker() {
 		case <-s.ctx.Done():
 			return
 		case <-ticker.C:
-			if s.isPaused {
+			if s.IsPaused() {
 				continue
 			}
 			s.retryFailedAssets()
@@ -433,13 +487,15 @@ func (s *BackupService) retryFailedAssets() {
 		default:
 		}
 		
-		if s.isPaused {
+		if s.IsPaused() {
 			return
 		}
 		
 		// Reset status to pending
 		asset.Status = db.StatusPending
-		s.db.SaveAsset(&asset)
+		if err := s.db.SaveAsset(&asset); err != nil {
+			log.Printf("Warning: failed to reset asset %d to pending: %v", asset.ID, err)
+		}
 		
 		// The BackupManager's processNFT will pick this up
 		// For now, we just mark them as pending and let the next sync handle them
@@ -467,6 +523,31 @@ func (s *BackupService) performHealthCheck() {
 			}
 		}
 	}
+
+	// IPFS connectivity check — emit event only on state change
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	s.mu.RUnlock()
+	if ipfsNode != nil {
+		health := ipfsNode.Health(s.ctx)
+		if health.IsOnline != s.lastIPFSOnline {
+			s.lastIPFSOnline = health.IsOnline
+			s.mu.RLock()
+			wCtx := s.wailsCtx
+			s.mu.RUnlock()
+			if wCtx != nil {
+				wailsRuntime.EventsEmit(wCtx, "ipfs:health", health)
+			}
+		}
+	}
+}
+
+// SetWailsCtx provides the Wails context needed to emit events to the frontend.
+// Call this from app.go after wails.Run() sets up the runtime.
+func (s *BackupService) SetWailsCtx(ctx context.Context) {
+	s.mu.Lock()
+	s.wailsCtx = ctx
+	s.mu.Unlock()
 }
 
 // Pause pauses the backup service
@@ -538,17 +619,37 @@ func (s *BackupService) TriggerSync(address string) {
 	}
 }
 
-// TriggerFullSync triggers a full sync for all wallets
+// TriggerFullSync signals the run() loop to perform a full catch-up sync.
+// Uses a buffered channel (cap 1) so multiple rapid calls coalesce into one sync.
 func (s *BackupService) TriggerFullSync() {
-	go s.performCatchUpSync()
+	select {
+	case s.fullSyncCh <- struct{}{}:
+	default: // a sync is already queued; do nothing
+	}
 }
 
-// Stop stops the backup service
+// Stop stops the backup service and waits for goroutines to exit.
 func (s *BackupService) Stop() {
 	if s.cancel != nil {
 		s.cancel()
 	}
+	s.wg.Wait()
 	s.manager.Shutdown()
+
+	// Reset watcher tracking so the next Start() re-launches watchers.
+	// Old watchers exit when their captured ctx is cancelled above.
+	s.mu.Lock()
+	s.watchedWallets = make(map[string]bool)
+	s.mu.Unlock()
+}
+
+// UpdateIPFS replaces the IPFS node and storage manager refs (used after storage migration).
+func (s *BackupService) UpdateIPFS(node *ipfs.Node) {
+	s.mu.Lock()
+	s.ipfs = node
+	s.storage = storage.NewManager(node.GetRepoPath())
+	s.mu.Unlock()
+	s.manager.UpdateIPFS(node)
 }
 
 // GetManager returns the underlying backup manager
@@ -570,9 +671,17 @@ func (s *BackupService) AddWallet(address string) {
 	case s.triggerCh <- address:
 	default:
 	}
-	
-	// Start watching
-	go s.watchWallet(address)
+
+	// Start watching only if not already tracked; prevents duplicate watchers
+	// when checkForNewWallets runs its next 15s tick.
+	s.mu.Lock()
+	if !s.watchedWallets[address] {
+		s.watchedWallets[address] = true
+		s.mu.Unlock()
+		go s.watchWallet(address)
+	} else {
+		s.mu.Unlock()
+	}
 }
 
 // PinAsset triggers immediate pinning of a specific asset
@@ -582,10 +691,13 @@ func (s *BackupService) PinAsset(ctx context.Context, assetID uint64) error {
 
 // UnpinAsset unpins an asset by CID
 func (s *BackupService) UnpinAsset(cid string) error {
-	if s.ipfs == nil {
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	s.mu.RUnlock()
+	if ipfsNode == nil {
 		return nil
 	}
-	return s.ipfs.Unpin(s.ctx, cid)
+	return ipfsNode.Unpin(s.ctx, cid)
 }
 
 // VerifyAndFixPins runs the verification and repair process
@@ -595,17 +707,23 @@ func (s *BackupService) VerifyAndFixPins() (map[string]int, error) {
 
 // GetStorageManager returns the storage manager instance
 func (s *BackupService) GetStorageManager() *storage.Manager {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.storage
 }
 
 // ClearAllData performs a full device reset: unpins everything, GCs, and clears DB
 func (s *BackupService) ClearAllData(progress func(string, string, int, int)) error {
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	s.mu.RUnlock()
+
 	// 1. Unpin all IPFS content
 	if progress != nil {
 		progress("unpinning", "Unpinning all IPFS content...", 0, 0)
 	}
-	
-	unpinned, err := s.ipfs.UnpinAll(s.ctx, func(total, current int) {
+
+	unpinned, err := ipfsNode.UnpinAll(s.ctx, func(total, current int) {
 		if progress != nil {
 			progress("unpinning", fmt.Sprintf("Unpinning content... %d/%d", current, total), total, current)
 		}
@@ -619,7 +737,7 @@ func (s *BackupService) ClearAllData(progress func(string, string, int, int)) er
 	if progress != nil {
 		progress("garbage_collect", "Running internal IPFS garbage collection...", 0, 0)
 	}
-	if err := s.ipfs.GarbageCollect(s.ctx); err != nil {
+	if err := ipfsNode.GarbageCollect(s.ctx); err != nil {
 		log.Printf("Warning: garbage collection failed: %v", err)
 	}
 
@@ -652,16 +770,18 @@ func (s *BackupService) DeleteWalletFull(address string) error {
 		return fmt.Errorf("failed to get assets: %w", err)
 	}
 
-	// Unpin each asset
-	// We use background context to ensure cleanup continues even if request context dies,
-	// but using service context s.ctx is safer for overall lifecycle management.
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	s.mu.RUnlock()
+
+	// Unpin each asset — log errors but continue so DB cleanup always happens.
 	for _, asset := range assets {
-		cid := ExtractCIDFromURI(asset.URI) // Package-level function in core/backup.go
+		cid := ExtractCIDFromURI(asset.URI)
 		if cid == "" {
 			continue
 		}
-		if err := s.ipfs.Unpin(s.ctx, cid); err != nil {
-			return fmt.Errorf("failed to unpin asset %s: %w", cid, err)
+		if err := ipfsNode.Unpin(s.ctx, cid); err != nil {
+			log.Printf("Warning: failed to unpin asset %s: %v", cid, err)
 		}
 	}
 

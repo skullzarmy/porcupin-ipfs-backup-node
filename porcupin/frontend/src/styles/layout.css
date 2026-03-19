@@ -150,3 +150,77 @@
     cursor: pointer;
     padding: 0 4px;
 }
+
+.stale-banner {
+    margin: 0 32px 16px;
+    padding: 12px 16px;
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    color: var(--accent-warning);
+    font-size: 13px;
+}
+
+/* IPFS health indicator */
+.ipfs-health-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.ipfs-health-dot::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.ipfs-health-dot.health-starting {
+    background: rgba(var(--text-secondary-rgb, 128, 128, 128), 0.12);
+    color: var(--text-secondary);
+}
+
+.ipfs-health-dot.health-starting::before {
+    background: var(--text-secondary);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+.ipfs-health-dot.health-online {
+    background: rgba(34, 197, 94, 0.12);
+    color: var(--accent-success);
+}
+
+.ipfs-health-dot.health-online::before {
+    background: var(--accent-success);
+}
+
+.ipfs-health-dot.health-offline {
+    background: rgba(var(--accent-danger-rgb, 239, 68, 68), 0.12);
+    color: var(--accent-danger, #ef4444);
+}
+
+.ipfs-health-dot.health-offline::before {
+    background: var(--accent-danger, #ef4444);
+}
+
+@keyframes pulse-dot {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}
+
+/* .spin relies on @keyframes spin defined in base.css */
+.spin {
+    animation: spin 1s linear infinite;
+}

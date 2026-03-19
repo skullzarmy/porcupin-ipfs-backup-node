@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import "./App.css";
-import { GetWallets, GetAssetStats, RestartApp } from "./lib/backend";
-import { InstallUpdate } from "../wailsjs/go/main/App";
+import { GetWallets, GetAssetStats } from "./lib/backend";
+import { InstallUpdate, RestartApp } from "../wailsjs/go/main/App";
 import { EventsOn } from "../wailsjs/runtime";
 import type { db } from "../wailsjs/go/models";
 import { Sidebar } from "./components/Sidebar";
@@ -21,10 +21,10 @@ interface AssetStats {
     failed: number;
     failed_unavailable: number;
     pending: number;
+    skipped: number;
     disk_usage_bytes: number;
     total_size_bytes: number;
 }
-
 
 function AppContent() {
     const [activeTab, setActiveTab] = useState("dashboard");
@@ -41,7 +41,9 @@ function AppContent() {
     const [showUpdateModal, setShowUpdateModal] = useState(false);
     const [updateError, setUpdateError] = useState("");
     const [updateSuccess, setUpdateSuccess] = useState(false);
-    const [updateProgress, setUpdateProgress] = useState<{phase: string, message: string, percent: number} | undefined>(undefined);
+    const [updateProgress, setUpdateProgress] = useState<
+        { phase: string; message: string; percent: number } | undefined
+    >(undefined);
 
     // Get connection state to trigger reloads when it changes
     const { state } = useConnection();
@@ -63,7 +65,7 @@ function AppContent() {
         } catch (err: unknown) {
             console.error("[App] GetAssetStats error:", err);
             // Don't clear stats on error to avoid UI blips - just show stale data
-            // setStats({}); 
+            // setStats({});
             setIsStale(true);
         }
     }, []);
@@ -156,25 +158,25 @@ function AppContent() {
     return (
         <div className="app-layout">
             {showUpdateToast && (
-                <UpdateToast 
+                <UpdateToast
                     version={updateVersion}
                     onInstall={handleInstallUpdate}
                     onDismiss={() => setShowUpdateToast(false)}
                 />
             )}
 
-            <UpdateModal 
+            <UpdateModal
                 isOpen={showUpdateModal}
                 error={updateError}
                 success={updateSuccess}
                 progress={updateProgress}
                 onRestart={async () => {
-                   try {
-                       await RestartApp();
-                   } catch (e: any) {
-                       console.error("Restart failed", e);
-                       setUpdateError("Restart failed: " + e.toString());
-                   }
+                    try {
+                        await RestartApp();
+                    } catch (e: any) {
+                        console.error("Restart failed", e);
+                        setUpdateError("Restart failed: " + e.toString());
+                    }
                 }}
             />
 
@@ -197,11 +199,11 @@ function AppContent() {
                         </button>
                     </div>
                 )}
-                
+
                 {isStale && !error && (
-                     <div className="stale-banner" role="status" aria-live="polite">
+                    <div className="stale-banner" role="status" aria-live="polite">
                         <span>⚠️ Connection unstable - Data may be stale</span>
-                     </div>
+                    </div>
                 )}
 
                 {activeTab === "dashboard" && (
@@ -221,9 +223,7 @@ function AppContent() {
 
                 {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
 
-                {activeTab === "settings" && (
-                    <Settings onStatsChange={updateStats} scrollToSection={scrollToSection} />
-                )}
+                {activeTab === "settings" && <Settings onStatsChange={updateStats} scrollToSection={scrollToSection} onScrolled={() => setScrollToSection("")} />}
 
                 {activeTab === "about" && <About />}
             </main>

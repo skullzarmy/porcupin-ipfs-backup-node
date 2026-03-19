@@ -18,7 +18,36 @@ env:
     NODE_VERSION: "20"
 
 jobs:
+    test:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup Go
+              uses: actions/setup-go@v5
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+                  cache-dependency-path: porcupin/go.sum
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+
+            - name: Build frontend
+              working-directory: porcupin/frontend
+              run: |
+                  npm install
+                  npm run build
+
+            - name: Run tests
+              working-directory: porcupin
+              run: go test ./... -v -race
+
     build-desktop:
+        needs: [test]
         strategy:
             matrix:
                 include:
@@ -121,6 +150,7 @@ jobs:
                   path: porcupin/build/bin/${{ matrix.package_file }}
 
     build-headless:
+        needs: [test]
         strategy:
             matrix:
                 include:
@@ -164,6 +194,7 @@ jobs:
                   path: porcupin/build/bin/${{ matrix.artifact }}
 
     build-docker:
+        needs: [test]
         runs-on: ubuntu-latest
 
         permissions:
@@ -230,19 +261,19 @@ jobs:
 
             - name: Generate Checksums
               run: |
-                touch checksums.txt
-                cd artifacts
-                # Loop through each artifact directory and verify contents
-                for dir in */; do
-                  if [ -d "$dir" ]; then
-                    cd "$dir"
-                    # Generate checksum for files in this dir, appending to root checksums
-                    sha256sum * >> ../../checksums.txt
-                    cd ..
-                  fi
-                done
-                cd ..
-                cat checksums.txt
+                  touch checksums.txt
+                  cd artifacts
+                  # Loop through each artifact directory and verify contents
+                  for dir in */; do
+                    if [ -d "$dir" ]; then
+                      cd "$dir"
+                      # Generate checksum for files in this dir, appending to root checksums
+                      sha256sum * >> ../../checksums.txt
+                      cd ..
+                    fi
+                  done
+                  cd ..
+                  cat checksums.txt
 
             - name: Create Release
               uses: softprops/action-gh-release@v1

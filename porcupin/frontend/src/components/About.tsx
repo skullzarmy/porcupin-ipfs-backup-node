@@ -95,7 +95,7 @@ export function About() {
                         </strong>
                     </button>
                 </p>
-                <p className="copyright">© 2025 Porcupin. MIT License.</p>
+                <p className="copyright">Porcupin brand and logo &copy; FAFOlab. Software MIT licensed.</p>
             </div>
         </div>
     );

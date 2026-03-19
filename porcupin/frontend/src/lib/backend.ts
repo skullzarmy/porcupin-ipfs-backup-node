@@ -66,6 +66,7 @@ export interface Backend {
     // Config
     GetConfig(): Promise<config.Config>;
     GetVersion(): Promise<string>;
+    GetIPFSHealth(): Promise<ipfs.NodeHealthResult>;
     UpdateSettings(settings: Record<string, unknown>): Promise<void>;
     CheckForUpdates(): Promise<updater.UpdateInfo>;
     InstallUpdate(): Promise<void>;
@@ -110,7 +111,6 @@ export function setAPIClient(client: ProxyAPIClient | null): void {
 /**
  * Check if currently in remote mode
  */
-
 
 export function isRemote(): boolean {
     return isRemoteMode;
@@ -169,6 +169,7 @@ const localBackend: Backend = {
     // Config
     GetConfig: WailsApp.GetConfig,
     GetVersion: WailsApp.GetVersion,
+    GetIPFSHealth: WailsApp.GetIPFSHealth,
     UpdateSettings: WailsApp.UpdateSettings,
     CheckForUpdates: WailsApp.CheckForUpdates,
     InstallUpdate: WailsApp.InstallUpdate,
@@ -224,7 +225,6 @@ function createRemoteBackend(client: ProxyAPIClient): Backend {
         VerifyAsset: (id) => client.verifyAsset(id),
 
         // NFT operations
-        // NFT operations
         GetNFTsWithAssets: (page, limit, status, search) => client.getNFTsWithAssets(page, limit, status, search),
 
         // Service control
@@ -239,6 +239,7 @@ function createRemoteBackend(client: ProxyAPIClient): Backend {
         // Config
         GetConfig: () => client.getConfig(),
         GetVersion: () => client.getVersion(),
+        GetIPFSHealth: () => client.getIPFSHealth(),
         UpdateSettings: (settings) => client.updateSettings(settings),
         CheckForUpdates: () => client.checkForUpdates(),
         InstallUpdate: () => client.installUpdate(),
@@ -328,6 +329,7 @@ export const VerifyAndFixPins = () => getBackend().VerifyAndFixPins();
 
 export const GetConfig = () => getBackend().GetConfig();
 export const GetVersion = () => getBackend().GetVersion();
+export const GetIPFSHealth = () => getBackend().GetIPFSHealth();
 export const UpdateSettings = (...args: Parameters<Backend["UpdateSettings"]>) => getBackend().UpdateSettings(...args);
 export const CheckForUpdates = () => getBackend().CheckForUpdates();
 export const InstallUpdate = () => getBackend().InstallUpdate();

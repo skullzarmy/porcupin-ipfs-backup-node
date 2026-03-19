@@ -68,6 +68,9 @@ export interface ConnectionContextValue {
 
     /** Remove a saved config from localStorage */
     removeConfig: (host: string, port: number) => void;
+
+    /** Refresh the cached server version without reconnecting */
+    refreshServerVersion: () => Promise<void>;
 }
 
 // =============================================================================
@@ -214,7 +217,7 @@ export function ConnectionProvider({ children }: ConnectionProviderProps): React
                 "status:",
                 state.status,
                 "hasConfig:",
-                !!state.remoteConfig
+                !!state.remoteConfig,
             );
 
             if (state.mode === "remote" && state.status === "disconnected" && state.remoteConfig) {
@@ -289,7 +292,7 @@ export function ConnectionProvider({ children }: ConnectionProviderProps): React
             const limited = filtered.slice(0, 10);
             localStorage.setItem(STORAGE_KEY_SAVED_SERVERS, JSON.stringify(limited));
         },
-        [getSavedConfigs]
+        [getSavedConfigs],
     );
 
     const removeConfig = useCallback(
@@ -298,8 +301,23 @@ export function ConnectionProvider({ children }: ConnectionProviderProps): React
             const filtered = configs.filter((c) => c.host !== host || c.port !== port);
             localStorage.setItem(STORAGE_KEY_SAVED_SERVERS, JSON.stringify(filtered));
         },
-        [getSavedConfigs]
+        [getSavedConfigs],
     );
+
+    const refreshServerVersion = useCallback(async (): Promise<void> => {
+        if (state.mode !== "remote" || !state.remoteConfig) return;
+        try {
+            const health = await TestRemoteConnection({
+                host: state.remoteConfig.host,
+                port: state.remoteConfig.port,
+                token: state.remoteConfig.token,
+                useTLS: state.remoteConfig.useTLS,
+            });
+            setState((prev) => ({ ...prev, serverVersion: health.version }));
+        } catch {
+            // Silently ignore — don't break the update check UI on a version refresh failure
+        }
+    }, [state.mode, state.remoteConfig]);
 
     const value: ConnectionContextValue = {
         state,
@@ -313,6 +331,7 @@ export function ConnectionProvider({ children }: ConnectionProviderProps): React
         getSavedConfigs,
         saveConfig,
         removeConfig,
+        refreshServerVersion,
     };
 
     return <ConnectionContext.Provider value={value}>{children}</ConnectionContext.Provider>;
