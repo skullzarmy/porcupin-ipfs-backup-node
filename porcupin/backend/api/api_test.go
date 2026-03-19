@@ -599,19 +599,25 @@ func TestGetHealth(t *testing.T) {
 		t.Errorf("GetHealth() status = %d, want %d", rr.Code, http.StatusOK)
 	}
 
-	var resp map[string]string
+	var resp HealthResponse
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("GetHealth() failed to decode response: %v", err)
 	}
 
-	if resp["status"] != "ok" {
-		t.Errorf("GetHealth() status = %q, want %q", resp["status"], "ok")
+	if resp.Status != "ok" {
+		t.Errorf("GetHealth() status = %q, want %q", resp.Status, "ok")
 	}
-	if resp["version"] != "1.0.0-test" {
-		t.Errorf("GetHealth() version = %q, want %q", resp["version"], "1.0.0-test")
+	if resp.Version != "1.0.0-test" {
+		t.Errorf("GetHealth() version = %q, want %q", resp.Version, "1.0.0-test")
 	}
-	if resp["timestamp"] == "" {
-		t.Error("GetHealth() missing timestamp")
+	if _, err := time.Parse(time.RFC3339, resp.Timestamp); err != nil {
+		t.Errorf("GetHealth() timestamp %q is not valid RFC3339: %v", resp.Timestamp, err)
+	}
+	if resp.IsOnline != false {
+		t.Errorf("GetHealth() is_online = %v, want false (no IPFS node)", resp.IsOnline)
+	}
+	if resp.PeerCount != 0 {
+		t.Errorf("GetHealth() peer_count = %d, want 0 (no IPFS node)", resp.PeerCount)
 	}
 }
 
