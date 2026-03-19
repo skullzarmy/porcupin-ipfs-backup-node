@@ -145,7 +145,12 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 		if attempt < 3 {
 			log.Printf("Port %d in use (attempt %d/3), retrying in 2s...", n.swarmPort, attempt)
-			time.Sleep(2 * time.Second)
+			select {
+			case <-time.After(2 * time.Second):
+			case <-ctx.Done():
+				repo.Close()
+				return ctx.Err()
+			}
 		}
 	}
 	if err != nil {

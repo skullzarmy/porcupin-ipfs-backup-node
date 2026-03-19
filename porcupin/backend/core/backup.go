@@ -62,7 +62,7 @@ type BackupManager struct {
 	// Sync progress tracking
 	progressMu    sync.RWMutex
 	progress      SyncProgress
-	processedURIs sync.Map // tracks URIs processed in current sync to avoid double-counting
+	processedURIs atomic.Pointer[sync.Map] // tracks URIs processed in current sync to avoid double-counting
 	
 	// Disk usage tracking - update after pins, not on every pin
 	diskUsageDirty int32 // atomic flag: 1 if pins happened since last du
@@ -78,8 +78,8 @@ func NewBackupManager(ipfsNode IPFSClient, idx *indexer.Indexer, database *db.Da
 	}
 	
 	log.Printf("Initializing BackupManager with %d workers", concurrency)
-	
-	return &BackupManager{
+
+	bm := &BackupManager{
 		ipfs:     ipfsNode,
 		indexer:  idx,
 		db:       database,
@@ -87,6 +87,8 @@ func NewBackupManager(ipfsNode IPFSClient, idx *indexer.Indexer, database *db.Da
 		workers:  make(chan struct{}, concurrency),
 		progress: SyncProgress{Phase: "idle"},
 	}
+	bm.processedURIs.Store(new(sync.Map))
+	return bm
 }
 
 // UpdateIPFS replaces the IPFS node reference (used after storage migration).
@@ -160,7 +162,7 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 	})
 	
 	// Reset processed URIs for this sync
-	bm.processedURIs = sync.Map{}
+	bm.processedURIs.Store(new(sync.Map))
 
 	// Get wallet to check last synced level for incremental sync
 	wallet, err := bm.db.GetWallet(address)
@@ -469,7 +471,7 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 // backupAsset downloads and pins an asset to IPFS
 func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri string, assetType string) error {
 	// Check if we've already processed this URI in this sync (deduplication)
-	if _, loaded := bm.processedURIs.LoadOrStore(uri, true); loaded {
+	if _, loaded := bm.processedURIs.Load().LoadOrStore(uri, true); loaded {
 		// Already processed in this sync, skip
 		return nil
 	}
@@ -1077,12 +1079,6 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 
 	for _, asset := range assets {
 		// Early exit checks
-		select {
-		case <-ctx.Done():
-			break
-		default:
-		}
-
 		if ctx.Err() != nil {
 			break
 		}

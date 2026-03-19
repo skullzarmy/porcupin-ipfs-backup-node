@@ -524,8 +524,11 @@ func (s *BackupService) performHealthCheck() {
 	}
 
 	// IPFS connectivity check — emit event only on state change
-	if s.ipfs != nil {
-		health := s.ipfs.Health(s.ctx)
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	s.mu.RUnlock()
+	if ipfsNode != nil {
+		health := ipfsNode.Health(s.ctx)
 		if health.IsOnline != s.lastIPFSOnline {
 			s.lastIPFSOnline = health.IsOnline
 			s.mu.RLock()
@@ -641,8 +644,10 @@ func (s *BackupService) Stop() {
 
 // UpdateIPFS replaces the IPFS node and storage manager refs (used after storage migration).
 func (s *BackupService) UpdateIPFS(node *ipfs.Node) {
+	s.mu.Lock()
 	s.ipfs = node
 	s.storage = storage.NewManager(node.GetRepoPath())
+	s.mu.Unlock()
 	s.manager.UpdateIPFS(node)
 }
 
@@ -665,9 +670,17 @@ func (s *BackupService) AddWallet(address string) {
 	case s.triggerCh <- address:
 	default:
 	}
-	
-	// Start watching
-	go s.watchWallet(address)
+
+	// Start watching only if not already tracked; prevents duplicate watchers
+	// when checkForNewWallets runs its next 15s tick.
+	s.mu.Lock()
+	if !s.watchedWallets[address] {
+		s.watchedWallets[address] = true
+		s.mu.Unlock()
+		go s.watchWallet(address)
+	} else {
+		s.mu.Unlock()
+	}
 }
 
 // PinAsset triggers immediate pinning of a specific asset
