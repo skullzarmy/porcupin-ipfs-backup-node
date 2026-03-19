@@ -470,6 +470,11 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 
 // backupAsset downloads and pins an asset to IPFS
 func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri string, assetType string) error {
+	// Lazy-init processedURIs — handles BackupManager built via struct literal (e.g. in tests)
+	// rather than NewBackupManager. CompareAndSwap is safe under concurrent access.
+	if bm.processedURIs.Load() == nil {
+		bm.processedURIs.CompareAndSwap(nil, new(sync.Map))
+	}
 	// Check if we've already processed this URI in this sync (deduplication)
 	if _, loaded := bm.processedURIs.Load().LoadOrStore(uri, true); loaded {
 		// Already processed in this sync, skip
