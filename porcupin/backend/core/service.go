@@ -111,7 +111,7 @@ func (s *BackupService) Start(ctx context.Context) {
 	})
 
 	// Start the main service loop
-	s.wg.Add(2)
+	s.wg.Add(3)
 	go func() {
 		defer s.wg.Done()
 		s.run()
@@ -135,7 +135,6 @@ func (s *BackupService) run() {
 	s.startWatching()
 	
 	// Phase 2.5: Run integrity check in background to fix any missing asset records (e.g. from previous bugs)
-	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		defer func() {
