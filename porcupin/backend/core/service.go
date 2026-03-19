@@ -135,7 +135,9 @@ func (s *BackupService) run() {
 	s.startWatching()
 	
 	// Phase 2.5: Run integrity check in background to fix any missing asset records (e.g. from previous bugs)
+	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("goroutine panic recovered", "goroutine", "integrity-check", "panic", r)

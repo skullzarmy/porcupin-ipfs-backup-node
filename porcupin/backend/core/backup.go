@@ -696,6 +696,11 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 		}
 		
 		for _, nft := range nfts {
+			select {
+			case <-ctx.Done():
+				return stats, ctx.Err()
+			default:
+			}
 			stats["checked"]++
 			
 			// Reconstruct Token/Metadata from DB record

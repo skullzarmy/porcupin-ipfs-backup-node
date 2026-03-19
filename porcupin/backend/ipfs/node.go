@@ -104,25 +104,16 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 	}
 
-	// Open repo. On a lock error, give a legitimately-running process a few seconds
-	// to finish its cleanup before deciding the lock is stale. Only remove the lock
-	// file as a last resort, to avoid corrupting a repo that another instance owns.
+	// Open repo. If locked, surface a clear user-facing error rather than automatically
+	// removing the lock file. OS file locks (flock) are released by the kernel when a
+	// process exits — including crashes and SIGKILL — so a stale lock from a previous
+	// run is self-healing. Automatic removal risks corrupting a live repo.
 	repo, err := fsrepo.Open(n.repoPath)
-	if err != nil && strings.Contains(err.Error(), "lock") {
-		log.Printf("IPFS repo is locked — waiting 3s for any running process to release it...")
-		time.Sleep(3 * time.Second)
-		repo, err = fsrepo.Open(n.repoPath)
-		if err != nil && strings.Contains(err.Error(), "lock") {
-			// Still locked after wait — assume it is a stale lock from a crashed process.
-			lockFile := filepath.Join(n.repoPath, "repo.lock")
-			log.Printf("IPFS repo still locked after wait; removing stale lock file: %s", lockFile)
-			if removeErr := os.Remove(lockFile); removeErr != nil {
-				log.Printf("Warning: failed to remove lock file %s: %v", lockFile, removeErr)
-			}
-			repo, err = fsrepo.Open(n.repoPath)
-		}
-	}
 	if err != nil {
+		if strings.Contains(err.Error(), "lock") {
+			lockFile := filepath.Join(n.repoPath, "repo.lock")
+			return fmt.Errorf("IPFS repository is locked by another process. If Porcupin is not already running, delete %s and try again", lockFile)
+		}
 		return fmt.Errorf("failed to open repo: %w", err)
 	}
 
