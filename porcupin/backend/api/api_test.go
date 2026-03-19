@@ -599,7 +599,7 @@ func TestGetHealth(t *testing.T) {
 		t.Errorf("GetHealth() status = %d, want %d", rr.Code, http.StatusOK)
 	}
 
-	var resp map[string]string
+	var resp map[string]interface{}
 	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 		t.Fatalf("GetHealth() failed to decode response: %v", err)
 	}
@@ -610,7 +610,7 @@ func TestGetHealth(t *testing.T) {
 	if resp["version"] != "1.0.0-test" {
 		t.Errorf("GetHealth() version = %q, want %q", resp["version"], "1.0.0-test")
 	}
-	if resp["timestamp"] == "" {
+	if resp["timestamp"] == nil || resp["timestamp"] == "" {
 		t.Error("GetHealth() missing timestamp")
 	}
 }
