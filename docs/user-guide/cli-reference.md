@@ -185,6 +185,7 @@ Porcupin Stats
   Pinned:        5,500
   Pending:       150
   Failed:        28
+  Skipped:       45
   Storage:       45.23 GB
 
 ──────────────────────────────────────────
@@ -342,6 +343,9 @@ The `--data` directory contains:
 ~/.porcupin/           # or /var/lib/porcupin for systemd
 ├── config.yaml        # Configuration file
 ├── porcupin.db        # SQLite database (wallets, NFTs, assets)
+├── logs/              # Log files and crash reports
+│   ├── porcupin-YYYY-MM-DD.log  # Daily rolling log files
+│   └── crash-*.txt              # Crash reports (on panic)
 └── ipfs/              # IPFS repository
     ├── config
     ├── datastore/

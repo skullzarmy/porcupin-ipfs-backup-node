@@ -32,7 +32,7 @@ porcupin --update
 **Expected Output (No Update):**
 ```text
 Checking for updates...
-Porcupin is up to date (version 0.3.3-rc4)
+Porcupin is up to date (version 0.3.4-rc5)
 ```
 
 **Expected Output (Update Available):**

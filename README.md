@@ -48,7 +48,10 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 -   🔄 **Real-time Sync** — Watches for new NFTs via TZKT
 -   💻 **Cross-Platform** — macOS, Windows, Linux, Raspberry Pi, Docker
 -   🌐 **Remote Server Mode** — Run headless on NAS/Pi, manage from desktop app
--   📊 **Dashboard** — Track sync status, storage usage, failed assets
+-   📊 **Dashboard** — Track sync status, storage usage, connected peers, and asset health
+-   🩺 **IPFS Health Monitoring** — Live online/offline indicator with connected peer count
+-   📋 **Built-in Log Viewer** — View, filter, and export logs directly from Settings
+-   🛡️ **Crash Diagnostics** — Rolling log files, panic recovery, and exportable diagnostic reports
 -   🔒 **Self-Sovereign** — Your data stays on your machine
 
 ---

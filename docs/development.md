@@ -147,7 +147,7 @@ porcupin/build/bin/
 
 ```text
 porcupin-ipfs-backup-node/
-├── package.json               # npm build scripts
+├── package.json               # Build scripts (npm or bun)
 ├── Dockerfile                 # Docker build
 ├── docker-compose.yml         # Docker compose config
 │
@@ -162,6 +162,7 @@ porcupin-ipfs-backup-node/
 │   │   ├── db/                # SQLite models (GORM)
 │   │   ├── indexer/           # TZKT API client
 │   │   ├── ipfs/              # Embedded Kubo node
+│   │   ├── logging/           # Structured slog, ring buffer, file rotation, crash reports
 │   │   └── storage/           # Storage detection & migration
 │   │
 │   ├── cmd/
@@ -234,10 +235,11 @@ porcupin-ipfs-backup-node/
 | Backup orchestration   | `porcupin/backend/core/backup.go`             |
 | Service lifecycle      | `porcupin/backend/core/service.go`            |
 | TZKT API integration   | `porcupin/backend/indexer/tzkt.go`            |
-| Wails bindings (Go↔JS) | `porcupin/app.go`                             |
+| Wails bindings (Go↔JS) | `porcupin/app.go`, `porcupin/app_settings.go` |
 | Database models        | `porcupin/backend/db/db.go`                   |
 | REST API endpoints     | `porcupin/backend/api/handlers.go`            |
 | API middleware         | `porcupin/backend/api/middleware.go`          |
+| Logging & diagnostics  | `porcupin/backend/logging/`                   |
 | Platform-specific code | See [Cross-Platform Guide](cross-platform.md) |
 
 ---
@@ -273,6 +275,7 @@ porcupin --serve
 
 # Health check (no auth required)
 curl http://localhost:8085/api/v1/health
+# Response includes: status, version, timestamp, is_online, peer_count
 
 # Get stats (auth required)
 curl -H "Authorization: Bearer test_token_12345" http://localhost:8085/api/v1/stats

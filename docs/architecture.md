@@ -20,6 +20,7 @@ C4Context
         Container(api, "REST API", "Go (chi router)", "HTTP API for remote access")
         ContainerDb(db, "Local Database", "SQLite", "Stores wallet tracking, NFT state, and asset status")
         Container(ipfs, "Embedded IPFS Node", "Kubo (go-ipfs)", "Manages pinning and content retrieval")
+        Container(logging, "Logging Subsystem", "slog + ring buffer", "Structured logs, crash reports, daily rolling files")
     }
 
     System_Ext(tzkt, "TZKT API", "Tezos Indexer API (REST & WebSocket)")
@@ -103,8 +104,9 @@ sequenceDiagram
 
         par Process Tokens
             I->>I: Extract artifactUri, thumbnailUri, formats
+            I->>I: Filter: only IPFS URIs queued (HTTP/HTTPS marked skipped)
             I->>D: Upsert NFT Record
-            I->>D: Create Asset Records (Status: PENDING)
+            I->>D: Create Asset Records (Status: PENDING or SKIPPED)
         end
     end
 
@@ -189,7 +191,7 @@ erDiagram
         string nft_id FK
         string type "artifact|thumbnail|format"
         string mime_type
-        string status "pending|pinned|failed"
+        string status "pending|pinned|failed|skipped"
         int size_bytes
         int retry_count
         datetime created_at
@@ -201,16 +203,44 @@ erDiagram
 
 ### 4.1. Backend (Go)
 
--   **Concurrency**: Uses Go routines and channels for the worker pool.
--   **Resilience**: Implements exponential backoff for network requests.
+-   **Concurrency**: Uses Go routines and channels for the worker pool. WaitGroup tracking ensures graceful shutdown waits for all goroutines to complete.
+-   **Resilience**: Implements exponential backoff for network requests. Panic recovery wrappers on all unprotected goroutines.
 -   **IPFS**: Uses `github.com/ipfs/kubo/core` for direct node integration, bypassing the HTTP API overhead for local operations.
+-   **Logging**: Structured logging via `slog` with a multi-handler fan-out to stderr, an in-memory ring buffer (1000 entries), and daily rotating log files.
+-   **Health Monitoring**: Periodic IPFS health checks reporting online/offline status and connected peer count via Kubo's Swarm API.
 
-### 4.2. Frontend (React + Wails)
+### 4.2. Logging & Diagnostics
+
+Porcupin uses a structured logging subsystem built on Go's `log/slog`:
+
+-   **Multi-handler fan-out**: Log records are sent simultaneously to stderr, an in-memory ring buffer, and daily rotating log files.
+-   **In-memory ring buffer**: The most recent 1000 log entries are kept in memory for the UI log viewer (`GetLogs` Wails binding).
+-   **Rolling log files**: Daily log files written to `~/.porcupin/logs/porcupin-YYYY-MM-DD.log` with configurable retention.
+-   **Crash reports**: A panic recovery wrapper captures goroutine stacks and writes crash reports to `~/.porcupin/logs/crash-*.txt`.
+-   **Export**: Users can export logs and full diagnostic reports (including system info, config, and recent logs) via native file dialogs from the Settings UI.
+
+| Component    | Package                        | Purpose                                      |
+| ------------ | ------------------------------ | -------------------------------------------- |
+| Multi-handler| `backend/logging/multi.go`     | Fan-out slog handler (stderr + ring + file)  |
+| Ring buffer  | `backend/logging/ring.go`      | In-memory log storage for UI log viewer      |
+| File handler | `backend/logging/file.go`      | Daily rolling log files with retention        |
+| Crash report | `backend/logging/crash.go`     | Panic recovery and crash report writer        |
+
+### 4.3. IPFS Health Monitoring
+
+The backend periodically checks IPFS node health and exposes the result to the frontend:
+
+-   **Health check**: `NodeHealthResult` struct with `IsOnline` (bool) and `PeerCount` (int) via Kubo's Swarm API.
+-   **Dashboard indicator**: Green/red health dot in the navigation bar.
+-   **Wails events**: `ipfs:health` event emitted on state changes so the frontend updates without polling.
+-   **Remote mode**: Health data is served via the `/api/v1/health` endpoint with `is_online` and `peer_count` fields.
+
+### 4.4. Frontend (React + Wails)
 
 -   **Communication**: Wails generates Javascript bindings for Go methods.
 -   **State**: React Query handles polling the local backend for status updates (e.g., "5/100 Assets Pinned").
 
-### 4.3. REST API (Headless Server)
+### 4.5. REST API (Headless Server)
 
 The headless server exposes a REST API for remote management:
 
@@ -227,7 +257,7 @@ The headless server exposes a REST API for remote management:
 | Rate Limit | `golang.org/x/time/rate`       | Token bucket rate limiting  |
 | mDNS       | `github.com/grandcat/zeroconf` | Service advertisement       |
 
-### 4.4. Security & Isolation
+### 4.6. Security & Isolation
 
 -   **Docker**: The headless version runs in a distroless container to minimize attack surface.
 -   **Local Storage**: Data is stored in `XDG_DATA_HOME/porcupin` (Linux) or `~/Library/Application Support/porcupin` (macOS), ensuring standard OS compliance.

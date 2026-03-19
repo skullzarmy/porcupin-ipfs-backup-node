@@ -66,7 +66,7 @@ Stop the other IPFS process or change ports.
 
 **Cause 2: Stale lock file**
 
-If Porcupin crashed, a lock file may remain:
+If Porcupin crashed, a lock file may remain. The app will now display a dialog with the specific error and the lock file path. In most cases, stale locks from crashed processes are automatically released by the OS (via flock semantics), so simply restarting the app should work. If the lock persists:
 
 ```bash
 rm ~/.porcupin/ipfs/repo.lock

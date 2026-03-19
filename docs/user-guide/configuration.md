@@ -210,6 +210,9 @@ docker run -d \
 ├── config.yaml        # Configuration file
 ├── porcupin.db        # SQLite database (wallets, NFTs, asset status)
 ├── .api-token-hash    # API token hash (only when using --serve)
+├── logs/              # Log files and crash reports
+│   ├── porcupin-YYYY-MM-DD.log  # Daily rolling log files
+│   └── crash-*.txt              # Crash reports (on panic)
 └── ipfs/              # IPFS repository
     ├── blocks/        # Pinned content (this is the big folder)
     ├── datastore/     # IPFS internal data

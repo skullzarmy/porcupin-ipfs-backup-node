@@ -10,9 +10,11 @@ Get Porcupin running and backing up your NFTs in 5 minutes.
 
 Open the app. You'll see the Dashboard showing:
 
+-   **IPFS Health** indicator (green = online with connected peers, red = offline)
 -   **Pinned**: 0 (number of backed up assets)
 -   **Pending**: 0 (assets waiting to be pinned)
 -   **Failed**: 0 (assets that couldn't be retrieved)
+-   **Skipped**: 0 (non-IPFS assets like HTTP URLs that can't be pinned)
 
 ### Step 2: Add Your Wallet
 
@@ -85,6 +87,7 @@ porcupin --stats
 # Pinned: 5,678 assets (45.2 GB)
 # Pending: 12
 # Failed: 3
+# Skipped: 45
 ```
 
 ### Step 4: Run as a Service (systemd)
@@ -115,6 +118,11 @@ You can also run Porcupin using Docker or Docker Compose.
 -   Some NFTs have broken/missing IPFS content
 -   These are marked as "Failed (Unavailable)"
 -   Porcupin periodically retries them in case they come back online
+
+### Skipped Assets
+
+-   NFTs with non-IPFS URIs (HTTP/HTTPS links) are automatically marked as "Skipped"
+-   These cannot be pinned to IPFS and are excluded from failure counts
 
 ### Storage Growth
 

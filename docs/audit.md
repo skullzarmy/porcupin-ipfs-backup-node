@@ -132,6 +132,24 @@ This document outlines potential security and reliability risks identified durin
 
 **Resolution**: The work queue is backed by the SQLite database (`status='pending'`). On restart, the application queries for pending items and resumes where it left off. This provides crash-resilient operation.
 
+### Panic Recovery & Crash Reports
+
+**Risk**: An unhandled panic in a goroutine could crash the app silently with no diagnostic information.
+
+**Mitigation**: All unprotected goroutines (integrity check, retry worker, update checker, disk usage init, worker pool) are wrapped with `recover()`. Panics are caught, logged, and written to crash report files (`~/.porcupin/logs/crash-*.txt`) with full goroutine stacks. The process exits with code 1 so the OS/systemd registers the crash correctly.
+
+### Data Race Prevention
+
+**Risk**: Concurrent access to shared state (service fields, backup manager state) could cause data races.
+
+**Mitigation**: `isPaused` reads use `IsPaused()` accessor with `RLock`. `WaitGroup` ensures `Stop()` blocks until all goroutines fully exit. `atomic.Pointer[sync.Map]` for concurrent URI tracking. Mutex-guarded reads for `ipfs` and `storage` fields. Context-aware shutdown sleeps so goroutines exit promptly.
+
+### Response Body Size Limits
+
+**Risk**: Unbounded HTTP response bodies from remote servers could exhaust memory.
+
+**Mitigation**: `io.LimitReader(10MB)` on both HTTP clients in `remote_client.go`. Error response bodies truncated to 200 characters in logs. Full response body logging removed.
+
 ### Binary Size
 
 **Concern**: Embedding Kubo libraries increases binary size significantly (~50MB+).
@@ -142,4 +160,4 @@ This document outlines potential security and reliability risks identified durin
 
 ## Summary
 
-The primary risks addressed are **resource management** (disk/RAM/bandwidth exhaustion) and **security** (XSS, network exposure). All identified risks have corresponding mitigations implemented in the codebase.
+The primary risks addressed are **resource management** (disk/RAM/bandwidth exhaustion), **security** (XSS, network exposure, response body limits), **data integrity** (race conditions, crash recovery), and **observability** (structured logging, crash reports, health monitoring). All identified risks have corresponding mitigations implemented in the codebase.

@@ -99,9 +99,29 @@ This means the content isn't available on IPFS anymore. Porcupin will:
 
 Unfortunately, if no one has the content, it's lost. This is why Porcupin exists - to prevent this!
 
+### What does "Skipped" mean?
+
+Some NFTs have assets stored at HTTP/HTTPS URLs instead of IPFS. Since these can't be pinned to IPFS, Porcupin marks them as "Skipped". They are excluded from failure counts and don't trigger retries.
+
+### How do I know if my IPFS node is connected?
+
+The Dashboard shows a health indicator dot next to the navigation:
+-   **Green** = IPFS node is online and connected to peers (with peer count displayed)
+-   **Red** = IPFS node is offline or has no peers
+
+You can also check connectivity from **Settings → Check Connectivity**.
+
 ### Can I sync someone else's wallet?
 
 Technically yes - you can add any wallet address. But please be respectful of others' collections.
+
+### Where are the logs?
+
+-   **Desktop**: Go to **Settings → Logs & Diagnostics** to view recent logs with level filtering, export logs, or export a full diagnostic report.
+-   **Log files on disk**: `~/.porcupin/logs/porcupin-YYYY-MM-DD.log`
+-   **Crash reports**: `~/.porcupin/logs/crash-*.txt`
+-   **Headless/systemd**: `journalctl -u porcupin -f`
+-   **Docker**: `docker logs porcupin`
 
 ---
 
@@ -136,6 +156,15 @@ Or via CLI: `porcupin --ipfs-port 4002`
 ### Is my data private?
 
 NFT content is already public on the blockchain. Porcupin doesn't add any private data. Your wallet addresses are not secret - they're on the public blockchain.
+
+### Where are the log files?
+
+Porcupin writes daily log files and crash reports:
+
+-   **Log files:** `~/.porcupin/logs/porcupin-YYYY-MM-DD.log`
+-   **Crash reports:** `~/.porcupin/logs/crash-*.txt`
+-   **Desktop app:** View logs in **Settings > Logs & Diagnostics**, or export a full diagnostic report
+-   **Headless:** Check stdout/stderr or `journalctl -u porcupin`
 
 ### Can I run multiple instances?
 
