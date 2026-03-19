@@ -98,11 +98,9 @@ func (a *App) startup(ctx context.Context) {
 	if err := ipfsNode.Start(ctx); err != nil {
 		log.Printf("Failed to start IPFS node: %v", err)
 		wailsRuntime.MessageDialog(ctx, wailsRuntime.MessageDialogOptions{
-			Type:  wailsRuntime.ErrorDialog,
-			Title: "Startup Failed",
-			Message: "Could not start the IPFS node.\n\nA previous instance may still be " +
-				"shutting down. Please wait 30 seconds and try again.\n\n" +
-				"If this persists, restart your computer.\n\nError: " + err.Error(),
+			Type:    wailsRuntime.ErrorDialog,
+			Title:   "Startup Failed",
+			Message: "Could not start the IPFS node.\n\n" + err.Error(),
 		})
 		os.Exit(1)
 	}
