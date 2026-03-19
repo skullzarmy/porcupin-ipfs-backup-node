@@ -692,10 +692,13 @@ func (s *BackupService) PinAsset(ctx context.Context, assetID uint64) error {
 
 // UnpinAsset unpins an asset by CID
 func (s *BackupService) UnpinAsset(cid string) error {
-	if s.ipfs == nil {
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	s.mu.RUnlock()
+	if ipfsNode == nil {
 		return nil
 	}
-	return s.ipfs.Unpin(s.ctx, cid)
+	return ipfsNode.Unpin(s.ctx, cid)
 }
 
 // VerifyAndFixPins runs the verification and repair process
@@ -705,17 +708,23 @@ func (s *BackupService) VerifyAndFixPins() (map[string]int, error) {
 
 // GetStorageManager returns the storage manager instance
 func (s *BackupService) GetStorageManager() *storage.Manager {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return s.storage
 }
 
 // ClearAllData performs a full device reset: unpins everything, GCs, and clears DB
 func (s *BackupService) ClearAllData(progress func(string, string, int, int)) error {
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	s.mu.RUnlock()
+
 	// 1. Unpin all IPFS content
 	if progress != nil {
 		progress("unpinning", "Unpinning all IPFS content...", 0, 0)
 	}
-	
-	unpinned, err := s.ipfs.UnpinAll(s.ctx, func(total, current int) {
+
+	unpinned, err := ipfsNode.UnpinAll(s.ctx, func(total, current int) {
 		if progress != nil {
 			progress("unpinning", fmt.Sprintf("Unpinning content... %d/%d", current, total), total, current)
 		}
@@ -729,7 +738,7 @@ func (s *BackupService) ClearAllData(progress func(string, string, int, int)) er
 	if progress != nil {
 		progress("garbage_collect", "Running internal IPFS garbage collection...", 0, 0)
 	}
-	if err := s.ipfs.GarbageCollect(s.ctx); err != nil {
+	if err := ipfsNode.GarbageCollect(s.ctx); err != nil {
 		log.Printf("Warning: garbage collection failed: %v", err)
 	}
 
@@ -762,13 +771,17 @@ func (s *BackupService) DeleteWalletFull(address string) error {
 		return fmt.Errorf("failed to get assets: %w", err)
 	}
 
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	s.mu.RUnlock()
+
 	// Unpin each asset — log errors but continue so DB cleanup always happens.
 	for _, asset := range assets {
 		cid := ExtractCIDFromURI(asset.URI)
 		if cid == "" {
 			continue
 		}
-		if err := s.ipfs.Unpin(s.ctx, cid); err != nil {
+		if err := ipfsNode.Unpin(s.ctx, cid); err != nil {
 			log.Printf("Warning: failed to unpin asset %s: %v", cid, err)
 		}
 	}

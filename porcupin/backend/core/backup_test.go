@@ -836,9 +836,6 @@ func TestBackupManager_VerifyAndFixPins(t *testing.T) {
 	idx := indexer.NewIndexer(cfg.TZKT.BaseURL)
 
 	bm := NewBackupManager(mockNode, idx, database, cfg)
-	// Initialize processedURIs for the test manually if needed, but NewBackupManager might not do it?
-	// NewBackupManager doesn't init processedURIs in my view of backup.go?
-	// Wait, processedURIs is sync.Map, zero value is usable.
 	// So NewBackupManager is fine.
 
 	ctx := context.Background()
@@ -1243,25 +1240,25 @@ func TestBackupManager_ProcessedURIsDeduplication(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
+	bm.processedURIs.Store(new(sync.Map))
 
 	uri := "ipfs://QmTest123"
 
 	// First store should succeed
-	_, loaded := bm.processedURIs.LoadOrStore(uri, true)
+	_, loaded := bm.processedURIs.Load().LoadOrStore(uri, true)
 	if loaded {
 		t.Error("First LoadOrStore should not be loaded")
 	}
 
 	// Second store should indicate already present
-	_, loaded = bm.processedURIs.LoadOrStore(uri, true)
+	_, loaded = bm.processedURIs.Load().LoadOrStore(uri, true)
 	if !loaded {
 		t.Error("Second LoadOrStore should indicate loaded")
 	}
 
 	// Different URI should succeed
-	_, loaded = bm.processedURIs.LoadOrStore("ipfs://QmDifferent", true)
+	_, loaded = bm.processedURIs.Load().LoadOrStore("ipfs://QmDifferent", true)
 	if loaded {
 		t.Error("Different URI LoadOrStore should not be loaded")
 	}
@@ -1293,7 +1290,6 @@ func TestBackupManager_SyncWallet_ContextCancellation(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Add wallet to database
@@ -1335,7 +1331,6 @@ func TestBackupManager_BackupAsset_NonIPFSURI(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// HTTP URLs should be skipped (no error)
@@ -1361,7 +1356,6 @@ func TestBackupManager_BackupAsset_WhenPaused(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Pause the manager
@@ -1384,13 +1378,13 @@ func TestBackupManager_BackupAsset_Deduplication(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	uri := "ipfs://QmTestDedup"
 
 	// Mark as already processed
-	bm.processedURIs.Store(uri, true)
+	bm.processedURIs.Store(new(sync.Map))
+	bm.processedURIs.Load().Store(uri, true)
 
 	// Attempt backup - should skip
 	err := bm.backupAsset(context.Background(), 1, uri, "artifact")
@@ -1853,7 +1847,6 @@ func TestBackupManager_ProcessNFT_WhenPaused(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Pause the manager
@@ -1898,7 +1891,6 @@ func TestBackupManager_ProcessNFT_NoMetadata(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Add wallet to DB
@@ -1931,7 +1923,6 @@ func TestBackupManager_ProcessNFT_NoIPFSContent(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Add wallet to DB
@@ -1973,7 +1964,6 @@ func TestBackupManager_ProcessNFT_ContextCancelled(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 	_ = mockNode // Used only for type reference
 
@@ -2014,7 +2004,6 @@ func TestBackupManager_ProcessNFT_ShutdownChannel(t *testing.T) {
 		config:        cfg,
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Add wallet to DB
@@ -2147,7 +2136,6 @@ func TestBackupManager_PinAssetDirect_NonIPFS(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Create asset with non-IPFS URI
@@ -2221,7 +2209,6 @@ func TestBackupManager_BackupAsset_StorageLimitReached(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Add wallet and NFT
@@ -2270,7 +2257,6 @@ func TestBackupManager_BackupAsset_AlreadyPinned(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Add wallet and NFT
@@ -2295,7 +2281,7 @@ func TestBackupManager_BackupAsset_AlreadyPinned(t *testing.T) {
 	database.SaveAsset(existingAsset)
 
 	// Reset processedURIs to allow the check
-	bm.processedURIs = sync.Map{}
+	bm.processedURIs.Store(new(sync.Map))
 
 	// Try to backup the same URI - should skip
 	initialPinned := bm.GetProgress().PinnedAssets
@@ -2361,7 +2347,6 @@ func TestBackupManager_FetchMetadataFromChain_NonIPFSURI(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Should fail because URI is not IPFS
@@ -2404,7 +2389,6 @@ func TestSyncWallet_NFTsArePersistedToDatabase(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Create wallet in DB
@@ -2529,7 +2513,6 @@ func TestSyncWallet_DuplicateURIsAreDeduped(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	wallet := &db.Wallet{Address: "tz1Test", SyncOwned: true, SyncCreated: false}
@@ -2585,7 +2568,6 @@ func TestSyncWallet_IncrementalSyncPassesSinceLevel(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Create wallet with a previous sync level
@@ -2677,7 +2659,6 @@ func TestStorageLimitEnforcement(t *testing.T) {
 		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:      SyncProgress{Phase: "idle"},
-		processedURIs: sync.Map{},
 	}
 
 	// Add pinned assets that exceed the limit
@@ -2701,7 +2682,7 @@ func TestStorageLimitEnforcement(t *testing.T) {
 	}
 
 	// Verify progress shows paused when trying to backup with limit exceeded
-	bm.processedURIs = sync.Map{} // Reset dedup
+	bm.processedURIs.Store(new(sync.Map)) // Reset dedup
 	err := bm.backupAsset(context.Background(), nft.ID, "ipfs://QmNewAsset", "artifact")
 	
 	if err == nil || !bm.IsPaused() {

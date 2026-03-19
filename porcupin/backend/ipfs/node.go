@@ -205,6 +205,7 @@ func (n *Node) Stop() error {
 	}()
 
 	var closeErr error
+	timedOut := false
 	select {
 	case err := <-done:
 		closeErr = err
@@ -215,23 +216,23 @@ func (n *Node) Stop() error {
 		}
 	case <-time.After(ShutdownTimeout):
 		log.Printf("IPFS node shutdown timed out after %v, forcing closure", ShutdownTimeout)
-		// Node didn't close in time - this can happen when libp2p connections are stuck
-		// We need to proceed anyway, so we'll clean up the lock file manually
+		timedOut = true
 	}
 
 	// Clear our references regardless of how we exited
 	n.node = nil
 	n.api = nil
 
-	// Remove the repo lock file if it exists - this is necessary when:
-	// 1. The node didn't shut down cleanly (timeout)
-	// 2. We need to allow migration to proceed
-	// 3. We need to allow a new node to start at a different location
-	lockFile := filepath.Join(repoPath, "repo.lock")
-	if _, err := os.Stat(lockFile); err == nil {
-		log.Printf("Removing stale repo lock file: %s", lockFile)
-		if err := os.Remove(lockFile); err != nil {
-			log.Printf("Warning: failed to remove lock file: %v", err)
+	// Only remove the repo lock file after a timeout — if the node closed
+	// cleanly, Kubo already released the lock. Removing unconditionally
+	// risks deleting a lock that a concurrent process legitimately holds.
+	if timedOut {
+		lockFile := filepath.Join(repoPath, "repo.lock")
+		if _, err := os.Stat(lockFile); err == nil {
+			log.Printf("Removing stale repo lock file after timeout: %s", lockFile)
+			if err := os.Remove(lockFile); err != nil {
+				log.Printf("Warning: failed to remove lock file: %v", err)
+			}
 		}
 	}
 
@@ -657,20 +658,28 @@ func (n *Node) Cat(ctx context.Context, cidStr string, maxBytes int64) ([]byte, 
 }
 
 
-// Helper to setup plugins (required for Kubo)
+var pluginsOnce sync.Once
+var pluginsErr error
+
+// setupPlugins initializes Kubo plugins exactly once. Uses sync.Once so
+// it is safe to call on every Start() — including after Stop() restarts.
 func setupPlugins(externalPluginsPath string) error {
-	plugins, err := loader.NewPluginLoader(filepath.Join(externalPluginsPath, "plugins"))
-	if err != nil {
-		return fmt.Errorf("error loading plugins: %s", err)
-	}
+	pluginsOnce.Do(func() {
+		plugins, err := loader.NewPluginLoader(filepath.Join(externalPluginsPath, "plugins"))
+		if err != nil {
+			pluginsErr = fmt.Errorf("error loading plugins: %w", err)
+			return
+		}
 
-	if err := plugins.Initialize(); err != nil {
-		return fmt.Errorf("error initializing plugins: %s", err)
-	}
+		if err := plugins.Initialize(); err != nil {
+			pluginsErr = fmt.Errorf("error initializing plugins: %w", err)
+			return
+		}
 
-	if err := plugins.Inject(); err != nil {
-		return fmt.Errorf("error injecting plugins: %s", err)
-	}
-
-	return nil
+		if err := plugins.Inject(); err != nil {
+			pluginsErr = fmt.Errorf("error injecting plugins: %w", err)
+			return
+		}
+	})
+	return pluginsErr
 }

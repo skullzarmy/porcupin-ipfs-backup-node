@@ -98,6 +98,13 @@ func (bm *BackupManager) UpdateIPFS(node IPFSClient) {
 	bm.ipfs = node
 }
 
+// getIPFS returns the current IPFS client under a read lock.
+func (bm *BackupManager) getIPFS() IPFSClient {
+	bm.mu.RLock()
+	defer bm.mu.RUnlock()
+	return bm.ipfs
+}
+
 // SetPaused sets the pause state
 func (bm *BackupManager) SetPaused(paused bool) {
 	bm.pauseMu.Lock()
@@ -268,7 +275,13 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 			break
 		}
 
-		sem <- struct{}{} // acquire slot
+		select {
+		case sem <- struct{}{}: // acquire slot
+		case <-ctx.Done():
+		}
+		if ctx.Err() != nil {
+			break
+		}
 		wg.Add(1)
 		go func(t indexer.Token) {
 			defer func() { <-sem }() // release slot
@@ -630,7 +643,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	}
 
 	// Get actual size from IPFS after pinning
-	if size, err := bm.ipfs.Stat(ctx, cid); err == nil && size > 0 {
+	if size, err := bm.getIPFS().Stat(ctx, cid); err == nil && size > 0 {
 		asset.SizeBytes = size
 	} else if err != nil {
 		log.Printf("Could not get size for %s: %v", cid, err)
@@ -797,7 +810,7 @@ func (bm *BackupManager) pinWithRetry(ctx context.Context, cid string, retryCoun
 			timeout = 60 * time.Second  // Cap at 60s per attempt
 		}
 		
-		err := bm.ipfs.Pin(ctx, cid, timeout)
+		err := bm.getIPFS().Pin(ctx, cid, timeout)
 		if err == nil {
 			return nil
 		}
@@ -889,7 +902,7 @@ func (bm *BackupManager) MarkDiskUsageDirty() {
 // UpdateDiskUsage recalculates disk usage if dirty and saves to DB
 func (bm *BackupManager) UpdateDiskUsage() {
 	if atomic.CompareAndSwapInt32(&bm.diskUsageDirty, 1, 0) {
-		repoPath := bm.ipfs.GetRepoPath()
+		repoPath := bm.getIPFS().GetRepoPath()
 		sizeBytes, err := GetDiskUsageBytes(repoPath)
 		if err != nil {
 			log.Printf("Failed to get disk usage: %v", err)
@@ -1071,7 +1084,7 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	}
 
 	// Get actual size from IPFS after pinning
-	if size, err := bm.ipfs.Stat(ctx, cid); err == nil && size > 0 {
+	if size, err := bm.getIPFS().Stat(ctx, cid); err == nil && size > 0 {
 		asset.SizeBytes = size
 	}
 
@@ -1125,6 +1138,12 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 		// Capture loop variable
 		go func(a db.Asset) {
 			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Panic processing pending asset %s: %v", a.URI, r)
+					atomic.AddInt64(&fCount, 1)
+				}
+			}()
 
 			// Acquire worker slot
 			select {
