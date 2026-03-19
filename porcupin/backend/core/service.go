@@ -494,7 +494,9 @@ func (s *BackupService) retryFailedAssets() {
 		
 		// Reset status to pending
 		asset.Status = db.StatusPending
-		s.db.SaveAsset(&asset)
+		if err := s.db.SaveAsset(&asset); err != nil {
+			log.Printf("Warning: failed to reset asset %d to pending: %v", asset.ID, err)
+		}
 		
 		// The BackupManager's processNFT will pick this up
 		// For now, we just mark them as pending and let the next sync handle them

@@ -546,7 +546,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		log.Printf("Storage limit reached, stopping backup")
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Storage limit reached"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		// Auto-pause to prevent further attempts
 		bm.SetPaused(true)
 		return fmt.Errorf("storage limit reached")
@@ -557,7 +559,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		log.Printf("Insufficient disk space, stopping backup")
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Insufficient disk space"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		// Auto-pause to prevent further attempts
 		bm.SetPaused(true)
 		return fmt.Errorf("insufficient disk space")
@@ -574,12 +578,16 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 		if size > bm.config.IPFS.MaxFileSize {
 			asset.Status = db.StatusFailed
 			asset.ErrorMsg = fmt.Sprintf("File too large: %d bytes (max %d)", size, bm.config.IPFS.MaxFileSize)
-			bm.db.SaveAsset(asset)
+			if err := bm.db.SaveAsset(asset); err != nil {
+				log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+			}
 			return fmt.Errorf("file too large: %d bytes", size)
 		}
 		asset.SizeBytes = size
 		asset.MimeType = mimeType
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset metadata for %s: %v", uri, err)
+		}
 	}
 
 	// Extract CID from URI (if it's an IPFS URI)
@@ -587,7 +595,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	if cid == "" {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Invalid IPFS URI - could not extract CID"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		bm.updateProgress(func(p *SyncProgress) {
 			p.FailedAssets++
 		})
@@ -605,7 +615,9 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 			asset.Status = db.StatusFailed
 			asset.ErrorMsg = err.Error()
 		}
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		bm.updateProgress(func(p *SyncProgress) {
 			p.FailedAssets++
 		})
@@ -623,8 +635,10 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	asset.Status = db.StatusPinned
 	now := time.Now()
 	asset.PinnedAt = &now
-	bm.db.SaveAsset(asset)
-	
+	if err := bm.db.SaveAsset(asset); err != nil {
+		log.Printf("Warning: failed to save pinned status for %s: %v", uri, err)
+	}
+
 	// Mark disk usage for update
 	bm.MarkDiskUsageDirty()
 
@@ -989,7 +1003,9 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	if !bm.isWithinStorageLimit() {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Storage limit reached"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		return fmt.Errorf("storage limit reached")
 	}
 
@@ -997,7 +1013,9 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	if !bm.hasSufficientDiskSpace() {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Insufficient disk space"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		return fmt.Errorf("insufficient disk space")
 	}
 
@@ -1007,12 +1025,16 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 		if size > bm.config.IPFS.MaxFileSize {
 			asset.Status = db.StatusFailed
 			asset.ErrorMsg = fmt.Sprintf("File too large: %d bytes", size)
-			bm.db.SaveAsset(asset)
+			if err := bm.db.SaveAsset(asset); err != nil {
+				log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+			}
 			return fmt.Errorf("file too large")
 		}
 		asset.SizeBytes = size
 		asset.MimeType = mimeType
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset metadata for %s: %v", uri, err)
+		}
 	}
 
 	// Extract CID from URI
@@ -1020,7 +1042,9 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	if cid == "" {
 		asset.Status = db.StatusFailed
 		asset.ErrorMsg = "Invalid IPFS URI - could not extract CID"
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		return fmt.Errorf("could not extract CID from URI: %s", uri)
 	}
 
@@ -1035,7 +1059,9 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 			asset.Status = db.StatusFailed
 			asset.ErrorMsg = err.Error()
 		}
-		bm.db.SaveAsset(asset)
+		if err := bm.db.SaveAsset(asset); err != nil {
+			log.Printf("Warning: failed to save asset status for %s: %v", uri, err)
+		}
 		return err
 	}
 
@@ -1048,8 +1074,10 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	asset.Status = db.StatusPinned
 	now := time.Now()
 	asset.PinnedAt = &now
-	bm.db.SaveAsset(asset)
-	
+	if err := bm.db.SaveAsset(asset); err != nil {
+		log.Printf("Warning: failed to save pinned status for %s: %v", uri, err)
+	}
+
 	// Mark disk usage for update
 	bm.MarkDiskUsageDirty()
 
