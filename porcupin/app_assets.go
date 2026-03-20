@@ -274,8 +274,11 @@ func (a *App) RepinZeroSizeAssets() (int, error) {
 	return count, nil
 }
 
-// VerifyAndFixPins checks all pinned assets and updates their sizes from IPFS
-func (a *App) VerifyAndFixPins() (map[string]int, error) {
+// VerifyPinHealth checks all pinned assets and updates their sizes from IPFS.
+// This is a health check — it verifies IPFS availability and corrects sizes.
+// Not to be confused with BackupManager.VerifyAndFixPins which re-processes
+// NFTs to discover and create missing asset records.
+func (a *App) VerifyPinHealth() (map[string]int, error) {
 	var assets []db.Asset
 	if err := a.database.DB.Where("status = ?", db.StatusPinned).Find(&assets).Error; err != nil {
 		return nil, fmt.Errorf("failed to query assets: %w", err)

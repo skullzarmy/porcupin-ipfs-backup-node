@@ -50,7 +50,7 @@ type NFT struct {
 	ArtifactURI     string    `json:"artifact_uri"`
 	DisplayURI      string    `json:"display_uri"`   // Often a smaller preview
 	ThumbnailURI    string    `json:"thumbnail_uri"`
-	RawMetadata     string    `json:"raw_metadata"` // JSON string
+	RawMetadata     string    `json:"-"` // Full metadata JSON; internal use only, not sent to frontend
 	Assets          []Asset   `gorm:"foreignKey:NFTID" json:"assets,omitempty"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`

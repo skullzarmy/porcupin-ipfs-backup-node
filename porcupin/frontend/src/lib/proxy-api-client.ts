@@ -293,7 +293,7 @@ export class ProxyAPIClient {
         return resp.data;
     }
 
-    async verifyAndFixPins(): Promise<Record<string, number>> {
+    async verifyPinHealth(): Promise<Record<string, number>> {
         const resp = await this.post<{ data: Record<string, number> }>("/api/v1/verify-and-fix");
         return resp.data;
     }

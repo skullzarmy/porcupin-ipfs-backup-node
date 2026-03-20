@@ -94,34 +94,7 @@ func TestExtractCIDFromURI(t *testing.T) {
 	}
 }
 
-func TestIsIPFSURI(t *testing.T) {
-	tests := []struct {
-		uri      string
-		expected bool
-	}{
-		{"ipfs://QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG", true},
-		{"ipfs://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", true},
-		{"https://ipfs.io/ipfs/QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG", true},
-		{"https://cloudflare-ipfs.com/ipfs/QmTest", true},
-		{"https://gateway.pinata.cloud/ipfs/QmTest", true},
-		{"https://example.com/image.png", false},
-		{"http://localhost:8080/file.json", false},
-		{"data:image/png;base64,abc123", false},
-		{"", false},
-		{"ipfs://", true}, // Valid prefix, even if no CID
-		{"IPFS://QmTest", false}, // Case sensitive
-		{"/ipfs/QmTest", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.uri, func(t *testing.T) {
-			result := isIPFSURI(tt.uri)
-			if result != tt.expected {
-				t.Errorf("isIPFSURI(%q) = %v, want %v", tt.uri, result, tt.expected)
-			}
-		})
-	}
-}
+// NOTE: TestIsIPFSURI moved to backend/uri/uri_test.go as TestIsIPFS.
 
 func TestIsTimeoutError(t *testing.T) {
 	tests := []struct {
@@ -194,6 +167,13 @@ func TestHasIPFSContent(t *testing.T) {
 		}, true},
 		// hasIPFSContent returns false for non-IPFS URIs — HTTP-only NFTs are intentionally skipped
 		{"non-IPFS artifact returns false", &indexer.TokenMetadata{ArtifactURI: "https://example.com/img.png"}, false},
+		// Non-standard IPFS fields via RawJSON
+		{"non-standard IPFS field only", &indexer.TokenMetadata{
+			RawJSON: json.RawMessage(`{"pinUri":"ipfs://QmPin"}`),
+		}, true},
+		{"non-standard field with no IPFS", &indexer.TokenMetadata{
+			RawJSON: json.RawMessage(`{"image":"https://example.com/img.png"}`),
+		}, false},
 	}
 
 	for _, tt := range tests {
@@ -259,6 +239,23 @@ func TestCollectAssetURIs(t *testing.T) {
 			},
 			[]string{"ipfs://QmFormat"},
 		},
+		{
+			"non-standard fields from RawJSON",
+			&indexer.TokenMetadata{
+				ArtifactURI: "ipfs://QmArtifact",
+				RawJSON:     json.RawMessage(`{"artifactUri":"ipfs://QmArtifact","pinUri":"ipfs://QmPin","rightUri":"ipfs://QmRight"}`),
+			},
+			[]string{"ipfs://QmArtifact", "ipfs://QmPin", "ipfs://QmRight"},
+		},
+		{
+			"RawJSON deduplicates against standard fields",
+			&indexer.TokenMetadata{
+				ArtifactURI: "ipfs://QmArt",
+				DisplayURI:  "ipfs://QmDisp",
+				RawJSON:     json.RawMessage(`{"artifactUri":"ipfs://QmArt","displayUri":"ipfs://QmDisp","extra":"ipfs://QmExtra"}`),
+			},
+			[]string{"ipfs://QmArt", "ipfs://QmDisp", "ipfs://QmExtra"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -274,40 +271,6 @@ func TestCollectAssetURIs(t *testing.T) {
 				if !seen[uri] {
 					t.Errorf("collectAssetURIs() missing expected URI: %s", uri)
 				}
-			}
-		})
-	}
-}
-
-func TestCountAssets(t *testing.T) {
-	tests := []struct {
-		name     string
-		metadata *indexer.TokenMetadata
-		expected int
-	}{
-		{"nil", nil, 0},
-		{"empty", &indexer.TokenMetadata{}, 0},
-		{"one artifact", &indexer.TokenMetadata{ArtifactURI: "ipfs://Qm1"}, 1},
-		{"artifact and thumbnail same (deduplicated)", &indexer.TokenMetadata{
-			ArtifactURI:  "ipfs://QmSame",
-			ThumbnailURI: "ipfs://QmSame",
-		}, 1},
-		{"multiple unique", &indexer.TokenMetadata{
-			ArtifactURI:  "ipfs://Qm1",
-			DisplayURI:   "ipfs://Qm2",
-			ThumbnailURI: "ipfs://Qm3",
-		}, 3},
-		{"with formats", &indexer.TokenMetadata{
-			ArtifactURI: "ipfs://Qm1",
-			Formats:     []indexer.Format{{URI: "ipfs://Qm2"}, {URI: "ipfs://Qm3"}},
-		}, 3},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := countAssets(tt.metadata)
-			if result != tt.expected {
-				t.Errorf("countAssets() = %d, want %d", result, tt.expected)
 			}
 		})
 	}
@@ -961,6 +924,66 @@ func TestBackupManager_VerifyAndFixPins(t *testing.T) {
 	if stats["errors"] != 0 {
 		t.Errorf("Stats: Expected 0 errors, got %d", stats["errors"])
 	}
+}
+
+func TestReconstructMetadata(t *testing.T) {
+	t.Run("full raw metadata JSON", func(t *testing.T) {
+		nft := db.NFT{
+			Name:        "Old Name",
+			Description: "Old Desc",
+			ArtifactURI: "ipfs://QmOld",
+			RawMetadata: `{"name":"New Name","artifactUri":"ipfs://QmNew","pinUri":"ipfs://QmPin","formats":[{"uri":"ipfs://QmFmt","mimeType":"image/png"}]}`,
+		}
+		m := reconstructMetadata(nft)
+		if m.Name != "New Name" {
+			t.Errorf("Name = %q, want %q", m.Name, "New Name")
+		}
+		if m.ArtifactURI != "ipfs://QmNew" {
+			t.Errorf("ArtifactURI = %q, want %q", m.ArtifactURI, "ipfs://QmNew")
+		}
+		if len(m.Formats) != 1 {
+			t.Errorf("Formats = %d, want 1", len(m.Formats))
+		}
+		// RawJSON should be populated so ExtractExtraIPFSURIs can find pinUri
+		extraURIs := indexer.ExtractExtraIPFSURIs(m.RawJSON)
+		found := false
+		for _, u := range extraURIs {
+			if u == "ipfs://QmPin" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected pinUri to be discoverable from reconstructed RawJSON")
+		}
+	})
+
+	t.Run("old format - URI pointer only", func(t *testing.T) {
+		nft := db.NFT{
+			Name:        "My NFT",
+			ArtifactURI: "ipfs://QmArt",
+			RawMetadata: `{"uri":"ipfs://QmMetadataURI"}`,
+		}
+		m := reconstructMetadata(nft)
+		// Should fall back to column-based reconstruction
+		if m.Name != "My NFT" {
+			t.Errorf("Name = %q, want %q", m.Name, "My NFT")
+		}
+		if m.ArtifactURI != "ipfs://QmArt" {
+			t.Errorf("ArtifactURI = %q, want %q", m.ArtifactURI, "ipfs://QmArt")
+		}
+	})
+
+	t.Run("empty raw metadata", func(t *testing.T) {
+		nft := db.NFT{
+			Name:        "Fallback",
+			ArtifactURI: "ipfs://QmFallback",
+			RawMetadata: "",
+		}
+		m := reconstructMetadata(nft)
+		if m.Name != "Fallback" {
+			t.Errorf("Name = %q, want %q", m.Name, "Fallback")
+		}
+	})
 }
 
 func TestBackupService_TriggerSync(t *testing.T) {

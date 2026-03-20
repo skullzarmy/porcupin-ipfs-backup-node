@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	ipfsuri "porcupin/backend/uri"
+
 	"github.com/dipdup-net/go-lib/tzkt/api"
 	"github.com/dipdup-net/go-lib/tzkt/events"
 )
@@ -46,7 +48,10 @@ func (i *Indexer) SetTokenCallback(cb func(Token)) {
 	i.tokenCallback = cb
 }
 
-// TokenMetadata represents the metadata structure we expect from TZKT
+// TokenMetadata represents the metadata structure we expect from TZKT.
+// The custom UnmarshalJSON stores the complete raw JSON in RawJSON so that
+// non-standard fields (e.g. Versum's pinUri, fxhash's generativeUri) can be
+// scanned for additional IPFS URIs.
 type TokenMetadata struct {
 	Name         string          `json:"name"`
 	Description  string          `json:"description"`
@@ -56,6 +61,31 @@ type TokenMetadata struct {
 	Creators     json.RawMessage `json:"creators,omitempty"`  // Can be string or []string
 	Formats      []Format        `json:"formats"`
 	Decimals     json.RawMessage `json:"decimals,omitempty"` // Can be string or int
+
+	// RawJSON stores the complete original JSON bytes for this metadata object.
+	// Populated automatically by UnmarshalJSON. Used by ExtractExtraIPFSURIs
+	// to discover IPFS URIs in non-standard fields.
+	RawJSON json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler. It performs standard field
+// decoding AND stores the complete raw JSON bytes so callers can scan
+// for IPFS URIs in non-standard fields.
+func (m *TokenMetadata) UnmarshalJSON(data []byte) error {
+	// Use an alias type to prevent infinite recursion — the alias has
+	// the same fields but no methods, so json uses default struct decoding.
+	type Alias TokenMetadata
+	var alias Alias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*m = TokenMetadata(alias)
+
+	// Store a copy of the complete raw JSON.
+	m.RawJSON = make(json.RawMessage, len(data))
+	copy(m.RawJSON, data)
+
+	return nil
 }
 
 type Format struct {
@@ -555,15 +585,90 @@ func hasIPFSContent(m *TokenMetadata) bool {
 	if m == nil {
 		return false
 	}
-	// Check main URIs
-	if m.ArtifactURI != "" || m.DisplayURI != "" || m.ThumbnailURI != "" {
+	// Check standard TZIP-21 URIs — only IPFS URIs count as backupable content.
+	// HTTP-only URIs must NOT pass this gate; they would enter the DB as "pending"
+	// and fail during backup with "Not an IPFS URI" (BUG-3).
+	if ipfsuri.IsIPFS(m.ArtifactURI) || ipfsuri.IsIPFS(m.DisplayURI) || ipfsuri.IsIPFS(m.ThumbnailURI) {
 		return true
 	}
 	// Check formats array
 	for _, f := range m.Formats {
-		if f.URI != "" {
+		if ipfsuri.IsIPFS(f.URI) {
 			return true
 		}
 	}
+	// Check for IPFS URIs in non-standard metadata fields
+	if len(ExtractExtraIPFSURIs(m.RawJSON)) > 0 {
+		return true
+	}
 	return false
+}
+
+// extractionExcludeKeys contains metadata field names whose values are
+// human-readable text, not URIs. Scanning these would produce false positives
+// (e.g. an artist who writes about IPFS in their description).
+var extractionExcludeKeys = map[string]bool{
+	"name":        true,
+	"description": true,
+	"symbol":      true,
+	"language":    true,
+	"rights":      true,
+	"date":        true,
+	"tags":        true,
+	"attributes":  true,
+	"creators":    true,
+	"minter":      true,
+	"mintingTool": true,
+	"type":        true,
+	"mimeType":    true,
+	"fileName":    true,
+	"dimensions":  true,
+	"decimals":    true,
+}
+
+// ExtractExtraIPFSURIs walks rawJSON recursively and returns all unique
+// IPFS URIs found in string values, skipping known text-content keys
+// (name, description, etc.) to avoid false positives.
+func ExtractExtraIPFSURIs(rawJSON json.RawMessage) []string {
+	if len(rawJSON) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	var walk func(key string, v interface{})
+	walk = func(key string, v interface{}) {
+		switch val := v.(type) {
+		case string:
+			if extractionExcludeKeys[key] {
+				return
+			}
+			if ipfsuri.IsIPFS(val) {
+				seen[val] = true
+			}
+		case map[string]interface{}:
+			for k, child := range val {
+				walk(k, child)
+			}
+		case []interface{}:
+			for _, item := range val {
+				walk(key, item)
+			}
+		}
+	}
+
+	var root interface{}
+	if err := json.Unmarshal(rawJSON, &root); err != nil {
+		return nil
+	}
+	walk("", root)
+
+	if len(seen) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(seen))
+	for uri := range seen {
+		result = append(result, uri)
+	}
+	return result
 }

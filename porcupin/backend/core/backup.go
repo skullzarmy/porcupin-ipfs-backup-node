@@ -15,6 +15,7 @@ import (
 	"porcupin/backend/config"
 	"porcupin/backend/db"
 	"porcupin/backend/indexer"
+	ipfsuri "porcupin/backend/uri"
 )
 
 // errAssetSkipped is returned by pinAssetDirect when a URI is not an IPFS URI.
@@ -329,49 +330,38 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 	return currentHead, nil
 }
 
-// countAssets counts how many IPFS assets are in token metadata
-func countAssets(m *indexer.TokenMetadata) int {
-	if m == nil {
-		return 0
-	}
-	
-	seen := make(map[string]bool)
-	collectAssetURIs(m, seen)
-	return len(seen)
-}
-
 // collectAssetURIs adds all unique IPFS URIs from metadata to the seen map
 func collectAssetURIs(m *indexer.TokenMetadata, seen map[string]bool) {
 	if m == nil {
 		return
 	}
-	
+
 	// Artifact
-	if m.ArtifactURI != "" && isIPFSURI(m.ArtifactURI) {
+	if m.ArtifactURI != "" && ipfsuri.IsIPFS(m.ArtifactURI) {
 		seen[m.ArtifactURI] = true
 	}
-	
+
 	// Display if different
-	if m.DisplayURI != "" && isIPFSURI(m.DisplayURI) {
+	if m.DisplayURI != "" && ipfsuri.IsIPFS(m.DisplayURI) {
 		seen[m.DisplayURI] = true
 	}
-	
+
 	// Thumbnail if different
-	if m.ThumbnailURI != "" && isIPFSURI(m.ThumbnailURI) {
+	if m.ThumbnailURI != "" && ipfsuri.IsIPFS(m.ThumbnailURI) {
 		seen[m.ThumbnailURI] = true
 	}
-	
+
 	// Formats
 	for _, f := range m.Formats {
-		if f.URI != "" && isIPFSURI(f.URI) {
+		if f.URI != "" && ipfsuri.IsIPFS(f.URI) {
 			seen[f.URI] = true
 		}
 	}
-}
 
-// isIPFSURI checks if a URI is an IPFS URI
-func isIPFSURI(uri string) bool {
-	return strings.HasPrefix(uri, "ipfs://") || strings.Contains(uri, "/ipfs/")
+	// Non-standard fields discovered from raw JSON
+	for _, uri := range indexer.ExtractExtraIPFSURIs(m.RawJSON) {
+		seen[uri] = true
+	}
 }
 
 // processNFT processes a single NFT (saves to DB and backs up assets)
@@ -427,15 +417,32 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 		nft.CreatorAddress = token.FirstMinter.Address
 	}
 
-	// Try to fetch raw metadata URI
-	rawURI, err := bm.indexer.FetchRawMetadataURI(ctx, token.Contract.Address, token.TokenID)
-	if err != nil {
-		log.Printf("Could not fetch raw metadata URI for %s:%s - %v", token.Contract.Address, token.TokenID, err)
+	// Store full metadata JSON for future recovery (e.g., VerifyAndFixPins)
+	// and for discovering non-standard IPFS URIs on re-processing.
+	if len(token.Metadata.RawJSON) > 0 {
+		nft.RawMetadata = string(token.Metadata.RawJSON)
 	} else {
-		// Save raw metadata as JSON
-		rawMetadata := map[string]string{"uri": rawURI}
-		rawJSON, _ := json.Marshal(rawMetadata)
-		nft.RawMetadata = string(rawJSON)
+		// Fallback: store the on-chain metadata URI pointer
+		rawURI, err := bm.indexer.FetchRawMetadataURI(ctx, token.Contract.Address, token.TokenID)
+		if err != nil {
+			log.Printf("Could not fetch raw metadata URI for %s:%s - %v", token.Contract.Address, token.TokenID, err)
+		} else {
+			rawMetadata := map[string]string{"uri": rawURI}
+			rawJSON, _ := json.Marshal(rawMetadata)
+			nft.RawMetadata = string(rawJSON)
+		}
+	}
+
+	// Preserve existing RawMetadata if we couldn't obtain a new value.
+	// SaveNFT writes ALL columns, so an empty string would erase a
+	// previously stored value during re-sync if metadata fetch fails.
+	if nft.RawMetadata == "" {
+		var existing db.NFT
+		if bm.db.DB.Select("raw_metadata").
+			Where("token_id = ? AND contract_address = ?", nft.TokenID, nft.ContractAddress).
+			First(&existing).Error == nil && existing.RawMetadata != "" {
+			nft.RawMetadata = existing.RawMetadata
+		}
 	}
 
 	if err := bm.db.SaveNFT(nft); err != nil {
@@ -451,24 +458,35 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 	var assets []assetEntry
 	
 	// Add artifact (main content)
-	if token.Metadata.ArtifactURI != "" && isIPFSURI(token.Metadata.ArtifactURI) {
+	if token.Metadata.ArtifactURI != "" && ipfsuri.IsIPFS(token.Metadata.ArtifactURI) {
 		assets = append(assets, assetEntry{token.Metadata.ArtifactURI, "artifact"})
 	}
 
 	// Add display URI if different from artifact
-	if token.Metadata.DisplayURI != "" && token.Metadata.DisplayURI != token.Metadata.ArtifactURI && isIPFSURI(token.Metadata.DisplayURI) {
+	if token.Metadata.DisplayURI != "" && token.Metadata.DisplayURI != token.Metadata.ArtifactURI && ipfsuri.IsIPFS(token.Metadata.DisplayURI) {
 		assets = append(assets, assetEntry{token.Metadata.DisplayURI, "display"})
 	}
 
 	// Add thumbnail if different from artifact
-	if token.Metadata.ThumbnailURI != "" && token.Metadata.ThumbnailURI != token.Metadata.ArtifactURI && isIPFSURI(token.Metadata.ThumbnailURI) {
+	if token.Metadata.ThumbnailURI != "" && token.Metadata.ThumbnailURI != token.Metadata.ArtifactURI && ipfsuri.IsIPFS(token.Metadata.ThumbnailURI) {
 		assets = append(assets, assetEntry{token.Metadata.ThumbnailURI, "thumbnail"})
 	}
 	
 	// Add additional formats
 	for _, format := range token.Metadata.Formats {
-		if format.URI != "" && isIPFSURI(format.URI) {
+		if format.URI != "" && ipfsuri.IsIPFS(format.URI) {
 			assets = append(assets, assetEntry{format.URI, "format"})
+		}
+	}
+
+	// Add IPFS URIs found in non-standard metadata fields (e.g. Versum pinUri)
+	standardURIs := make(map[string]bool, len(assets))
+	for _, a := range assets {
+		standardURIs[a.uri] = true
+	}
+	for _, extraURI := range indexer.ExtractExtraIPFSURIs(token.Metadata.RawJSON) {
+		if !standardURIs[extraURI] {
+			assets = append(assets, assetEntry{extraURI, "metadata"})
 		}
 	}
 
@@ -737,36 +755,17 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 			}
 			stats["checked"]++
 			
-			// Reconstruct Token/Metadata from DB record
+			// Reconstruct Token/Metadata from DB record.
+			// If RawMetadata contains full JSON (new format), parse it to
+			// recover Formats and non-standard IPFS URI fields.
+			metadata := reconstructMetadata(nft)
+
 			token := indexer.Token{
 				TokenID: nft.TokenID,
 				Contract: indexer.ContractInfo{
 					Address: nft.ContractAddress,
 				},
-				Metadata: &indexer.TokenMetadata{
-					Name:         nft.Name,
-					Description:  nft.Description,
-					ArtifactURI:  nft.ArtifactURI,
-					DisplayURI:   nft.DisplayURI,
-					ThumbnailURI: nft.ThumbnailURI,
-					// Note: We might be missing "Formats" if we didn't store them in separate columns
-					// However, for the critical missing assets (Artifact/Display/Thumb), this is sufficient.
-					// If we really need formats, we'd need to parse RawMetadata if available or re-fetch.
-					// Let's try to parse RawMetadata for Formats if possible.
-				},
-			}
-			
-			// Try to recover formats from RawMetadata if available
-			if nft.RawMetadata != "" {
-				// RawMetadata is currently stored as `{"uri": "..."}` JSON in processNFT
-				// It might not contain the full metadata JSON depending on how it was saved.
-				// Looking at processNFT line 392: rawMetadata := map[string]string{"uri": rawURI}
-				// Ah, we only saved the URI, not the full JSON content. 
-				// So we can't recover Formats from DB if they aren't in columns.
-				// BUT: The bug we are fixing is about *Asset Records* missing.
-				// If we re-process using just the main URIs (Artifact/Display/Thumb), we fix the most visible issues.
-				// To fully fix Formats, we would need to re-fetch from Indexer.
-				// PROPOSAL: For now, let's fix the main assets. Re-fetching every NFT from indexer is heavy.
+				Metadata: &metadata,
 			}
 			
 			// Call processNFT to ensure assets are tracked
@@ -927,17 +926,50 @@ func hasIPFSContent(m *indexer.TokenMetadata) bool {
 	if m == nil {
 		return false
 	}
-	// Check main URIs — only count IPFS URIs
-	if isIPFSURI(m.ArtifactURI) || isIPFSURI(m.DisplayURI) || isIPFSURI(m.ThumbnailURI) {
+	// Check standard TZIP-21 URIs
+	if ipfsuri.IsIPFS(m.ArtifactURI) || ipfsuri.IsIPFS(m.DisplayURI) || ipfsuri.IsIPFS(m.ThumbnailURI) {
 		return true
 	}
 	// Check formats array
 	for _, f := range m.Formats {
-		if isIPFSURI(f.URI) {
+		if ipfsuri.IsIPFS(f.URI) {
 			return true
 		}
 	}
+	// Check for IPFS URIs in non-standard metadata fields
+	if len(indexer.ExtractExtraIPFSURIs(m.RawJSON)) > 0 {
+		return true
+	}
 	return false
+}
+
+// reconstructMetadata rebuilds a TokenMetadata from a DB record.
+// If RawMetadata contains full metadata JSON (new format), it is parsed to
+// recover Formats and non-standard fields. Old records storing only
+// {"uri": "ipfs://..."} fall back to column-based reconstruction.
+func reconstructMetadata(nft db.NFT) indexer.TokenMetadata {
+	if nft.RawMetadata != "" {
+		// Detect old format: a single-key object like {"uri": "ipfs://..."}
+		var probe map[string]json.RawMessage
+		if json.Unmarshal([]byte(nft.RawMetadata), &probe) == nil {
+			if _, hasURI := probe["uri"]; !(hasURI && len(probe) == 1) {
+				// Looks like full metadata JSON — parse it
+				var metadata indexer.TokenMetadata
+				if json.Unmarshal([]byte(nft.RawMetadata), &metadata) == nil {
+					return metadata
+				}
+			}
+		}
+	}
+
+	// Fallback: reconstruct from DB columns (no Formats or non-standard fields)
+	return indexer.TokenMetadata{
+		Name:         nft.Name,
+		Description:  nft.Description,
+		ArtifactURI:  nft.ArtifactURI,
+		DisplayURI:   nft.DisplayURI,
+		ThumbnailURI: nft.ThumbnailURI,
+	}
 }
 
 // fetchMetadataFromChain fetches token metadata from the blockchain when TZKT doesn't have it

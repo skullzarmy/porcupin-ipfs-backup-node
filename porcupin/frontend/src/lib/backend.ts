@@ -61,7 +61,7 @@ export interface Backend {
     IsBackupPaused(): Promise<boolean>;
     PauseBackup(): Promise<void>;
     ResumeBackup(): Promise<void>;
-    VerifyAndFixPins(): Promise<Record<string, number>>;
+    VerifyPinHealth(): Promise<Record<string, number>>;
 
     // Config
     GetConfig(): Promise<config.Config>;
@@ -164,7 +164,7 @@ const localBackend: Backend = {
     IsBackupPaused: WailsApp.IsBackupPaused,
     PauseBackup: WailsApp.PauseBackup,
     ResumeBackup: WailsApp.ResumeBackup,
-    VerifyAndFixPins: WailsApp.VerifyAndFixPins,
+    VerifyPinHealth: WailsApp.VerifyPinHealth,
 
     // Config
     GetConfig: WailsApp.GetConfig,
@@ -234,7 +234,7 @@ function createRemoteBackend(client: ProxyAPIClient): Backend {
         IsBackupPaused: () => client.isBackupPaused(),
         PauseBackup: () => client.pauseBackup(),
         ResumeBackup: () => client.resumeBackup(),
-        VerifyAndFixPins: () => client.verifyAndFixPins(),
+        VerifyPinHealth: () => client.verifyPinHealth(),
 
         // Config
         GetConfig: () => client.getConfig(),
@@ -325,7 +325,7 @@ export const GetSyncProgress = () => getBackend().GetSyncProgress();
 export const IsBackupPaused = () => getBackend().IsBackupPaused();
 export const PauseBackup = () => getBackend().PauseBackup();
 export const ResumeBackup = () => getBackend().ResumeBackup();
-export const VerifyAndFixPins = () => getBackend().VerifyAndFixPins();
+export const VerifyPinHealth = () => getBackend().VerifyPinHealth();
 
 export const GetConfig = () => getBackend().GetConfig();
 export const GetVersion = () => getBackend().GetVersion();
