@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -195,7 +195,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 			reqURL += fmt.Sprintf("&lastLevel.gt=%d", sinceLevel)
 		}
 		
-		log.Printf("SyncOwned: Requesting %s", reqURL)
+		slog.Debug("SyncOwned: requesting page", "url", reqURL)
 
 		var balances []struct {
 			ID    uint64 `json:"id"` // Balance record ID for pagination cursor
@@ -218,7 +218,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 				resp.Body.Close()
 			}
 			backoff := time.Second * time.Duration(1<<uint(attempt))
-			log.Printf("SyncOwned attempt %d failed, retrying in %v", attempt+1, backoff)
+			slog.Warn("SyncOwned attempt failed, retrying", "attempt", attempt+1, "backoff", backoff)
 			time.Sleep(backoff)
 		}
 		if err != nil {
@@ -247,7 +247,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 			lastId = b.ID
 		}
 
-		log.Printf("SyncOwned: fetched %d balances, total NFTs so far: %d", len(balances), len(allTokens))
+		slog.Debug("SyncOwned: fetched balances", "count", len(balances), "total_nfts", len(allTokens))
 
 		if len(balances) < limit {
 			break // Last page
@@ -256,7 +256,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 		time.Sleep(100 * time.Millisecond) // Rate limiting
 	}
 
-	log.Printf("SyncOwned complete: found %d NFTs for %s (since level %d)", len(allTokens), address, sinceLevel)
+	slog.Info("SyncOwned complete", "nft_count", len(allTokens), "address", address, "since_level", sinceLevel)
 	return allTokens, nil
 }
 
@@ -310,7 +310,7 @@ func (i *Indexer) SyncCreatedSince(ctx context.Context, address string, sinceLev
 				resp.Body.Close()
 			}
 			backoff := time.Second * time.Duration(1<<uint(attempt))
-			log.Printf("SyncCreated attempt %d failed, retrying in %v", attempt+1, backoff)
+			slog.Warn("SyncCreated attempt failed, retrying", "attempt", attempt+1, "backoff", backoff)
 			time.Sleep(backoff)
 		}
 		if err != nil {
@@ -340,19 +340,18 @@ func (i *Indexer) SyncCreatedSince(ctx context.Context, address string, sinceLev
 			lastId = t.ID // Update cursor
 		}
 
-		log.Printf("SyncCreated: fetched %d tokens (limit=%d), total NFTs so far: %d, lastId: %d, continuing: %v", 
-			len(tokens), limit, len(allTokens), lastId, len(tokens) >= limit)
+		slog.Debug("SyncCreated: fetched tokens", "count", len(tokens), "limit", limit, "total_nfts", len(allTokens), "last_id", lastId, "continuing", len(tokens) >= limit)
 
 		if len(tokens) < limit {
-			log.Printf("SyncCreated: Last page reached (got %d, limit was %d)", len(tokens), limit)
+			slog.Debug("SyncCreated: last page reached", "count", len(tokens), "limit", limit)
 			break // Last page
 		}
 		
-		log.Printf("SyncCreated: Fetching next page with id.gt=%d", lastId)
+		slog.Debug("SyncCreated: fetching next page", "id_gt", lastId)
 		time.Sleep(100 * time.Millisecond) // Rate limiting
 	}
 
-	log.Printf("SyncCreated complete: found %d NFTs for %s (since level %d)", len(allTokens), address, sinceLevel)
+	slog.Info("SyncCreated complete", "nft_count", len(allTokens), "address", address, "since_level", sinceLevel)
 	return allTokens, nil
 }
 
@@ -467,7 +466,7 @@ func (i *Indexer) handleEvents(ctx context.Context) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("websocket panic: %v", r)
-			log.Printf("Recovered from websocket panic: %v", r)
+			slog.Error("recovered from websocket panic", "error", r)
 		}
 	}()
 
@@ -501,11 +500,11 @@ func (i *Indexer) handleEvents(ctx context.Context) (err error) {
 				// Check if body has actual content (not just empty state message)
 				if msg.Type == 0 {
 					// Type 0 is state message (subscription confirmation), not data
-					log.Printf("WebSocket subscription confirmed, state: %v", msg.State)
+					slog.Info("WebSocket subscription confirmed", "state", msg.State)
 					continue
 				}
 				
-				log.Printf("Received token balance update: type=%d, state=%v", msg.Type, msg.State)
+				slog.Debug("received token balance update", "type", msg.Type, "state", msg.State)
 				
 				// Only fire callback for actual data messages (type 1)
 				if i.tokenCallback != nil && msg.Type == 1 {
@@ -540,11 +539,11 @@ var knownNFTContracts = map[string]bool{
 }
 
 // isLikelyNFT determines if a token is likely an NFT worth backing up
-// This is more permissive than hasIPFSContent - it includes tokens with null metadata
+// This is more permissive than HasIPFSContent - it includes tokens with null metadata
 // since we can try to fetch metadata from chain
 func isLikelyNFT(t Token) bool {
 	// If we already have metadata with IPFS content, definitely include
-	if t.Metadata != nil && hasIPFSContent(t.Metadata) {
+	if t.Metadata != nil && HasIPFSContent(t.Metadata) {
 		return true
 	}
 	
@@ -580,8 +579,8 @@ func isLikelyNFT(t Token) bool {
 	return false
 }
 
-// hasIPFSContent checks if metadata contains any IPFS URIs to backup
-func hasIPFSContent(m *TokenMetadata) bool {
+// HasIPFSContent checks if metadata contains any IPFS URIs to backup.
+func HasIPFSContent(m *TokenMetadata) bool {
 	if m == nil {
 		return false
 	}

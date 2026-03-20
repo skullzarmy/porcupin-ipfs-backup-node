@@ -146,45 +146,8 @@ func TestResolveURI(t *testing.T) {
 	}
 }
 
-func TestHasIPFSContent(t *testing.T) {
-	tests := []struct {
-		name     string
-		metadata *indexer.TokenMetadata
-		expected bool
-	}{
-		{"nil metadata", nil, false},
-		{"empty metadata", &indexer.TokenMetadata{}, false},
-		{"has artifact URI", &indexer.TokenMetadata{ArtifactURI: "ipfs://QmTest"}, true},
-		{"has display URI", &indexer.TokenMetadata{DisplayURI: "ipfs://QmTest"}, true},
-		{"has thumbnail URI", &indexer.TokenMetadata{ThumbnailURI: "ipfs://QmTest"}, true},
-		{"has format URIs", &indexer.TokenMetadata{Formats: []indexer.Format{{URI: "ipfs://QmTest"}}}, true},
-		{"empty format URIs", &indexer.TokenMetadata{Formats: []indexer.Format{{URI: ""}}}, false},
-		{"all URIs filled", &indexer.TokenMetadata{
-			ArtifactURI:  "ipfs://Qm1",
-			DisplayURI:   "ipfs://Qm2",
-			ThumbnailURI: "ipfs://Qm3",
-			Formats:      []indexer.Format{{URI: "ipfs://Qm4"}},
-		}, true},
-		// hasIPFSContent returns false for non-IPFS URIs — HTTP-only NFTs are intentionally skipped
-		{"non-IPFS artifact returns false", &indexer.TokenMetadata{ArtifactURI: "https://example.com/img.png"}, false},
-		// Non-standard IPFS fields via RawJSON
-		{"non-standard IPFS field only", &indexer.TokenMetadata{
-			RawJSON: json.RawMessage(`{"pinUri":"ipfs://QmPin"}`),
-		}, true},
-		{"non-standard field with no IPFS", &indexer.TokenMetadata{
-			RawJSON: json.RawMessage(`{"image":"https://example.com/img.png"}`),
-		}, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := hasIPFSContent(tt.metadata)
-			if result != tt.expected {
-				t.Errorf("hasIPFSContent() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
+// NOTE: TestHasIPFSContent moved to backend/indexer/tzkt_test.go alongside the
+// now-exported HasIPFSContent function.
 
 func TestCollectAssetURIs(t *testing.T) {
 	tests := []struct {

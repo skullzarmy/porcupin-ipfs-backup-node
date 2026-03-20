@@ -904,12 +904,19 @@ func (h *Handlers) VerifyAndFixPins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"data": result,
-		"meta": map[string]interface{}{
-			"timestamp": time.Now().UTC(),
-		},
-	})
+	WriteJSON(w, http.StatusOK, result)
+}
+
+// VerifyPinHealth checks IPFS availability of pinned assets and corrects sizes
+// POST /api/v1/verify-pin-health
+func (h *Handlers) VerifyPinHealth(w http.ResponseWriter, r *http.Request) {
+	result, err := h.service.VerifyPinHealth()
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "Failed to verify pin health", err.Error())
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, result)
 }
 
 // =============================================================================

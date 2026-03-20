@@ -119,6 +119,7 @@ func mountRoutes(r *chi.Mux, handlers *Handlers) {
 		r.Post("/resume", handlers.ResumeService)
 		r.Post("/gc", handlers.RunGC)
 		r.Post("/verify-and-fix", handlers.VerifyAndFixPins)
+		r.Post("/verify-pin-health", handlers.VerifyPinHealth)
 
 		// Discovery
 		r.Get("/discover", handlers.DiscoverServers)

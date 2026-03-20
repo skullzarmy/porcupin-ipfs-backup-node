@@ -216,34 +216,34 @@ func TestIsLikelyNFT(t *testing.T) {
 	})
 }
 
-// TestHasIPFSContent tests the hasIPFSContent function
+// TestHasIPFSContent tests the HasIPFSContent function
 func TestHasIPFSContent(t *testing.T) {
 	t.Run("nil metadata", func(t *testing.T) {
-		if hasIPFSContent(nil) {
+		if HasIPFSContent(nil) {
 			t.Error("expected nil metadata to return false")
 		}
 	})
 
 	t.Run("empty metadata", func(t *testing.T) {
-		if hasIPFSContent(&TokenMetadata{}) {
+		if HasIPFSContent(&TokenMetadata{}) {
 			t.Error("expected empty metadata to return false")
 		}
 	})
 
 	t.Run("has artifactUri", func(t *testing.T) {
-		if !hasIPFSContent(&TokenMetadata{ArtifactURI: "ipfs://Qm123"}) {
+		if !HasIPFSContent(&TokenMetadata{ArtifactURI: "ipfs://Qm123"}) {
 			t.Error("expected metadata with artifactUri to return true")
 		}
 	})
 
 	t.Run("has displayUri", func(t *testing.T) {
-		if !hasIPFSContent(&TokenMetadata{DisplayURI: "ipfs://Qm123"}) {
+		if !HasIPFSContent(&TokenMetadata{DisplayURI: "ipfs://Qm123"}) {
 			t.Error("expected metadata with displayUri to return true")
 		}
 	})
 
 	t.Run("has thumbnailUri", func(t *testing.T) {
-		if !hasIPFSContent(&TokenMetadata{ThumbnailURI: "ipfs://Qm123"}) {
+		if !HasIPFSContent(&TokenMetadata{ThumbnailURI: "ipfs://Qm123"}) {
 			t.Error("expected metadata with thumbnailUri to return true")
 		}
 	})
@@ -252,7 +252,7 @@ func TestHasIPFSContent(t *testing.T) {
 		metadata := &TokenMetadata{
 			Formats: []Format{{URI: "ipfs://QmFormat", MimeType: "image/png"}},
 		}
-		if !hasIPFSContent(metadata) {
+		if !HasIPFSContent(metadata) {
 			t.Error("expected metadata with formats URI to return true")
 		}
 	})
@@ -261,7 +261,7 @@ func TestHasIPFSContent(t *testing.T) {
 		metadata := &TokenMetadata{
 			Formats: []Format{{MimeType: "image/png"}},
 		}
-		if hasIPFSContent(metadata) {
+		if HasIPFSContent(metadata) {
 			t.Error("expected metadata with empty formats URI to return false")
 		}
 	})
@@ -272,7 +272,7 @@ func TestHasIPFSContent(t *testing.T) {
 			DisplayURI:   "https://cdn.example.com/display.jpg",
 			ThumbnailURI: "https://cdn.example.com/thumb.jpg",
 		}
-		if hasIPFSContent(metadata) {
+		if HasIPFSContent(metadata) {
 			t.Error("expected HTTP-only URIs to return false (BUG-3)")
 		}
 	})
@@ -809,14 +809,14 @@ func TestExtractExtraIPFSURIs(t *testing.T) {
 	})
 }
 
-// TestHasIPFSContent_NonStandardFields verifies that hasIPFSContent detects
+// TestHasIPFSContent_NonStandardFields verifies that HasIPFSContent detects
 // IPFS URIs in non-standard metadata fields via RawJSON scanning.
 func TestHasIPFSContent_NonStandardFields(t *testing.T) {
 	t.Run("only non-standard IPFS field", func(t *testing.T) {
 		m := &TokenMetadata{
 			RawJSON: json.RawMessage(`{"pinUri":"ipfs://QmPin"}`),
 		}
-		if !hasIPFSContent(m) {
+		if !HasIPFSContent(m) {
 			t.Error("expected true when non-standard field has IPFS URI")
 		}
 	})
@@ -825,7 +825,7 @@ func TestHasIPFSContent_NonStandardFields(t *testing.T) {
 		m := &TokenMetadata{
 			RawJSON: json.RawMessage(`{"name":"Test","description":"No IPFS here"}`),
 		}
-		if hasIPFSContent(m) {
+		if HasIPFSContent(m) {
 			t.Error("expected false when no IPFS URIs exist")
 		}
 	})

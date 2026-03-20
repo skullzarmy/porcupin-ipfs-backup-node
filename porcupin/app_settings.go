@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -135,8 +135,8 @@ func (a *App) RecoverMissingAssets() (map[string]int, error) {
 
 // ResetDatabase clears all NFTs, assets, and unpins all IPFS content
 func (a *App) ResetDatabase() error {
-	log.Println("Starting full data reset...")
-	
+	slog.Info("Starting full data reset")
+
 	// Emit starting event
 	wailsRuntime.EventsEmit(a.ctx, "clear:start", ClearDataStatus{
 		InProgress: true,
@@ -169,7 +169,7 @@ func (a *App) ResetDatabase() error {
 		Phase:      "complete",
 		Message:    "Reset complete",
 	})
-	
+
 	return nil
 }
 
@@ -206,20 +206,20 @@ func (a *App) GetStorageType(path string) (string, error) {
 // MigrateStorage moves the IPFS repository to a new location
 // This will stop the backup service, move the data, and restart with new location
 func (a *App) MigrateStorage(destPath string) error {
-	log.Printf("MigrateStorage called with destination: %s", destPath)
-	
+	slog.Info("MigrateStorage called", "destination", destPath)
+
 	// Validate destination first
-	log.Println("Validating destination path...")
+	slog.Debug("Validating destination path")
 	if err := storage.ValidatePath(destPath); err != nil {
-		log.Printf("Validation failed: %v", err)
+		slog.Error("Destination validation failed", "error", err)
 		return fmt.Errorf("invalid destination: %w", err)
 	}
-	log.Println("Destination validated successfully")
+	slog.Debug("Destination validated successfully")
 
 	// Get current path
 	currentPath := a.ipfsNode.GetRepoPath()
-	log.Printf("Current IPFS path: %s", currentPath)
-	
+	slog.Debug("Current IPFS path", "path", currentPath)
+
 	// Check if same path
 	expandedDest, _ := storage.ExpandPath(destPath)
 	if currentPath == expandedDest {
@@ -233,29 +233,29 @@ func (a *App) MigrateStorage(destPath string) error {
 	})
 
 	// Stop backup service
-	log.Println("Stopping backup service for migration...")
+	slog.Info("Stopping backup service for migration")
 	a.backupService.Stop()
 
 	// Stop IPFS node
-	log.Println("Stopping IPFS node for migration...")
+	slog.Info("Stopping IPFS node for migration")
 	if err := a.ipfsNode.Stop(); err != nil {
 		a.backupService.Start(a.ctx) // Try to restart
 		return fmt.Errorf("failed to stop IPFS node: %w", err)
 	}
-	log.Println("IPFS node stopped, starting migration...")
+	slog.Info("IPFS node stopped, starting migration")
 
 	// Create storage manager and perform migration
 	manager := storage.NewManager(currentPath)
-	
+
 	err := manager.Migrate(a.ctx, destPath, func(status storage.MigrationStatus) {
 		wailsRuntime.EventsEmit(a.ctx, "storage:migration:progress", status)
 	})
 
 	if err != nil {
 		// Try to restart with old path
-		log.Printf("Migration failed, attempting to restart with old path: %v", err)
+		slog.Error("Migration failed, attempting to restart with old path", "error", err)
 		wailsRuntime.EventsEmit(a.ctx, "storage:migration:error", err.Error())
-		
+
 		newNode, nodeErr := ipfs.NewNode(currentPath, a.config.IPFS.SwarmPort)
 		if nodeErr == nil {
 			nodeErr = newNode.Start(a.ctx)
@@ -273,11 +273,11 @@ func (a *App) MigrateStorage(destPath string) error {
 	homeDir, _ := os.UserHomeDir()
 	configPath := filepath.Join(homeDir, ".porcupin", "config.yaml")
 	if err := a.config.SaveConfig(configPath); err != nil {
-		log.Printf("Warning: failed to save config: %v", err)
+		slog.Warn("Failed to save config after migration", "error", err)
 	}
 
 	// Start IPFS node with new path
-	log.Printf("Starting IPFS node at new location: %s", expandedDest)
+	slog.Info("Starting IPFS node at new location", "path", expandedDest)
 	newNode, err := ipfs.NewNode(expandedDest, a.config.IPFS.SwarmPort)
 	if err != nil {
 		wailsRuntime.EventsEmit(a.ctx, "storage:migration:error", err.Error())
@@ -296,7 +296,7 @@ func (a *App) MigrateStorage(destPath string) error {
 
 	// Restart backup service
 	a.backupService.Start(a.ctx)
-	
+
 	// Update disk usage for new location
 	a.backupService.GetManager().MarkDiskUsageDirty()
 	a.backupService.GetManager().UpdateDiskUsage()
@@ -305,7 +305,7 @@ func (a *App) MigrateStorage(destPath string) error {
 		"new_path": expandedDest,
 	})
 
-	log.Printf("Storage migration complete: %s -> %s", currentPath, expandedDest)
+	slog.Info("Storage migration complete", "from", currentPath, "to", expandedDest)
 	return nil
 }
 
@@ -316,35 +316,35 @@ func (a *App) GetMigrationStatus() storage.MigrationStatus {
 
 // CancelMigration cancels an ongoing storage migration
 func (a *App) CancelMigration() error {
-	log.Println("CancelMigration called")
+	slog.Info("CancelMigration called")
 	err := a.backupService.GetStorageManager().CancelMigration()
 	if err != nil {
-		log.Printf("CancelMigration error: %v", err)
+		slog.Error("CancelMigration failed", "error", err)
 		return err
 	}
-	
+
 	wailsRuntime.EventsEmit(a.ctx, "storage:migration:cancelled", nil)
-	
+
 	// Restart IPFS and backup service with original path
-	log.Println("Restarting services after cancellation...")
+	slog.Info("Restarting services after cancellation")
 	currentPath := a.ipfsNode.GetRepoPath()
-	
+
 	newNode, err := ipfs.NewNode(currentPath, a.config.IPFS.SwarmPort)
 	if err != nil {
-		log.Printf("Failed to create node after cancel: %v", err)
+		slog.Error("Failed to create node after cancel", "error", err)
 		return fmt.Errorf("failed to restart IPFS: %w", err)
 	}
-	
+
 	if err := newNode.Start(a.ctx); err != nil {
-		log.Printf("Failed to start node after cancel: %v", err)
+		slog.Error("Failed to start node after cancel", "error", err)
 		return fmt.Errorf("failed to restart IPFS: %w", err)
 	}
-	
+
 	a.ipfsNode = newNode
 	a.backupService.UpdateIPFS(newNode)
 	a.backupService.Start(a.ctx)
 
-	log.Println("Services restarted after migration cancellation")
+	slog.Info("Services restarted after migration cancellation")
 	return nil
 }
 

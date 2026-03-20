@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -54,11 +54,11 @@ func (a *App) GetAssets(page int, limit int, status string, search string) ([]db
 	
 	err := query.Order("assets.id desc").Offset(offset).Limit(limit).Find(&assets).Error
 	if err != nil {
-		log.Printf("GetAssets error: %v", err)
+		slog.Error("failed to get assets", "error", err)
 		return nil, err
 	}
-	
-	log.Printf("GetAssets fetched %d assets (page %d, limit %d, status %s, search %s)", len(assets), page, limit, status, search)
+
+	slog.Debug("fetched assets", "count", len(assets), "page", page, "limit", limit, "status", status, "search", search)
 	return assets, nil
 }
 
@@ -110,11 +110,11 @@ func (a *App) GetNFTsWithAssets(page int, limit int, status string, search strin
 		Find(&nfts).Error
 	
 	if err != nil {
-		log.Printf("GetNFTsWithAssets error: %v", err)
+		slog.Error("failed to get NFTs with assets", "error", err)
 		return nil, err
 	}
-	
-	log.Printf("GetNFTsWithAssets fetched %d NFTs (page %d, limit %d, status %s, search %s)", len(nfts), page, limit, status, search)
+
+	slog.Debug("fetched NFTs with assets", "count", len(nfts), "page", page, "limit", limit, "status", status, "search", search)
 	return nfts, nil
 }
 
@@ -171,7 +171,7 @@ func (a *App) UnpinAsset(assetID uint64) error {
 
 	// Unpin from IPFS
 	if err := a.ipfsNode.Unpin(a.ctx, cid); err != nil {
-		log.Printf("Warning: unpin failed (may not be pinned): %v", err)
+		slog.Warn("unpin failed, may not be pinned", "error", err)
 	}
 
 	// Update status to pending (unpinned)
@@ -204,7 +204,7 @@ func (a *App) DeleteAsset(assetID uint64) error {
 	cid := extractCIDFromURI(asset.URI)
 	if cid != "" {
 		if err := a.ipfsNode.Unpin(a.ctx, cid); err != nil {
-			log.Printf("Warning: unpin failed during delete: %v", err)
+			slog.Warn("unpin failed during delete", "error", err)
 		}
 	}
 
@@ -255,7 +255,7 @@ func (a *App) RepinZeroSizeAssets() (int, error) {
 		return 0, fmt.Errorf("failed to query assets: %w", err)
 	}
 	
-	log.Printf("Found %d assets with zero/negative size to repin", len(assets))
+	slog.Info("found assets with zero/negative size to repin", "count", len(assets))
 	
 	count := 0
 	for _, asset := range assets {
@@ -264,13 +264,13 @@ func (a *App) RepinZeroSizeAssets() (int, error) {
 		asset.RetryCount = 0
 		asset.PinnedAt = nil
 		if err := a.database.SaveAsset(&asset); err != nil {
-			log.Printf("Failed to reset asset %d: %v", asset.ID, err)
+			slog.Error("failed to reset asset for repin", "asset_id", asset.ID, "error", err)
 			continue
 		}
 		count++
 	}
 	
-	log.Printf("Reset %d assets for re-pinning", count)
+	slog.Info("reset assets for re-pinning", "count", count)
 	return count, nil
 }
 
@@ -291,7 +291,7 @@ func (a *App) VerifyPinHealth() (map[string]int, error) {
 		"already_valid": 0,
 	}
 	
-	log.Printf("Verifying %d pinned assets", len(assets))
+	slog.Info("verifying pinned assets", "count", len(assets))
 	
 	for _, asset := range assets {
 		// Extract CID
@@ -308,7 +308,7 @@ func (a *App) VerifyPinHealth() (map[string]int, error) {
 		
 		if err != nil {
 			// Content not actually pinned/available
-			log.Printf("Asset %s not available, marking for repin: %v", cid, err)
+			slog.Warn("asset not available, marking for repin", "cid", cid, "error", err)
 			asset.Status = db.StatusPending
 			asset.RetryCount = 0
 			a.database.SaveAsset(&asset)
@@ -320,14 +320,13 @@ func (a *App) VerifyPinHealth() (map[string]int, error) {
 			asset.SizeBytes = size
 			a.database.SaveAsset(&asset)
 			results["updated"]++
-			log.Printf("Updated size for %s: %d bytes", cid, size)
+			slog.Debug("updated asset size", "cid", cid, "size_bytes", size)
 		} else {
 			results["already_valid"]++
 		}
 	}
 	
-	log.Printf("Verify complete: %d updated, %d failed, %d already valid", 
-		results["updated"], results["failed"], results["already_valid"])
+	slog.Info("verify complete", "updated", results["updated"], "failed", results["failed"], "already_valid", results["already_valid"])
 	return results, nil
 }
 

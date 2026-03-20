@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -79,7 +79,7 @@ func (n *Node) Start(ctx context.Context) error {
 		return nil // Already started
 	}
 
-	log.Printf("IPFS node starting (repo: %s, swarm port: %d)...", n.repoPath, n.swarmPort)
+	slog.Info("IPFS node starting", "repo", n.repoPath, "swarm_port", n.swarmPort)
 
 	// Setup plugins
 	if err := setupPlugins(""); err != nil {
@@ -88,7 +88,7 @@ func (n *Node) Start(ctx context.Context) error {
 
 	// Initialize repo if not exists
 	if !fsrepo.IsInitialized(n.repoPath) {
-		log.Printf("Initializing new IPFS repo at %s", n.repoPath)
+		slog.Info("Initializing new IPFS repo", "path", n.repoPath)
 		cfg, err := config.Init(io.Discard, 2048)
 		if err != nil {
 			return fmt.Errorf("failed to init config: %w", err)
@@ -144,7 +144,7 @@ func (n *Node) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to create node: %w", err)
 		}
 		if attempt < 3 {
-			log.Printf("Port %d in use (attempt %d/3), retrying in 2s...", n.swarmPort, attempt)
+			slog.Warn("Swarm port in use, retrying", "port", n.swarmPort, "attempt", attempt, "max_attempts", 3)
 			select {
 			case <-time.After(2 * time.Second):
 			case <-ctx.Done():
@@ -168,7 +168,7 @@ func (n *Node) Start(ctx context.Context) error {
 	n.api = api
 	n.ctx, n.cancel = context.WithCancel(ctx)
 	
-	log.Printf("IPFS node started successfully")
+	slog.Info("IPFS node started successfully")
 
 	return nil
 }
@@ -179,12 +179,12 @@ func (n *Node) Stop() error {
 	defer n.mu.Unlock()
 
 	if n.node == nil {
-		log.Println("IPFS node already stopped")
+		slog.Debug("IPFS node already stopped")
 		return nil
 	}
 
 	repoPath := n.repoPath
-	log.Printf("IPFS node shutdown starting (repo: %s)...", repoPath)
+	slog.Info("IPFS node shutdown starting", "repo", repoPath)
 
 	// Cancel the node's context first to signal all operations to stop
 	if n.cancel != nil {
@@ -197,9 +197,9 @@ func (n *Node) Stop() error {
 	go func() {
 		closeErr := n.node.Close()
 		if closeErr != nil {
-			log.Printf("IPFS deferred close completed with error: %v", closeErr)
+			slog.Error("IPFS deferred close completed with error", "error", closeErr)
 		} else {
-			log.Println("IPFS deferred close completed successfully")
+			slog.Debug("IPFS deferred close completed successfully")
 		}
 		done <- closeErr
 	}()
@@ -210,12 +210,12 @@ func (n *Node) Stop() error {
 	case err := <-done:
 		closeErr = err
 		if err != nil {
-			log.Printf("IPFS node closed with error: %v", err)
+			slog.Error("IPFS node closed with error", "error", err)
 		} else {
-			log.Println("IPFS node shutdown complete")
+			slog.Info("IPFS node shutdown complete")
 		}
 	case <-time.After(ShutdownTimeout):
-		log.Printf("IPFS node shutdown timed out after %v, forcing closure", ShutdownTimeout)
+		slog.Warn("IPFS node shutdown timed out, forcing closure", "timeout", ShutdownTimeout)
 		timedOut = true
 	}
 
@@ -229,9 +229,9 @@ func (n *Node) Stop() error {
 	if timedOut {
 		lockFile := filepath.Join(repoPath, "repo.lock")
 		if _, err := os.Stat(lockFile); err == nil {
-			log.Printf("Removing stale repo lock file after timeout: %s", lockFile)
+			slog.Warn("Removing stale repo lock file after timeout", "path", lockFile)
 			if err := os.Remove(lockFile); err != nil {
-				log.Printf("Warning: failed to remove lock file: %v", err)
+				slog.Warn("Failed to remove lock file", "path", lockFile, "error", err)
 			}
 		}
 	}
@@ -267,7 +267,7 @@ func (n *Node) configureSwarmAddresses(cfg *config.Config) {
 		fmt.Sprintf("/ip4/0.0.0.0/udp/%d/quic-v1/webtransport", port),
 		fmt.Sprintf("/ip6/::/udp/%d/quic-v1/webtransport", port),
 	}
-	log.Printf("Configured IPFS swarm addresses for port %d", port)
+	slog.Debug("Configured IPFS swarm addresses", "port", port)
 }
 
 // updateRepoSwarmPort updates the swarm port in an existing repo if it differs from configured
@@ -288,7 +288,7 @@ func (n *Node) updateRepoSwarmPort(repo repo.Repo) error {
 	}
 
 	if needsUpdate {
-		log.Printf("Updating IPFS swarm port from existing config to %d", n.swarmPort)
+		slog.Info("Updating IPFS swarm port", "port", n.swarmPort)
 		n.configureSwarmAddresses(cfg)
 		if err := repo.SetConfig(cfg); err != nil {
 			return fmt.Errorf("failed to save updated config: %w", err)
@@ -485,12 +485,12 @@ func (n *Node) UnpinAll(ctx context.Context, progress ProgressCallback) (int, er
 
 	// Check if Ls had an error
 	if err := <-errChan; err != nil {
-		log.Printf("Error listing pins: %v", err)
+		slog.Error("Failed to list pins", "error", err)
 		return 0, fmt.Errorf("failed to list pins: %w", err)
 	}
 
 	total := len(cids)
-	log.Printf("Found %d pins to remove", total)
+	slog.Info("Found pins to remove", "count", total)
 	
 	// Report initial progress
 	if progress != nil {
@@ -502,12 +502,12 @@ func (n *Node) UnpinAll(ctx context.Context, progress ProgressCallback) (int, er
 	for _, cidStr := range cids {
 		p, err := path.NewPath("/ipfs/" + cidStr)
 		if err != nil {
-			log.Printf("Invalid pin path: %v", err)
+			slog.Error("Invalid pin path", "error", err)
 			continue
 		}
 		
 		if err := n.api.Pin().Rm(ctx, p, options.Pin.RmRecursive(true)); err != nil {
-			log.Printf("Failed to unpin %s: %v", cidStr, err)
+			slog.Error("Failed to unpin", "cid", cidStr, "error", err)
 			continue
 		}
 		count++
@@ -518,11 +518,11 @@ func (n *Node) UnpinAll(ctx context.Context, progress ProgressCallback) (int, er
 		}
 		
 		if count%100 == 0 {
-			log.Printf("Unpinned %d/%d items...", count, total)
+			slog.Debug("Unpin progress", "unpinned", count, "total", total)
 		}
 	}
 
-	log.Printf("Unpinned %d items", count)
+	slog.Info("Unpin complete", "unpinned", count)
 	return count, nil
 }
 
@@ -535,7 +535,7 @@ func (n *Node) GarbageCollect(ctx context.Context) error {
 		return fmt.Errorf("node not started")
 	}
 
-	log.Println("Starting IPFS garbage collection...")
+	slog.Info("Starting IPFS garbage collection")
 	
 	// Use corerepo.GarbageCollect which takes (node, ctx)
 	if err := corerepo.GarbageCollect(n.node, ctx); err != nil {
@@ -545,7 +545,7 @@ func (n *Node) GarbageCollect(ctx context.Context) error {
 	// OS-specific cleanup has been removed for safety.
 	// We rely solely on IPFS internal repo garbage collection.
 	
-	log.Println("IPFS garbage collection complete")
+	slog.Info("IPFS garbage collection complete")
 	return nil
 }
 

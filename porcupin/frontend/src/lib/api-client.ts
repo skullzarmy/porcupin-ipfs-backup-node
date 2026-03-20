@@ -437,7 +437,8 @@ export class PorcupinAPIClient {
      * Verify and fix pins
      */
     async verifyAndFixPins(): Promise<Record<string, number>> {
-        return this.post<Record<string, number>>("/api/v1/verify-and-fix");
+        const resp = await this.post<{ data: Record<string, number> }>("/api/v1/verify-and-fix");
+        return resp.data;
     }
 
     // =========================================================================
