@@ -222,8 +222,8 @@ export function ValidateStoragePath(arg1) {
   return window['go']['main']['App']['ValidateStoragePath'](arg1);
 }
 
-export function VerifyAndFixPins() {
-  return window['go']['main']['App']['VerifyAndFixPins']();
+export function VerifyPinHealth() {
+  return window['go']['main']['App']['VerifyPinHealth']();
 }
 
 export function VerifyAsset(arg1) {

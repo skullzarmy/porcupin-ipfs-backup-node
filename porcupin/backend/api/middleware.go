@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"strings"
@@ -81,7 +81,7 @@ func AuthMiddleware(plainToken, tokenHash string) func(http.Handler) http.Handle
 			if !valid {
 				// Log failed auth attempts (without the token)
 				clientIP := getClientIP(r)
-				log.Printf("AUTH FAILED: unauthorized request from %s to %s", clientIP, r.URL.Path)
+				slog.Warn("AUTH FAILED: unauthorized request", "client_ip", clientIP, "path", r.URL.Path)
 				WriteUnauthorized(w, "Invalid token")
 				return
 			}
@@ -110,14 +110,14 @@ func IPFilterMiddleware(allowPublic bool) func(http.Handler) http.Handler {
 			// Parse the client IP
 			ip := net.ParseIP(clientIP)
 			if ip == nil {
-				log.Printf("IP FILTER: could not parse IP: %s", clientIP)
+				slog.Warn("IP FILTER: could not parse IP", "raw_ip", clientIP)
 				WriteForbidden(w, "Could not determine client IP")
 				return
 			}
 
 			// Check if IP is private/local
 			if !isPrivateIP(ip) {
-				log.Printf("IP FILTER: rejected public IP: %s", clientIP)
+				slog.Warn("IP FILTER: rejected public IP", "client_ip", clientIP)
 				WriteForbidden(w, "Access denied: public IPs not allowed. Use --allow-public to enable.")
 				return
 			}
@@ -291,7 +291,7 @@ func RateLimitMiddleware(limiter *RateLimiter) func(http.Handler) http.Handler {
 			clientIP := getClientIP(r)
 
 			if !limiter.Allow(clientIP) {
-				log.Printf("RATE LIMIT: exceeded for %s", clientIP)
+				slog.Warn("RATE LIMIT: exceeded", "client_ip", clientIP)
 				WriteRateLimited(w)
 				return
 			}
@@ -314,12 +314,12 @@ func LoggingMiddleware(next http.Handler) http.Handler {
 		duration := time.Since(start)
 		clientIP := getClientIP(r)
 
-		log.Printf("API: %s %s %s %d %v",
-			clientIP,
-			r.Method,
-			r.URL.Path,
-			wrapped.statusCode,
-			duration,
+		slog.Debug("API request",
+			"client_ip", clientIP,
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", wrapped.statusCode,
+			"duration", duration,
 		)
 	})
 }

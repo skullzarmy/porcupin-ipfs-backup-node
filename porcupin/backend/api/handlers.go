@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -473,7 +473,7 @@ func (h *Handlers) DeleteWallet(w http.ResponseWriter, r *http.Request) {
 			cid := core.ExtractCIDFromURI(asset.URI)
 			if cid != "" {
 				if err := h.service.UnpinAsset(cid); err != nil {
-					log.Printf("Warning: failed to unpin asset %s during wallet deletion: %v", cid, err)
+					slog.Warn("failed to unpin asset during wallet deletion", "cid", cid, "error", err)
 				}
 			}
 		}
@@ -758,7 +758,7 @@ func (h *Handlers) GetFailedAssets(w http.ResponseWriter, r *http.Request) {
 	// Debug log
 	count := len(assets)
 	if count > 0 {
-		log.Printf("[API] GetFailedAssets: Found %d failed assets", count)
+		slog.Debug("GetFailedAssets", "count", count)
 	}
 
 	resp := make([]AssetResponse, 0, len(assets))
@@ -904,12 +904,19 @@ func (h *Handlers) VerifyAndFixPins(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"data": result,
-		"meta": map[string]interface{}{
-			"timestamp": time.Now().UTC(),
-		},
-	})
+	WriteJSON(w, http.StatusOK, result)
+}
+
+// VerifyPinHealth checks IPFS availability of pinned assets and corrects sizes
+// POST /api/v1/verify-pin-health
+func (h *Handlers) VerifyPinHealth(w http.ResponseWriter, r *http.Request) {
+	result, err := h.service.VerifyPinHealth()
+	if err != nil {
+		WriteError(w, http.StatusInternalServerError, "Failed to verify pin health", err.Error())
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, result)
 }
 
 // =============================================================================

@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"sync"
@@ -165,13 +165,13 @@ func (s *Server) Start(ctx context.Context) error {
 		listener = tls.NewListener(listener, s.httpServer.TLSConfig)
 	}
 
-	log.Printf("API server listening on %s://%s", protocol, addr)
+	slog.Info("API server listening", "protocol", protocol, "address", addr)
 
 	// Start mDNS announcement
 	useTLS := s.httpServer.TLSConfig != nil
 	s.mdns = NewMDNSServer(s.config.Port, s.config.Version, useTLS)
 	if err := s.mdns.Start(); err != nil {
-		log.Printf("Warning: mDNS announcement failed: %v", err)
+		slog.Warn("mDNS announcement failed", "error", err)
 		// Non-fatal - server still works without mDNS
 	}
 
@@ -185,7 +185,7 @@ func (s *Server) Start(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
-			log.Printf("API server shutdown error: %v", err)
+			slog.Error("API server shutdown error", "error", err)
 		}
 	}()
 
@@ -207,40 +207,30 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // printStartupWarnings prints security warnings at startup
 func (s *Server) printStartupWarnings() {
-	log.Println("┌─────────────────────────────────────────────────────────────┐")
-	log.Println("│                   PORCUPIN API SERVER                       │")
-	log.Println("├─────────────────────────────────────────────────────────────┤")
+	slog.Info("PORCUPIN API SERVER starting")
 
 	// Warning 1: No TLS
 	if s.config.TLSCert == "" || s.config.TLSKey == "" {
-		log.Println("│ ⚠️  WARNING: No TLS - traffic is unencrypted                │")
-		log.Println("│    For internet exposure, use a reverse proxy with TLS     │")
+		slog.Warn("No TLS configured - traffic is unencrypted. For internet exposure, use a reverse proxy with TLS")
 	}
 
 	// Warning 2: Public access
 	if s.config.AllowPublic {
-		log.Println("│ ⚠️  WARNING: --allow-public is enabled                     │")
-		log.Println("│    Public IP addresses can connect to this server         │")
+		slog.Warn("--allow-public is enabled: public IP addresses can connect to this server")
 	}
 
 	// Security reminders
-	log.Println("│                                                             │")
-	log.Println("│ Security reminders:                                         │")
-	log.Println("│ • Token stored at ~/.porcupin/.api-token (mode 0600)       │")
-	log.Println("│ • Use PORCUPIN_API_TOKEN env var for automation            │")
-	log.Println("│ • Designed for LAN use only                                │")
+	slog.Info("Security reminders: token stored at ~/.porcupin/.api-token (mode 0600), use PORCUPIN_API_TOKEN env var for automation, designed for LAN use only")
 
-	log.Println("└─────────────────────────────────────────────────────────────┘")
-	
 	protocol := "http"
 	if s.config.TLSCert != "" && s.config.TLSKey != "" {
 		protocol = "https"
 	}
-	log.Printf("Bind: %s://%s:%d | Public IPs: %v",
-		protocol,
-		s.config.BindAddress,
-		s.config.Port,
-		s.config.AllowPublic)
+	slog.Info("API server bind config",
+		"protocol", protocol,
+		"bind_address", s.config.BindAddress,
+		"port", s.config.Port,
+		"allow_public", s.config.AllowPublic)
 }
 
 // GetListenAddress returns the address the server is listening on

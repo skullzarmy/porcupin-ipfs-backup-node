@@ -4,7 +4,7 @@
 package core
 
 import (
-	"log"
+	"log/slog"
 	"syscall"
 )
 
@@ -20,7 +20,7 @@ func (bm *BackupManager) hasSufficientDiskSpace() bool {
 	var stat syscall.Statfs_t
 	err := syscall.Statfs(repoPath, &stat)
 	if err != nil {
-		log.Printf("Failed to check disk space for %s: %v", repoPath, err)
+		slog.Error("Failed to check disk space", "path", repoPath, "error", err)
 		return true // Fail open
 	}
 
@@ -30,7 +30,7 @@ func (bm *BackupManager) hasSufficientDiskSpace() bool {
 	minFree := float64(bm.config.Backup.MinFreeDiskSpaceGB)
 
 	if freeGB < minFree {
-		log.Printf("Low disk space on %s: %.2f GB free (minimum: %.2f GB)", repoPath, freeGB, minFree)
+		slog.Warn("Low disk space", "path", repoPath, "free_gb", freeGB, "min_free_gb", minFree)
 		return false
 	}
 

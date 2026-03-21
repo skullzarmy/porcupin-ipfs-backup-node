@@ -216,34 +216,34 @@ func TestIsLikelyNFT(t *testing.T) {
 	})
 }
 
-// TestHasIPFSContent tests the hasIPFSContent function
+// TestHasIPFSContent tests the HasIPFSContent function
 func TestHasIPFSContent(t *testing.T) {
 	t.Run("nil metadata", func(t *testing.T) {
-		if hasIPFSContent(nil) {
+		if HasIPFSContent(nil) {
 			t.Error("expected nil metadata to return false")
 		}
 	})
 
 	t.Run("empty metadata", func(t *testing.T) {
-		if hasIPFSContent(&TokenMetadata{}) {
+		if HasIPFSContent(&TokenMetadata{}) {
 			t.Error("expected empty metadata to return false")
 		}
 	})
 
 	t.Run("has artifactUri", func(t *testing.T) {
-		if !hasIPFSContent(&TokenMetadata{ArtifactURI: "ipfs://Qm123"}) {
+		if !HasIPFSContent(&TokenMetadata{ArtifactURI: "ipfs://Qm123"}) {
 			t.Error("expected metadata with artifactUri to return true")
 		}
 	})
 
 	t.Run("has displayUri", func(t *testing.T) {
-		if !hasIPFSContent(&TokenMetadata{DisplayURI: "ipfs://Qm123"}) {
+		if !HasIPFSContent(&TokenMetadata{DisplayURI: "ipfs://Qm123"}) {
 			t.Error("expected metadata with displayUri to return true")
 		}
 	})
 
 	t.Run("has thumbnailUri", func(t *testing.T) {
-		if !hasIPFSContent(&TokenMetadata{ThumbnailURI: "ipfs://Qm123"}) {
+		if !HasIPFSContent(&TokenMetadata{ThumbnailURI: "ipfs://Qm123"}) {
 			t.Error("expected metadata with thumbnailUri to return true")
 		}
 	})
@@ -252,7 +252,7 @@ func TestHasIPFSContent(t *testing.T) {
 		metadata := &TokenMetadata{
 			Formats: []Format{{URI: "ipfs://QmFormat", MimeType: "image/png"}},
 		}
-		if !hasIPFSContent(metadata) {
+		if !HasIPFSContent(metadata) {
 			t.Error("expected metadata with formats URI to return true")
 		}
 	})
@@ -261,8 +261,19 @@ func TestHasIPFSContent(t *testing.T) {
 		metadata := &TokenMetadata{
 			Formats: []Format{{MimeType: "image/png"}},
 		}
-		if hasIPFSContent(metadata) {
+		if HasIPFSContent(metadata) {
 			t.Error("expected metadata with empty formats URI to return false")
+		}
+	})
+
+	t.Run("HTTP-only URIs return false", func(t *testing.T) {
+		metadata := &TokenMetadata{
+			ArtifactURI:  "https://example.com/img.png",
+			DisplayURI:   "https://cdn.example.com/display.jpg",
+			ThumbnailURI: "https://cdn.example.com/thumb.jpg",
+		}
+		if HasIPFSContent(metadata) {
+			t.Error("expected HTTP-only URIs to return false (BUG-3)")
 		}
 	})
 }
@@ -570,6 +581,252 @@ func TestPagination(t *testing.T) {
 		}
 		if requestCount != 2 {
 			t.Errorf("expected 2 requests, got %d", requestCount)
+		}
+	})
+}
+
+// TestUnmarshalJSON_PreservesRawJSON verifies that the custom UnmarshalJSON
+// stores the complete raw JSON bytes while still populating standard fields.
+func TestUnmarshalJSON_PreservesRawJSON(t *testing.T) {
+	t.Run("standard fields plus RawJSON", func(t *testing.T) {
+		jsonData := `{"name":"Test","artifactUri":"ipfs://QmArt","displayUri":"ipfs://QmDisp"}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(jsonData), &m); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if m.Name != "Test" {
+			t.Errorf("Name = %q, want %q", m.Name, "Test")
+		}
+		if m.ArtifactURI != "ipfs://QmArt" {
+			t.Errorf("ArtifactURI = %q, want %q", m.ArtifactURI, "ipfs://QmArt")
+		}
+		if m.RawJSON == nil {
+			t.Fatal("RawJSON is nil")
+		}
+		// RawJSON should round-trip back to the same keys
+		var probe map[string]interface{}
+		if err := json.Unmarshal(m.RawJSON, &probe); err != nil {
+			t.Fatalf("RawJSON re-parse: %v", err)
+		}
+		if probe["artifactUri"] != "ipfs://QmArt" {
+			t.Error("RawJSON missing artifactUri")
+		}
+	})
+
+	t.Run("extra fields preserved in RawJSON", func(t *testing.T) {
+		jsonData := `{"name":"Versum","artifactUri":"ipfs://QmArt","pinUri":"ipfs://QmPin","rightUri":"ipfs://QmRight"}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(jsonData), &m); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		// Standard field populated
+		if m.ArtifactURI != "ipfs://QmArt" {
+			t.Errorf("ArtifactURI = %q", m.ArtifactURI)
+		}
+		// Extra fields present in RawJSON
+		var probe map[string]interface{}
+		json.Unmarshal(m.RawJSON, &probe)
+		if probe["pinUri"] != "ipfs://QmPin" {
+			t.Error("RawJSON missing pinUri")
+		}
+		if probe["rightUri"] != "ipfs://QmRight" {
+			t.Error("RawJSON missing rightUri")
+		}
+	})
+
+	t.Run("nested in Token struct", func(t *testing.T) {
+		jsonData := `{"id":1,"tokenId":"42","contract":{"address":"KT1abc"},"metadata":{"name":"NFT","artifactUri":"ipfs://Qm1","image":"ipfs://QmImg"}}`
+		var tok Token
+		if err := json.Unmarshal([]byte(jsonData), &tok); err != nil {
+			t.Fatalf("unmarshal Token: %v", err)
+		}
+		if tok.Metadata == nil || tok.Metadata.RawJSON == nil {
+			t.Fatal("Metadata.RawJSON is nil after Token unmarshal")
+		}
+		var probe map[string]interface{}
+		json.Unmarshal(tok.Metadata.RawJSON, &probe)
+		if probe["image"] != "ipfs://QmImg" {
+			t.Error("RawJSON missing non-standard 'image' field")
+		}
+	})
+}
+
+// TestExtractExtraIPFSURIs exercises the recursive IPFS URI scanner.
+func TestExtractExtraIPFSURIs(t *testing.T) {
+	t.Run("nil input", func(t *testing.T) {
+		if uris := ExtractExtraIPFSURIs(nil); uris != nil {
+			t.Errorf("expected nil, got %v", uris)
+		}
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		if uris := ExtractExtraIPFSURIs(json.RawMessage{}); uris != nil {
+			t.Errorf("expected nil, got %v", uris)
+		}
+	})
+
+	t.Run("standard fields only", func(t *testing.T) {
+		raw := json.RawMessage(`{"artifactUri":"ipfs://QmArt","displayUri":"ipfs://QmDisp","thumbnailUri":"ipfs://QmThumb"}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		if len(uris) != 3 {
+			t.Errorf("expected 3 URIs, got %d: %v", len(uris), uris)
+		}
+	})
+
+	t.Run("non-standard fields", func(t *testing.T) {
+		raw := json.RawMessage(`{"name":"Test","pinUri":"ipfs://QmPin","rightUri":"ipfs://QmRight"}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		uriSet := make(map[string]bool)
+		for _, u := range uris {
+			uriSet[u] = true
+		}
+		if !uriSet["ipfs://QmPin"] {
+			t.Error("missing pinUri")
+		}
+		if !uriSet["ipfs://QmRight"] {
+			t.Error("missing rightUri")
+		}
+		if len(uris) != 2 {
+			t.Errorf("expected 2 URIs (name excluded), got %d: %v", len(uris), uris)
+		}
+	})
+
+	t.Run("nested objects", func(t *testing.T) {
+		raw := json.RawMessage(`{"extra":{"deepUri":"ipfs://QmDeep"},"top":"ipfs://QmTop"}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		uriSet := make(map[string]bool)
+		for _, u := range uris {
+			uriSet[u] = true
+		}
+		if !uriSet["ipfs://QmDeep"] {
+			t.Error("missing nested deepUri")
+		}
+		if !uriSet["ipfs://QmTop"] {
+			t.Error("missing top-level URI")
+		}
+	})
+
+	t.Run("arrays with IPFS URIs", func(t *testing.T) {
+		raw := json.RawMessage(`{"formats":[{"uri":"ipfs://QmFmt1"},{"uri":"ipfs://QmFmt2"}]}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		if len(uris) != 2 {
+			t.Errorf("expected 2 URIs from formats array, got %d: %v", len(uris), uris)
+		}
+	})
+
+	t.Run("false positive exclusion - description", func(t *testing.T) {
+		raw := json.RawMessage(`{"description":"Check out ipfs://QmFake for details","artifactUri":"ipfs://QmReal"}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		uriSet := make(map[string]bool)
+		for _, u := range uris {
+			uriSet[u] = true
+		}
+		if uriSet["ipfs://QmFake"] {
+			t.Error("description should be excluded but ipfs://QmFake was extracted")
+		}
+		if !uriSet["ipfs://QmReal"] {
+			t.Error("artifactUri should be extracted")
+		}
+	})
+
+	t.Run("false positive exclusion - name and tags", func(t *testing.T) {
+		raw := json.RawMessage(`{"name":"ipfs://QmName","tags":["ipfs://QmTag"],"image":"ipfs://QmImg"}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		uriSet := make(map[string]bool)
+		for _, u := range uris {
+			uriSet[u] = true
+		}
+		if uriSet["ipfs://QmName"] {
+			t.Error("name should be excluded")
+		}
+		if uriSet["ipfs://QmTag"] {
+			t.Error("tags should be excluded")
+		}
+		if !uriSet["ipfs://QmImg"] {
+			t.Error("image should be extracted")
+		}
+	})
+
+	t.Run("non-IPFS strings ignored", func(t *testing.T) {
+		raw := json.RawMessage(`{"image":"https://example.com/img.png","data":"data:image/png;base64,abc","label":"hello"}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		if len(uris) != 0 {
+			t.Errorf("expected 0 IPFS URIs from non-IPFS content, got %d: %v", len(uris), uris)
+		}
+	})
+
+	t.Run("deduplication", func(t *testing.T) {
+		raw := json.RawMessage(`{"artifactUri":"ipfs://QmSame","image":"ipfs://QmSame","preview":"ipfs://QmSame"}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		if len(uris) != 1 {
+			t.Errorf("expected 1 deduplicated URI, got %d: %v", len(uris), uris)
+		}
+	})
+
+	t.Run("gateway-style URIs", func(t *testing.T) {
+		raw := json.RawMessage(`{"image":"https://ipfs.io/ipfs/QmGateway"}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		if len(uris) != 1 || uris[0] != "https://ipfs.io/ipfs/QmGateway" {
+			t.Errorf("expected gateway URI, got %v", uris)
+		}
+	})
+
+	t.Run("real-world Versum metadata", func(t *testing.T) {
+		raw := json.RawMessage(`{
+			"name": "Versum Artwork",
+			"description": "A piece from Versum",
+			"artifactUri": "ipfs://QmArtifactVersum",
+			"displayUri": "ipfs://QmDisplayVersum",
+			"thumbnailUri": "ipfs://QmThumbVersum",
+			"pinUri": "ipfs://QmPinVersum",
+			"rightUri": "ipfs://QmRightVersum",
+			"creators": ["tz1abc"],
+			"formats": [{"uri": "ipfs://QmFmtVersum", "mimeType": "image/png"}]
+		}`)
+		uris := ExtractExtraIPFSURIs(raw)
+		uriSet := make(map[string]bool)
+		for _, u := range uris {
+			uriSet[u] = true
+		}
+		// pinUri and rightUri are non-standard — must be found
+		if !uriSet["ipfs://QmPinVersum"] {
+			t.Error("missing Versum pinUri")
+		}
+		if !uriSet["ipfs://QmRightVersum"] {
+			t.Error("missing Versum rightUri")
+		}
+		// Standard URIs should also be found (they're not excluded)
+		if !uriSet["ipfs://QmArtifactVersum"] {
+			t.Error("missing standard artifactUri")
+		}
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		uris := ExtractExtraIPFSURIs(json.RawMessage(`{invalid`))
+		if uris != nil {
+			t.Errorf("expected nil for invalid JSON, got %v", uris)
+		}
+	})
+}
+
+// TestHasIPFSContent_NonStandardFields verifies that HasIPFSContent detects
+// IPFS URIs in non-standard metadata fields via RawJSON scanning.
+func TestHasIPFSContent_NonStandardFields(t *testing.T) {
+	t.Run("only non-standard IPFS field", func(t *testing.T) {
+		m := &TokenMetadata{
+			RawJSON: json.RawMessage(`{"pinUri":"ipfs://QmPin"}`),
+		}
+		if !HasIPFSContent(m) {
+			t.Error("expected true when non-standard field has IPFS URI")
+		}
+	})
+
+	t.Run("no IPFS URIs anywhere", func(t *testing.T) {
+		m := &TokenMetadata{
+			RawJSON: json.RawMessage(`{"name":"Test","description":"No IPFS here"}`),
+		}
+		if HasIPFSContent(m) {
+			t.Error("expected false when no IPFS URIs exist")
 		}
 	})
 }

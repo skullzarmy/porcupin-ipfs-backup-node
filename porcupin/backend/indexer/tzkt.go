@@ -5,11 +5,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	ipfsuri "porcupin/backend/uri"
 
 	"github.com/dipdup-net/go-lib/tzkt/api"
 	"github.com/dipdup-net/go-lib/tzkt/events"
@@ -46,7 +48,10 @@ func (i *Indexer) SetTokenCallback(cb func(Token)) {
 	i.tokenCallback = cb
 }
 
-// TokenMetadata represents the metadata structure we expect from TZKT
+// TokenMetadata represents the metadata structure we expect from TZKT.
+// The custom UnmarshalJSON stores the complete raw JSON in RawJSON so that
+// non-standard fields (e.g. Versum's pinUri, fxhash's generativeUri) can be
+// scanned for additional IPFS URIs.
 type TokenMetadata struct {
 	Name         string          `json:"name"`
 	Description  string          `json:"description"`
@@ -56,6 +61,31 @@ type TokenMetadata struct {
 	Creators     json.RawMessage `json:"creators,omitempty"`  // Can be string or []string
 	Formats      []Format        `json:"formats"`
 	Decimals     json.RawMessage `json:"decimals,omitempty"` // Can be string or int
+
+	// RawJSON stores the complete original JSON bytes for this metadata object.
+	// Populated automatically by UnmarshalJSON. Used by ExtractExtraIPFSURIs
+	// to discover IPFS URIs in non-standard fields.
+	RawJSON json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler. It performs standard field
+// decoding AND stores the complete raw JSON bytes so callers can scan
+// for IPFS URIs in non-standard fields.
+func (m *TokenMetadata) UnmarshalJSON(data []byte) error {
+	// Use an alias type to prevent infinite recursion — the alias has
+	// the same fields but no methods, so json uses default struct decoding.
+	type Alias TokenMetadata
+	var alias Alias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*m = TokenMetadata(alias)
+
+	// Store a copy of the complete raw JSON.
+	m.RawJSON = make(json.RawMessage, len(data))
+	copy(m.RawJSON, data)
+
+	return nil
 }
 
 type Format struct {
@@ -165,7 +195,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 			reqURL += fmt.Sprintf("&lastLevel.gt=%d", sinceLevel)
 		}
 		
-		log.Printf("SyncOwned: Requesting %s", reqURL)
+		slog.Debug("SyncOwned: requesting page", "url", reqURL)
 
 		var balances []struct {
 			ID    uint64 `json:"id"` // Balance record ID for pagination cursor
@@ -188,7 +218,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 				resp.Body.Close()
 			}
 			backoff := time.Second * time.Duration(1<<uint(attempt))
-			log.Printf("SyncOwned attempt %d failed, retrying in %v", attempt+1, backoff)
+			slog.Warn("SyncOwned attempt failed, retrying", "attempt", attempt+1, "backoff", backoff)
 			time.Sleep(backoff)
 		}
 		if err != nil {
@@ -217,7 +247,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 			lastId = b.ID
 		}
 
-		log.Printf("SyncOwned: fetched %d balances, total NFTs so far: %d", len(balances), len(allTokens))
+		slog.Debug("SyncOwned: fetched balances", "count", len(balances), "total_nfts", len(allTokens))
 
 		if len(balances) < limit {
 			break // Last page
@@ -226,7 +256,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 		time.Sleep(100 * time.Millisecond) // Rate limiting
 	}
 
-	log.Printf("SyncOwned complete: found %d NFTs for %s (since level %d)", len(allTokens), address, sinceLevel)
+	slog.Info("SyncOwned complete", "nft_count", len(allTokens), "address", address, "since_level", sinceLevel)
 	return allTokens, nil
 }
 
@@ -280,7 +310,7 @@ func (i *Indexer) SyncCreatedSince(ctx context.Context, address string, sinceLev
 				resp.Body.Close()
 			}
 			backoff := time.Second * time.Duration(1<<uint(attempt))
-			log.Printf("SyncCreated attempt %d failed, retrying in %v", attempt+1, backoff)
+			slog.Warn("SyncCreated attempt failed, retrying", "attempt", attempt+1, "backoff", backoff)
 			time.Sleep(backoff)
 		}
 		if err != nil {
@@ -310,19 +340,18 @@ func (i *Indexer) SyncCreatedSince(ctx context.Context, address string, sinceLev
 			lastId = t.ID // Update cursor
 		}
 
-		log.Printf("SyncCreated: fetched %d tokens (limit=%d), total NFTs so far: %d, lastId: %d, continuing: %v", 
-			len(tokens), limit, len(allTokens), lastId, len(tokens) >= limit)
+		slog.Debug("SyncCreated: fetched tokens", "count", len(tokens), "limit", limit, "total_nfts", len(allTokens), "last_id", lastId, "continuing", len(tokens) >= limit)
 
 		if len(tokens) < limit {
-			log.Printf("SyncCreated: Last page reached (got %d, limit was %d)", len(tokens), limit)
+			slog.Debug("SyncCreated: last page reached", "count", len(tokens), "limit", limit)
 			break // Last page
 		}
 		
-		log.Printf("SyncCreated: Fetching next page with id.gt=%d", lastId)
+		slog.Debug("SyncCreated: fetching next page", "id_gt", lastId)
 		time.Sleep(100 * time.Millisecond) // Rate limiting
 	}
 
-	log.Printf("SyncCreated complete: found %d NFTs for %s (since level %d)", len(allTokens), address, sinceLevel)
+	slog.Info("SyncCreated complete", "nft_count", len(allTokens), "address", address, "since_level", sinceLevel)
 	return allTokens, nil
 }
 
@@ -437,7 +466,7 @@ func (i *Indexer) handleEvents(ctx context.Context) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("websocket panic: %v", r)
-			log.Printf("Recovered from websocket panic: %v", r)
+			slog.Error("recovered from websocket panic", "error", r)
 		}
 	}()
 
@@ -471,11 +500,11 @@ func (i *Indexer) handleEvents(ctx context.Context) (err error) {
 				// Check if body has actual content (not just empty state message)
 				if msg.Type == 0 {
 					// Type 0 is state message (subscription confirmation), not data
-					log.Printf("WebSocket subscription confirmed, state: %v", msg.State)
+					slog.Info("WebSocket subscription confirmed", "state", msg.State)
 					continue
 				}
 				
-				log.Printf("Received token balance update: type=%d, state=%v", msg.Type, msg.State)
+				slog.Debug("received token balance update", "type", msg.Type, "state", msg.State)
 				
 				// Only fire callback for actual data messages (type 1)
 				if i.tokenCallback != nil && msg.Type == 1 {
@@ -510,11 +539,11 @@ var knownNFTContracts = map[string]bool{
 }
 
 // isLikelyNFT determines if a token is likely an NFT worth backing up
-// This is more permissive than hasIPFSContent - it includes tokens with null metadata
+// This is more permissive than HasIPFSContent - it includes tokens with null metadata
 // since we can try to fetch metadata from chain
 func isLikelyNFT(t Token) bool {
 	// If we already have metadata with IPFS content, definitely include
-	if t.Metadata != nil && hasIPFSContent(t.Metadata) {
+	if t.Metadata != nil && HasIPFSContent(t.Metadata) {
 		return true
 	}
 	
@@ -550,20 +579,95 @@ func isLikelyNFT(t Token) bool {
 	return false
 }
 
-// hasIPFSContent checks if metadata contains any IPFS URIs to backup
-func hasIPFSContent(m *TokenMetadata) bool {
+// HasIPFSContent checks if metadata contains any IPFS URIs to backup.
+func HasIPFSContent(m *TokenMetadata) bool {
 	if m == nil {
 		return false
 	}
-	// Check main URIs
-	if m.ArtifactURI != "" || m.DisplayURI != "" || m.ThumbnailURI != "" {
+	// Check standard TZIP-21 URIs — only IPFS URIs count as backupable content.
+	// HTTP-only URIs must NOT pass this gate; they would enter the DB as "pending"
+	// and fail during backup with "Not an IPFS URI" (BUG-3).
+	if ipfsuri.IsIPFS(m.ArtifactURI) || ipfsuri.IsIPFS(m.DisplayURI) || ipfsuri.IsIPFS(m.ThumbnailURI) {
 		return true
 	}
 	// Check formats array
 	for _, f := range m.Formats {
-		if f.URI != "" {
+		if ipfsuri.IsIPFS(f.URI) {
 			return true
 		}
 	}
+	// Check for IPFS URIs in non-standard metadata fields
+	if len(ExtractExtraIPFSURIs(m.RawJSON)) > 0 {
+		return true
+	}
 	return false
+}
+
+// extractionExcludeKeys contains metadata field names whose values are
+// human-readable text, not URIs. Scanning these would produce false positives
+// (e.g. an artist who writes about IPFS in their description).
+var extractionExcludeKeys = map[string]bool{
+	"name":        true,
+	"description": true,
+	"symbol":      true,
+	"language":    true,
+	"rights":      true,
+	"date":        true,
+	"tags":        true,
+	"attributes":  true,
+	"creators":    true,
+	"minter":      true,
+	"mintingTool": true,
+	"type":        true,
+	"mimeType":    true,
+	"fileName":    true,
+	"dimensions":  true,
+	"decimals":    true,
+}
+
+// ExtractExtraIPFSURIs walks rawJSON recursively and returns all unique
+// IPFS URIs found in string values, skipping known text-content keys
+// (name, description, etc.) to avoid false positives.
+func ExtractExtraIPFSURIs(rawJSON json.RawMessage) []string {
+	if len(rawJSON) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]bool)
+	var walk func(key string, v interface{})
+	walk = func(key string, v interface{}) {
+		switch val := v.(type) {
+		case string:
+			if extractionExcludeKeys[key] {
+				return
+			}
+			if ipfsuri.IsIPFS(val) {
+				seen[val] = true
+			}
+		case map[string]interface{}:
+			for k, child := range val {
+				walk(k, child)
+			}
+		case []interface{}:
+			for _, item := range val {
+				walk(key, item)
+			}
+		}
+	}
+
+	var root interface{}
+	if err := json.Unmarshal(rawJSON, &root); err != nil {
+		return nil
+	}
+	walk("", root)
+
+	if len(seen) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(seen))
+	for uri := range seen {
+		result = append(result, uri)
+	}
+	return result
 }

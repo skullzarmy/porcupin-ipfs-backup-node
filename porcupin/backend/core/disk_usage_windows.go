@@ -5,7 +5,7 @@ package core
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -45,7 +45,7 @@ func GetDiskUsageBytes(path string) (int64, error) {
 		}
 	}
 
-	log.Printf("Disk usage of %s: %.2f GB", path, float64(size)/1024/1024/1024)
+	slog.Debug("Disk usage", "path", path, "gb", float64(size)/1024/1024/1024)
 	return size, nil
 }
 
@@ -62,6 +62,6 @@ func getDiskUsagePowerShell(path string) (int64, error) {
 	sizeStr := strings.TrimSpace(string(output))
 	size, _ := strconv.ParseInt(sizeStr, 10, 64)
 
-	log.Printf("Disk usage of %s: %.2f GB", path, float64(size)/1024/1024/1024)
+	slog.Debug("Disk usage", "path", path, "gb", float64(size)/1024/1024/1024)
 	return size, nil
 }

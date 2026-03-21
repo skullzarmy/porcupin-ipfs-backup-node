@@ -4,7 +4,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -79,7 +79,7 @@ func getDirSizeBytes(path string) (int64, error) {
 	}
 	
 	if err != nil {
-		log.Printf("robocopy failed, falling back to PowerShell: %v", err)
+		slog.Warn("robocopy failed, falling back to PowerShell", "error", err)
 		return getDirSizePowerShell(path)
 	}
 
@@ -114,7 +114,7 @@ func getDirSizePowerShell(path string) (int64, error) {
 	
 	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("PowerShell fallback also failed: %v", err)
+		slog.Error("PowerShell fallback also failed", "error", err)
 		return 0, err
 	}
 

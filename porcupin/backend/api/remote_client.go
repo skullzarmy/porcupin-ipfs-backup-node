@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"time"
 )
@@ -61,7 +61,7 @@ func NewRemoteClient(host string, port int, token string, useTLS bool) *RemoteCl
 // Health checks the server health
 func (c *RemoteClient) Health(ctx context.Context) (*HealthResponse, error) {
 	url := c.baseURL + "/api/v1/health"
-	log.Printf("RemoteClient: GET %s", url)
+	slog.Debug("RemoteClient: GET", "url", url)
 	
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -73,12 +73,12 @@ func (c *RemoteClient) Health(ctx context.Context) (*HealthResponse, error) {
 	
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		log.Printf("RemoteClient: Request failed: %v", err)
+		slog.Error("RemoteClient: request failed", "error", err)
 		return nil, fmt.Errorf("connection failed: %w", err)
 	}
 	defer resp.Body.Close()
 	
-	log.Printf("RemoteClient: Response status: %d", resp.StatusCode)
+	slog.Debug("RemoteClient: response received", "status_code", resp.StatusCode)
 	
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 	if err != nil {
@@ -90,7 +90,7 @@ func (c *RemoteClient) Health(ctx context.Context) (*HealthResponse, error) {
 		if len(errBody) > 200 {
 			errBody = errBody[:200] + "..."
 		}
-		log.Printf("RemoteClient: Error response: %s", errBody)
+		slog.Error("RemoteClient: error response", "body", errBody)
 		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, errBody)
 	}
 	
@@ -105,7 +105,7 @@ func (c *RemoteClient) Health(ctx context.Context) (*HealthResponse, error) {
 // Proxy sends a generic HTTP request to the remote server and returns the response
 func (c *RemoteClient) Proxy(ctx context.Context, proxyReq ProxyRequest) (*ProxyResponse, error) {
 	url := c.baseURL + proxyReq.Path
-	log.Printf("RemoteClient.Proxy: %s %s", proxyReq.Method, url)
+	slog.Debug("RemoteClient.Proxy", "method", proxyReq.Method, "url", url)
 	
 	var bodyReader io.Reader
 	if proxyReq.Body != "" {
@@ -128,7 +128,7 @@ func (c *RemoteClient) Proxy(ctx context.Context, proxyReq ProxyRequest) (*Proxy
 	
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		log.Printf("RemoteClient.Proxy: Request failed: %v", err)
+		slog.Error("RemoteClient.Proxy: request failed", "error", err)
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -138,7 +138,7 @@ func (c *RemoteClient) Proxy(ctx context.Context, proxyReq ProxyRequest) (*Proxy
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 	
-	log.Printf("RemoteClient.Proxy: Response status: %d, body length: %d", resp.StatusCode, len(body))
+	slog.Debug("RemoteClient.Proxy: response", "status_code", resp.StatusCode, "body_length", len(body))
 	
 	// Collect response headers
 	headers := make(map[string]string)

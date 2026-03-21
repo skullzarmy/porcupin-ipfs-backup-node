@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"sync"
 	"time"
@@ -123,7 +122,7 @@ func (s *BackupService) Start(ctx context.Context) {
 		s.retryWorker()
 	}()
 
-	log.Println("Backup service started")
+	slog.Info("backup service started")
 }
 
 // run is the main service loop
@@ -142,12 +141,12 @@ func (s *BackupService) run() {
 				slog.Error("goroutine panic recovered", "goroutine", "integrity-check", "panic", r)
 			}
 		}()
-		log.Println("Running background integrity check...")
+		slog.Info("running background integrity check")
 		stats, err := s.manager.VerifyAndFixPins(s.ctx)
 		if err != nil {
-			log.Printf("Background integrity check failed: %v", err)
+			slog.Error("background integrity check failed", "error", err)
 		} else {
-			log.Printf("Background integrity check complete: %d checked, %d processed, %d errors", stats["checked"], stats["processed"], stats["errors"])
+			slog.Info("background integrity check complete", "checked", stats["checked"], "processed", stats["processed"], "errors", stats["errors"])
 		}
 	}()
 	
@@ -230,7 +229,7 @@ func (s *BackupService) performCatchUpSync() {
 	
 	wallets, err := s.db.GetAllWallets()
 	if err != nil {
-		log.Printf("Failed to get wallets for catch-up sync: %v", err)
+		slog.Error("failed to get wallets for catch-up sync", "error", err)
 		return
 	}
 	
@@ -257,7 +256,7 @@ func (s *BackupService) performCatchUpSync() {
 		
 		headLevel, err := s.manager.SyncWallet(s.ctx, wallet.Address)
 		if err != nil {
-			log.Printf("Failed to sync wallet %s: %v", wallet.Address, err)
+			slog.Error("failed to sync wallet", "wallet", wallet.Address, "error", err)
 		} else if headLevel > 0 {
 			// Update wallet sync time with the head level we synced up to
 			s.db.UpdateWalletSyncTime(wallet.Address, headLevel)
@@ -293,7 +292,7 @@ func (s *BackupService) startWatching() {
 	
 	wallets, err := s.db.GetAllWallets()
 	if err != nil {
-		log.Printf("Failed to get wallets for watching: %v", err)
+		slog.Error("failed to get wallets for watching", "error", err)
 		return
 	}
 	
@@ -321,7 +320,7 @@ func (s *BackupService) watchWallet(address string) {
 func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx context.Context) {
 	// Give up after too many crashes - rely on health check polling instead
 	if crashCount >= 5 {
-		log.Printf("WebSocket watcher for %s crashed too many times (%d), disabling. Will use polling.", address, crashCount)
+		slog.Error("websocket watcher crashed too many times, disabling", "wallet", address, "crash_count", crashCount)
 		return
 	}
 
@@ -332,7 +331,7 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("WebSocket watcher for %s crashed (%d): %v, will restart in 60s", address, crashCount+1, r)
+			slog.Error("websocket watcher crashed, will restart", "wallet", address, "crash_count", crashCount+1, "panic", r, "restart_delay", "60s")
 			// Use a ctx-aware wait so shutdown is not delayed by up to 60s
 			select {
 			case <-time.After(60 * time.Second):
@@ -350,11 +349,11 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx
 	idx.SetTokenCallback(func(token indexer.Token) {
 		// Don't trigger syncs when paused
 		if s.IsPaused() {
-			log.Printf("WebSocket: Ignoring token update for %s (paused)", address)
+			slog.Debug("ignoring token update, service paused", "wallet", address)
 			return
 		}
 		
-		log.Printf("WebSocket: New token received for %s: %s", address, token.TokenID)
+		slog.Info("new token received via websocket", "wallet", address, "token_id", token.TokenID)
 		// Trigger a sync for this wallet
 		select {
 		case s.triggerCh <- address:
@@ -374,7 +373,7 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx
 
 		// Listen blocks until connection closes or context cancelled
 		if err := idx.Listen(ctx, address); err != nil {
-			log.Printf("WebSocket connection failed for %s: %v, reconnecting in 30s", address, err)
+			slog.Warn("websocket connection failed, reconnecting", "wallet", address, "error", err, "retry_delay", "30s")
 			select {
 			case <-time.After(30 * time.Second):
 			case <-ctx.Done():
@@ -385,7 +384,7 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx
 		}
 
 		// Connection closed normally, wait before reconnecting
-		log.Printf("WebSocket connection closed for %s, reconnecting in 30s", address)
+		slog.Info("websocket connection closed, reconnecting", "wallet", address, "retry_delay", "30s")
 		select {
 		case <-time.After(30 * time.Second):
 		case <-ctx.Done():
@@ -405,7 +404,7 @@ func (s *BackupService) syncWallet(address string) {
 	
 	headLevel, err := s.manager.SyncWallet(s.ctx, address)
 	if err != nil {
-		log.Printf("Failed to sync wallet %s: %v", address, err)
+		slog.Error("failed to sync wallet", "wallet", address, "error", err)
 	} else if headLevel > 0 {
 		s.db.UpdateWalletSyncTime(address, headLevel)
 	}
@@ -452,7 +451,7 @@ func (s *BackupService) processPendingAssets() {
 
 	processed, pinned, failed := s.manager.ProcessPendingAssets(s.ctx, 50)
 	if processed > 0 {
-		log.Printf("Processed %d pending assets: %d pinned, %d failed", processed, pinned, failed)
+		slog.Info("processed pending assets", "processed", processed, "pinned", pinned, "failed", failed)
 	}
 
 	// Restore status
@@ -465,7 +464,7 @@ func (s *BackupService) processPendingAssets() {
 func (s *BackupService) retryFailedAssets() {
 	assets, err := s.db.GetRetryableAssets(5, 50) // max 5 retries, 50 at a time
 	if err != nil {
-		log.Printf("Failed to get retryable assets: %v", err)
+		slog.Error("failed to get retryable assets", "error", err)
 		return
 	}
 	
@@ -478,7 +477,7 @@ func (s *BackupService) retryFailedAssets() {
 		st.Message = fmt.Sprintf("Retrying %d failed assets...", len(assets))
 	})
 	
-	log.Printf("Retrying %d failed assets", len(assets))
+	slog.Info("retrying failed assets", "count", len(assets))
 	
 	for _, asset := range assets {
 		select {
@@ -494,7 +493,7 @@ func (s *BackupService) retryFailedAssets() {
 		// Reset status to pending
 		asset.Status = db.StatusPending
 		if err := s.db.SaveAsset(&asset); err != nil {
-			log.Printf("Warning: failed to reset asset %d to pending: %v", asset.ID, err)
+			slog.Warn("failed to reset asset to pending", "asset_id", asset.ID, "error", err)
 		}
 		
 		// The BackupManager's processNFT will pick this up
@@ -516,7 +515,7 @@ func (s *BackupService) performHealthCheck() {
 	
 	for _, wallet := range wallets {
 		if wallet.LastSyncedAt == nil || wallet.LastSyncedAt.Before(staleThreshold) {
-			log.Printf("Health check: Wallet %s needs sync (last: %v)", wallet.Address, wallet.LastSyncedAt)
+			slog.Debug("health check: wallet needs sync", "wallet", wallet.Address, "last_synced_at", wallet.LastSyncedAt)
 			select {
 			case s.triggerCh <- wallet.Address:
 			default:
@@ -705,6 +704,69 @@ func (s *BackupService) VerifyAndFixPins() (map[string]int, error) {
 	return s.manager.VerifyAndFixPins(s.ctx)
 }
 
+// VerifyPinHealth checks all pinned assets for IPFS availability and corrects sizes.
+// Unlike VerifyAndFixPins, this does not re-process NFTs or discover missing assets.
+func (s *BackupService) VerifyPinHealth() (map[string]int, error) {
+	s.mu.RLock()
+	ipfsNode := s.ipfs
+	database := s.db
+	s.mu.RUnlock()
+
+	if ipfsNode == nil {
+		return nil, fmt.Errorf("IPFS node not available")
+	}
+
+	var assets []db.Asset
+	if err := database.DB.Where("status = ?", db.StatusPinned).Find(&assets).Error; err != nil {
+		return nil, fmt.Errorf("failed to query assets: %w", err)
+	}
+
+	results := map[string]int{
+		"total":         len(assets),
+		"updated":       0,
+		"failed":        0,
+		"already_valid": 0,
+		"db_errors":     0,
+	}
+
+	for _, asset := range assets {
+		cid := ExtractCIDFromURI(asset.URI)
+		if cid == "" {
+			results["failed"]++
+			continue
+		}
+
+		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+		size, err := ipfsNode.Stat(ctx, cid)
+		cancel()
+
+		if err != nil {
+			asset.Status = db.StatusPending
+			asset.RetryCount = 0
+			if dbErr := database.SaveAsset(&asset); dbErr != nil {
+				slog.Warn("failed to save asset status", "uri", asset.URI, "error", dbErr)
+				results["db_errors"]++
+			}
+			results["failed"]++
+			continue
+		}
+
+		if asset.SizeBytes != size {
+			asset.SizeBytes = size
+			if dbErr := database.SaveAsset(&asset); dbErr != nil {
+				slog.Warn("failed to save asset size", "uri", asset.URI, "error", dbErr)
+				results["db_errors"]++
+			} else {
+				results["updated"]++
+			}
+		} else {
+			results["already_valid"]++
+		}
+	}
+
+	return results, nil
+}
+
 // GetStorageManager returns the storage manager instance
 func (s *BackupService) GetStorageManager() *storage.Manager {
 	s.mu.RLock()
@@ -729,16 +791,16 @@ func (s *BackupService) ClearAllData(progress func(string, string, int, int)) er
 		}
 	})
 	if err != nil {
-		log.Printf("Warning: failed to unpin all: %v", err)
+		slog.Warn("failed to unpin all", "error", err)
 	}
-	log.Printf("Unpinned %d items", unpinned)
+	slog.Info("unpinned items", "count", unpinned)
 
 	// 2. Garbage Collect
 	if progress != nil {
 		progress("garbage_collect", "Running internal IPFS garbage collection...", 0, 0)
 	}
 	if err := ipfsNode.GarbageCollect(s.ctx); err != nil {
-		log.Printf("Warning: garbage collection failed: %v", err)
+		slog.Warn("garbage collection failed", "error", err)
 	}
 
 	// 3. Clear DB
@@ -781,7 +843,7 @@ func (s *BackupService) DeleteWalletFull(address string) error {
 			continue
 		}
 		if err := ipfsNode.Unpin(s.ctx, cid); err != nil {
-			log.Printf("Warning: failed to unpin asset %s: %v", cid, err)
+			slog.Warn("failed to unpin asset", "cid", cid, "error", err)
 		}
 	}
 
