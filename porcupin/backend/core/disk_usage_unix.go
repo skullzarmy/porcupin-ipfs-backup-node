@@ -5,7 +5,7 @@ package core
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os/exec"
 )
 
@@ -14,7 +14,7 @@ func GetDiskUsageBytes(path string) (int64, error) {
 	cmd := exec.Command("du", "-sk", path)
 	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("Warning: disk usage check failed for %s: %v", path, err)
+		slog.Warn("Disk usage check failed", "path", path, "error", err)
 		return 0, nil
 	}
 
@@ -23,6 +23,6 @@ func GetDiskUsageBytes(path string) (int64, error) {
 		return 0, fmt.Errorf("failed to parse du output: %w", err)
 	}
 
-	log.Printf("Disk usage of %s: %.2f GB", path, float64(sizeKB)/1024/1024)
+	slog.Debug("Disk usage", "path", path, "gb", float64(sizeKB)/1024/1024)
 	return sizeKB * 1024, nil
 }

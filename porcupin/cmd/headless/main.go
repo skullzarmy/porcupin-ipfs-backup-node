@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -63,8 +63,7 @@ func main() {
 
 	// Warn if --api-token flag is used (visible in ps)
 	if *apiToken != "" {
-		log.Println("⚠️  WARNING: --api-token flag is visible in process list.")
-		log.Println("   Consider using PORCUPIN_API_TOKEN env var instead.")
+		slog.Warn("--api-token flag is visible in process list, consider using PORCUPIN_API_TOKEN env var instead")
 	}
 
 	if *showVersion || *showVersionShort {
@@ -79,17 +78,19 @@ func main() {
 
 	if *updateCheck {
 		updateMgr, err := updater.NewManager(version.Version)
-	if err != nil {
-		log.Printf("Warning: Failed to initialize updater: %v", err)
-	}
-	fmt.Println("Checking for updates...")
+		if err != nil {
+			slog.Error("Failed to initialize updater", "error", err)
+			os.Exit(1)
+		}
+		fmt.Println("Checking for updates...")
 		// Use timeout for update check
 		ctxCheck, cancelCheck := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancelCheck()
 
 		info, err := updateMgr.CheckForUpdates(ctxCheck)
 		if err != nil {
-			log.Fatalf("Failed to check for updates: %v", err)
+			slog.Error("Failed to check for updates", "error", err)
+			os.Exit(1)
 		}
 		if !info.Available {
 			fmt.Printf("Porcupin is up to date (version %s)\n", version.Version)
@@ -106,7 +107,8 @@ func main() {
 		
 		if err := updateMgr.InstallLatest(ctxInstall); err != nil {
 			fmt.Printf("Failed\n")
-			log.Fatalf("Failed to install update: %v", err)
+			slog.Error("Failed to install update", "error", err)
+			os.Exit(1)
 		}
 		fmt.Printf("Success!\n")
 		fmt.Println("Please restart the application.")
@@ -120,21 +122,24 @@ func main() {
 	} else {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			log.Fatalf("Failed to get home directory: %v", err)
+			slog.Error("Failed to get home directory", "error", err)
+			os.Exit(1)
 		}
 		dataPath = filepath.Join(homeDir, ".porcupin")
 	}
 
 	// Ensure data directory exists
 	if err := os.MkdirAll(dataPath, 0755); err != nil {
-		log.Fatalf("Failed to create data directory: %v", err)
+		slog.Error("Failed to create data directory", "error", err)
+		os.Exit(1)
 	}
 
 	// Handle token management commands (before other initialization)
 	if *regenerateToken {
 		token, err := api.RegenerateToken(dataPath)
 		if err != nil {
-			log.Fatalf("Failed to regenerate token: %v", err)
+			slog.Error("Failed to regenerate token", "error", err)
+			os.Exit(1)
 		}
 		fmt.Println("New API token generated:")
 		fmt.Println()
@@ -156,14 +161,14 @@ func main() {
 	// Ensure config file exists on disk (auto-generate defaults if missing)
 	created, ensureErr := config.EnsureConfigFile(cfgPath)
 	if ensureErr != nil {
-		log.Printf("Warning: could not create config file: %v", ensureErr)
+		slog.Warn("Could not create config file", "error", ensureErr)
 	} else if created {
-		log.Printf("Created default config at %s", cfgPath)
+		slog.Info("Created default config", "path", cfgPath)
 	}
 
 	cfg, err := config.LoadConfig(cfgPath)
 	if err != nil {
-		log.Printf("No config file found, using defaults")
+		slog.Info("No config file found, using defaults")
 		cfg = config.DefaultConfig()
 	}
 
@@ -186,7 +191,7 @@ func main() {
 	// Apply CLI overrides to config
 	if *ipfsPort > 0 {
 		cfg.IPFS.SwarmPort = *ipfsPort
-		log.Printf("Using CLI-specified IPFS swarm port: %d", *ipfsPort)
+		slog.Info("Using CLI-specified IPFS swarm port", "port", *ipfsPort)
 	}
 
 	// Initialize database
@@ -195,10 +200,12 @@ func main() {
 		Logger: logger.Default.LogMode(logger.Warn), // Suppress "record not found" info logs
 	})
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		slog.Error("Failed to open database", "error", err)
+		os.Exit(1)
 	}
 	if err := db.InitDB(gormDB); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		slog.Error("Failed to initialize database", "error", err)
+		os.Exit(1)
 	}
 	database := db.NewDatabase(gormDB)
 
@@ -206,7 +213,8 @@ func main() {
 	if *addWallet != "" {
 		wallet := &db.Wallet{Address: *addWallet, Alias: *walletAlias}
 		if err := database.SaveWallet(wallet); err != nil {
-			log.Fatalf("Failed to add wallet: %v", err)
+			slog.Error("Failed to add wallet", "error", err)
+			os.Exit(1)
 		}
 		if *walletAlias != "" {
 			fmt.Printf("Added wallet: %s (%s)\n", *walletAlias, *addWallet)
@@ -218,7 +226,8 @@ func main() {
 
 	if *renameWallet != "" {
 		if err := database.Model(&db.Wallet{}).Where("address = ?", *renameWallet).Update("alias", *walletAlias).Error; err != nil {
-			log.Fatalf("Failed to rename wallet: %v", err)
+			slog.Error("Failed to rename wallet", "error", err)
+			os.Exit(1)
 		}
 		if *walletAlias != "" {
 			fmt.Printf("Renamed wallet %s to: %s\n", *renameWallet, *walletAlias)
@@ -230,7 +239,8 @@ func main() {
 
 	if *removeWallet != "" {
 		if err := database.DeleteWallet(*removeWallet); err != nil {
-			log.Fatalf("Failed to remove wallet: %v", err)
+			slog.Error("Failed to remove wallet", "error", err)
+			os.Exit(1)
 		}
 		fmt.Printf("Removed wallet: %s (assets still pinned, use --unpin-wallet to unpin)\n", *removeWallet)
 		return
@@ -242,19 +252,22 @@ func main() {
 		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
 		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
 		if err != nil {
-			log.Fatalf("Failed to create IPFS node: %v", err)
+			slog.Error("Failed to create IPFS node", "error", err)
+			os.Exit(1)
 		}
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		if err := ipfsNode.Start(ctx); err != nil {
-			log.Fatalf("Failed to start IPFS node: %v", err)
+			slog.Error("Failed to start IPFS node", "error", err)
+			os.Exit(1)
 		}
 		defer ipfsNode.Stop()
 
 		if *unpinWallet != "" {
 			assets, err := database.GetAssetsByWallet(*unpinWallet)
 			if err != nil {
-				log.Fatalf("Failed to get assets: %v", err)
+				slog.Error("Failed to get assets", "error", err)
+				os.Exit(1)
 			}
 			if len(assets) == 0 {
 				fmt.Printf("No assets found for wallet: %s\n", *unpinWallet)
@@ -268,7 +281,7 @@ func main() {
 					continue
 				}
 				if err := ipfsNode.Unpin(ctx, cid); err != nil {
-					log.Printf("Warning: failed to unpin %s: %v", cid, err)
+					slog.Warn("Failed to unpin", "cid", cid, "error", err)
 				} else {
 					unpinned++
 				}
@@ -280,7 +293,8 @@ func main() {
 		if *deleteWallet != "" {
 			assets, err := database.GetAssetsByWallet(*deleteWallet)
 			if err != nil {
-				log.Fatalf("Failed to get assets: %v", err)
+				slog.Error("Failed to get assets", "error", err)
+				os.Exit(1)
 			}
 			fmt.Printf("Deleting wallet %s: unpinning %d assets...\n", *deleteWallet, len(assets))
 			for _, asset := range assets {
@@ -289,18 +303,19 @@ func main() {
 					continue
 				}
 				if err := ipfsNode.Unpin(ctx, cid); err != nil {
-					log.Printf("Warning: failed to unpin %s: %v", cid, err)
+					slog.Warn("Failed to unpin", "cid", cid, "error", err)
 				}
 			}
 			// Delete from database
 			if err := database.DeleteAssetsByWallet(*deleteWallet); err != nil {
-				log.Printf("Warning: failed to delete assets from DB: %v", err)
+				slog.Warn("Failed to delete assets from DB", "error", err)
 			}
 			if err := database.DeleteNFTsByWallet(*deleteWallet); err != nil {
-				log.Printf("Warning: failed to delete NFTs from DB: %v", err)
+				slog.Warn("Failed to delete NFTs from DB", "error", err)
 			}
 			if err := database.DeleteWallet(*deleteWallet); err != nil {
-				log.Fatalf("Failed to delete wallet: %v", err)
+				slog.Error("Failed to delete wallet", "error", err)
+				os.Exit(1)
 			}
 			fmt.Printf("Deleted wallet %s and unpinned assets. Run --gc to reclaim disk space.\n", *deleteWallet)
 			return
@@ -309,7 +324,8 @@ func main() {
 		if *runGC {
 			fmt.Println("Running IPFS garbage collection...")
 			if err := ipfsNode.GarbageCollect(ctx); err != nil {
-				log.Fatalf("Garbage collection failed: %v", err)
+				slog.Error("Garbage collection failed", "error", err)
+				os.Exit(1)
 			}
 			fmt.Println("Garbage collection complete.")
 			return
@@ -319,7 +335,8 @@ func main() {
 	if *listWallets {
 		wallets, err := database.GetAllWallets()
 		if err != nil {
-			log.Fatalf("Failed to get wallets: %v", err)
+			slog.Error("Failed to get wallets", "error", err)
+			os.Exit(1)
 		}
 		if len(wallets) == 0 {
 			fmt.Println("No wallets configured")
@@ -339,7 +356,8 @@ func main() {
 	if *showStats {
 		stats, err := database.GetAssetStats()
 		if err != nil {
-			log.Fatalf("Failed to get stats: %v", err)
+			slog.Error("Failed to get stats", "error", err)
+			os.Exit(1)
 		}
 		totalAssets := stats["pending"] + stats["pinned"] + stats["failed"] + stats["failed_unavailable"]
 		
@@ -347,7 +365,7 @@ func main() {
 		ipfsRepoPath := resolveRepoPath(cfg, dataPath)
 		storageBytes, err := core.GetDiskUsageBytes(ipfsRepoPath)
 		if err != nil {
-			log.Printf("Warning: could not get disk usage: %v", err)
+			slog.Warn("Could not get disk usage", "error", err)
 			storageBytes = 0
 		}
 		
@@ -367,7 +385,8 @@ func main() {
 		// Check if there are pending assets first
 		stats, err := database.GetAssetStats()
 		if err != nil {
-			log.Fatalf("Failed to get stats: %v", err)
+			slog.Error("Failed to get stats", "error", err)
+			os.Exit(1)
 		}
 		pendingCount := stats["pending"]
 		if pendingCount == 0 {
@@ -380,14 +399,16 @@ func main() {
 		ipfsRepoPath := resolveRepoPath(cfg, dataPath)
 		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
 		if err != nil {
-			log.Fatalf("Failed to create IPFS node: %v", err)
+			slog.Error("Failed to create IPFS node", "error", err)
+			os.Exit(1)
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
 		if err := ipfsNode.Start(ctx); err != nil {
-			log.Fatalf("Failed to start IPFS node: %v", err)
+			slog.Error("Failed to start IPFS node", "error", err)
+			os.Exit(1)
 		}
 		defer ipfsNode.Stop()
 
@@ -409,14 +430,16 @@ func main() {
 	ipfsRepoPath := resolveRepoPath(cfg, dataPath)
 	ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
 	if err != nil {
-		log.Fatalf("Failed to create IPFS node: %v", err)
+		slog.Error("Failed to create IPFS node", "error", err)
+		os.Exit(1)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	if err := ipfsNode.Start(ctx); err != nil {
-		log.Fatalf("Failed to start IPFS node: %v", err)
+		slog.Error("Failed to start IPFS node", "error", err)
+		os.Exit(1)
 	}
 	defer ipfsNode.Stop()
 
@@ -452,7 +475,8 @@ func main() {
 		} else if envToken := api.GetTokenFromEnv(); envToken != "" {
 			// Token from environment variable
 			if !api.ValidateTokenFormat(envToken) {
-				log.Fatalf("PORCUPIN_API_TOKEN has invalid format")
+				slog.Error("PORCUPIN_API_TOKEN has invalid format")
+				os.Exit(1)
 			}
 			plainToken = envToken
 			fmt.Println("Using API token from PORCUPIN_API_TOKEN environment variable")
@@ -461,7 +485,8 @@ func main() {
 			var err error
 			tokenHash, err = api.GetTokenHashFromFile(dataPath)
 			if err != nil {
-				log.Fatalf("Failed to read token file: %v", err)
+				slog.Error("Failed to read token file", "error", err)
+				os.Exit(1)
 			}
 
 			if tokenHash == "" {
@@ -469,7 +494,8 @@ func main() {
 				var newToken string
 				newToken, isNew, err = api.GetOrCreateToken(dataPath)
 				if err != nil {
-					log.Fatalf("Failed to create API token: %v", err)
+					slog.Error("Failed to create API token", "error", err)
+					os.Exit(1)
 				}
 
 				if isNew {
@@ -488,7 +514,8 @@ func main() {
 					// Re-read the hash we just created
 					tokenHash, err = api.GetTokenHashFromFile(dataPath)
 					if err != nil {
-						log.Fatalf("Failed to read token hash: %v", err)
+						slog.Error("Failed to read token hash", "error", err)
+						os.Exit(1)
 					}
 				}
 			} else {
@@ -516,7 +543,7 @@ func main() {
 		apiServer.SetIPFS(ipfsNode)
 		go func() {
 			if err := apiServer.Start(ctx); err != nil {
-				log.Printf("API server error: %v", err)
+				slog.Error("API server error", "error", err)
 			}
 		}()
 	}
@@ -534,23 +561,23 @@ func main() {
 			// Explicitly close database to ensure WAL checkpoint
 			sqlDB, err := gormDB.DB()
 			if err == nil {
-				log.Println("Closing database connection...")
+				slog.Info("Closing database connection...")
 				if err := sqlDB.Close(); err != nil {
-					log.Printf("Error closing database: %v", err)
+					slog.Error("Error closing database", "error", err)
 				} else {
-					log.Println("Database connection closed (checkpointed)")
+					slog.Info("Database connection closed (checkpointed)")
 				}
 			}
 			return
 		case <-statusTicker.C:
 			status := service.GetStatus()
 			stats, _ := database.GetAssetStats()
-			log.Printf("[%s] Pinned: %d/%d, Failed: %d, Pending retries: %d",
-				status.State,
-				stats["pinned_assets"],
-				stats["total_assets"],
-				stats["failed_assets"],
-				status.PendingRetries,
+			slog.Info("Status update",
+				"state", status.State,
+				"pinned", stats["pinned_assets"],
+				"total", stats["total_assets"],
+				"failed", stats["failed_assets"],
+				"pending_retries", status.PendingRetries,
 			)
 		}
 	}
@@ -607,7 +634,8 @@ func handleSettings(args []string, cfg *config.Config, cfgPath string) {
 			// GET
 			val, err := config.GetByDotNotation(cfg, key)
 			if err != nil {
-				log.Fatalf("Error: %v", err)
+				slog.Error("Settings error", "error", err)
+				os.Exit(1)
 			}
 			fmt.Println(val)
 		} else {
@@ -618,11 +646,13 @@ func handleSettings(args []string, cfg *config.Config, cfgPath string) {
 			oldVal, _ := config.GetByDotNotation(cfg, key)
 
 			if err := config.SetByDotNotation(cfg, key, value); err != nil {
-				log.Fatalf("Error: %v", err)
+				slog.Error("Settings error", "error", err)
+				os.Exit(1)
 			}
 
 			if err := cfg.SaveConfig(cfgPath); err != nil {
-				log.Fatalf("Failed to save config: %v", err)
+				slog.Error("Failed to save config", "error", err)
+				os.Exit(1)
 			}
 
 			newVal, _ := config.GetByDotNotation(cfg, key)

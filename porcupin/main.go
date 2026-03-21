@@ -29,18 +29,19 @@ func main() {
 	// Determine data directory early so we can open the log file before anything else.
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatalf("Cannot determine home directory: %v", err)
+		slog.Error("Cannot determine home directory", "error", err)
+		os.Exit(1)
 	}
 	dataDir := filepath.Join(homeDir, ".porcupin")
 	if err := os.MkdirAll(filepath.Join(dataDir, "logs"), 0755); err != nil {
-		log.Printf("Warning: could not create logs directory: %v", err)
+		slog.Warn("Could not create logs directory", "error", err)
 	}
 
 	ringHandler := logging.NewRingHandler(1000, slog.LevelInfo)
 
 	logFile, err := logging.OpenLogFile(dataDir, 7)
 	if err != nil {
-		log.Printf("Warning: could not open log file: %v", err)
+		slog.Warn("Could not open log file", "error", err)
 	}
 
 	// Build fan-out handler: stderr + ring buffer + optional file

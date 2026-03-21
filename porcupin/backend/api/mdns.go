@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"time"
@@ -68,7 +68,7 @@ func (m *MDNSServer) Start() error {
 	}
 
 	m.server = server
-	log.Printf("mDNS: Announcing %s.%s on port %d", instanceName, MDNSServiceType, m.port)
+	slog.Info("mDNS: announcing service", "instance", instanceName, "service_type", MDNSServiceType, "port", m.port)
 
 	return nil
 }
@@ -87,10 +87,10 @@ func (m *MDNSServer) Stop() {
 		case <-done:
 			// Clean shutdown
 		case <-time.After(2 * time.Second):
-			log.Println("mDNS: Shutdown timed out")
+			slog.Warn("mDNS: shutdown timed out")
 		}
 		m.server = nil
-		log.Println("mDNS: Service announcement stopped")
+		slog.Info("mDNS: service announcement stopped")
 	}
 }
 
@@ -107,7 +107,7 @@ type DiscoveredServer struct {
 // DiscoverServers scans for Porcupin servers on the local network via mDNS
 // timeout specifies how long to scan (e.g., 5*time.Second)
 func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredServer, error) {
-	log.Printf("mDNS: Starting discovery scan for service=%q domain=%q (timeout: %v)", MDNSServiceType, MDNSDomain, timeout)
+	slog.Debug("mDNS: starting discovery scan", "service_type", MDNSServiceType, "domain", MDNSDomain, "timeout", timeout)
 	
 	// Find interfaces with IPv4 addresses for multicast
 	var ipv4Ifaces []net.Interface
@@ -131,12 +131,12 @@ func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredSe
 		}
 		if hasIPv4 {
 			ipv4Ifaces = append(ipv4Ifaces, iface)
-			log.Printf("mDNS: Using interface %s for discovery", iface.Name)
+			slog.Debug("mDNS: using interface for discovery", "interface", iface.Name)
 		}
 	}
 	
 	if len(ipv4Ifaces) == 0 {
-		log.Printf("mDNS: WARNING - No interfaces with IPv4 addresses found!")
+		slog.Warn("mDNS: no interfaces with IPv4 addresses found")
 	}
 	
 	// Create resolver with IPv4 only and specific interfaces
@@ -145,10 +145,10 @@ func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredSe
 		zeroconf.SelectIfaces(ipv4Ifaces),
 	)
 	if err != nil {
-		log.Printf("mDNS: Failed to create resolver: %v", err)
+		slog.Error("mDNS: failed to create resolver", "error", err)
 		return nil, fmt.Errorf("failed to create mDNS resolver: %w", err)
 	}
-	log.Printf("mDNS: Resolver created successfully (IPv4 only, %d interfaces)", len(ipv4Ifaces))
+	slog.Debug("mDNS: resolver created", "traffic", "IPv4", "interface_count", len(ipv4Ifaces))
 
 	// Channel to receive entries
 	entries := make(chan *zeroconf.ServiceEntry)
@@ -161,7 +161,7 @@ func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredSe
 	go func() {
 		defer close(done)
 		for entry := range entries {
-			log.Printf("mDNS: Found entry: %s at %s:%d", entry.Instance, entry.HostName, entry.Port)
+			slog.Debug("mDNS: found entry", "instance", entry.Instance, "host", entry.HostName, "port", entry.Port)
 			server := parseServiceEntry(entry)
 			if server != nil {
 				servers = append(servers, *server)
@@ -174,22 +174,22 @@ func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredSe
 	defer cancel()
 
 	// Browse for services - this starts async browsing
-	log.Printf("mDNS: Calling Browse() for %s in %s", MDNSServiceType, MDNSDomain)
+	slog.Debug("mDNS: calling Browse()", "service_type", MDNSServiceType, "domain", MDNSDomain)
 	err = resolver.Browse(scanCtx, MDNSServiceType, MDNSDomain, entries)
 	if err != nil {
-		log.Printf("mDNS: Browse() returned error: %v", err)
+		slog.Error("mDNS: Browse() returned error", "error", err)
 		return nil, fmt.Errorf("failed to browse mDNS services: %w", err)
 	}
-	log.Printf("mDNS: Browse() started successfully, waiting %v for results...", timeout)
+	slog.Debug("mDNS: Browse() started, waiting for results", "timeout", timeout)
 
 	// Wait for scan to complete
 	<-scanCtx.Done()
-	log.Printf("mDNS: Context done (reason: %v), waiting for goroutine to finish", scanCtx.Err())
+	slog.Debug("mDNS: context done, waiting for goroutine", "reason", scanCtx.Err())
 
 	// Wait for goroutine to finish processing all entries
 	<-done
 
-	log.Printf("mDNS: Scan complete, found %d servers", len(servers))
+	slog.Info("mDNS: scan complete", "servers_found", len(servers))
 	return servers, nil
 }
 

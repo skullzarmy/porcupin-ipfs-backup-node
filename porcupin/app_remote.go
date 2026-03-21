@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"porcupin/backend/api"
@@ -51,7 +51,7 @@ func (a *App) DiscoverServers() ([]api.DiscoveredServer, error) {
 
 // TestRemoteConnection tests connectivity to a remote Porcupin server
 func (a *App) TestRemoteConnection(cfg RemoteServerConfig) (*RemoteHealthResponse, error) {
-	log.Printf("TestRemoteConnection: Connecting to %s:%d (TLS: %v)", cfg.Host, cfg.Port, cfg.UseTLS)
+	slog.Info("TestRemoteConnection: connecting", "host", cfg.Host, "port", cfg.Port, "tls", cfg.UseTLS)
 	
 	client := api.NewRemoteClient(cfg.Host, cfg.Port, cfg.Token, cfg.UseTLS)
 	
@@ -60,11 +60,11 @@ func (a *App) TestRemoteConnection(cfg RemoteServerConfig) (*RemoteHealthRespons
 	
 	health, err := client.Health(ctx)
 	if err != nil {
-		log.Printf("TestRemoteConnection: Failed - %v", err)
+		slog.Error("TestRemoteConnection failed", "error", err)
 		return nil, err
 	}
 	
-	log.Printf("TestRemoteConnection: Success - server version %s", health.Version)
+	slog.Info("TestRemoteConnection: success", "version", health.Version)
 	return &RemoteHealthResponse{
 		Status:    health.Status,
 		Version:   health.Version,
@@ -75,7 +75,7 @@ func (a *App) TestRemoteConnection(cfg RemoteServerConfig) (*RemoteHealthRespons
 // RemoteProxy proxies an HTTP request to a remote Porcupin server
 // This allows the frontend to make any API call to a remote server via Go
 func (a *App) RemoteProxy(req RemoteProxyRequest) (*RemoteProxyResponse, error) {
-	log.Printf("RemoteProxy: %s %s to %s:%d", req.Method, req.Path, req.Host, req.Port)
+	slog.Info("RemoteProxy: proxying request", "method", req.Method, "path", req.Path, "host", req.Host, "port", req.Port)
 	
 	client := api.NewRemoteClient(req.Host, req.Port, req.Token, req.UseTLS)
 	
@@ -91,11 +91,11 @@ func (a *App) RemoteProxy(req RemoteProxyRequest) (*RemoteProxyResponse, error) 
 	
 	resp, err := client.Proxy(ctx, proxyReq)
 	if err != nil {
-		log.Printf("RemoteProxy: Failed - %v", err)
+		slog.Error("RemoteProxy failed", "error", err)
 		return nil, err
 	}
 	
-	log.Printf("RemoteProxy: Response status %d", resp.StatusCode)
+	slog.Info("RemoteProxy: response received", "status_code", resp.StatusCode)
 	return &RemoteProxyResponse{
 		StatusCode: resp.StatusCode,
 		Headers:    resp.Headers,

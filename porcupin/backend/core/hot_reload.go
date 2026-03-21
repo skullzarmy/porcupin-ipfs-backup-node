@@ -1,14 +1,14 @@
 package core
 
 import (
-	"log"
+	"log/slog"
 )
 
 // checkForNewWallets checks the DB for any wallets that aren't being watched yet
 func (s *BackupService) checkForNewWallets() {
 	wallets, err := s.db.GetAllWallets()
 	if err != nil {
-		log.Printf("Hot Reload: Failed to get wallets: %v", err)
+		slog.Error("Hot Reload: failed to get wallets", "error", err)
 		return
 	}
 
@@ -17,7 +17,7 @@ func (s *BackupService) checkForNewWallets() {
 
 	for _, wallet := range wallets {
 		if !s.watchedWallets[wallet.Address] {
-			log.Printf("Hot Reload: Found new wallet %s, starting watcher...", wallet.Address)
+			slog.Info("Hot Reload: found new wallet, starting watcher", "address", wallet.Address)
 			
 			// Mark as watched
 			s.watchedWallets[wallet.Address] = true

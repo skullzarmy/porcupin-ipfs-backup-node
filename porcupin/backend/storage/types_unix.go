@@ -7,7 +7,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"regexp"
@@ -19,7 +19,7 @@ import (
 
 // getDirSize calculates the total size of a directory using du command (Unix)
 func getDirSize(path string) (int64, error) {
-	log.Printf("Calculating size of %s...", path)
+	slog.Info("Calculating directory size", "path", path)
 	cmd := exec.Command("du", "-sk", path)
 	output, err := cmd.Output()
 	if err != nil {
@@ -34,7 +34,7 @@ func getDirSize(path string) (int64, error) {
 	var sizeKB int64
 	fmt.Sscanf(fields[0], "%d", &sizeKB)
 	size := sizeKB * 1024
-	log.Printf("Size of %s: %d bytes (%.2f GB)", path, size, float64(size)/1024/1024/1024)
+	slog.Info("Directory size calculated", "path", path, "bytes", size, "gb", float64(size)/1024/1024/1024)
 	return size, nil
 }
 
@@ -65,7 +65,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		dest + "/",
 	}
 
-	log.Printf("Running: rsync %s", strings.Join(args, " "))
+	slog.Info("Running rsync", "args", strings.Join(args, " "))
 
 	// DON'T use CommandContext - we don't want app context cancellation to kill rsync
 	// The migration should complete even if the user navigates away
@@ -97,7 +97,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		return fmt.Errorf("failed to start rsync: %w", err)
 	}
 
-	log.Printf("rsync started with PID %d", cmd.Process.Pid)
+	slog.Info("rsync started", "pid", cmd.Process.Pid)
 
 	// Track bytes copied by parsing rsync output
 	var bytesCopied int64
@@ -131,7 +131,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 
 			// Log periodically so we know rsync is still running (every 30 seconds or 1000 lines)
 			if lineCount%1000 == 0 || time.Since(lastLogTime) > 30*time.Second {
-				log.Printf("rsync progress: processed %d lines, copied %.2f GB", lineCount, float64(bytesCopied)/1024/1024/1024)
+				slog.Debug("rsync progress", "lines_processed", lineCount, "copied_gb", float64(bytesCopied)/1024/1024/1024)
 				lastLogTime = time.Now()
 			}
 
@@ -176,9 +176,9 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		}
 		if err := scanner.Err(); err != nil {
 			stdoutErr = err
-			log.Printf("rsync stdout scanner error: %v", err)
+			slog.Error("rsync stdout scanner error", "error", err)
 		}
-		log.Printf("rsync stdout reader finished after %d lines", lineCount)
+		slog.Debug("rsync stdout reader finished", "lines", lineCount)
 	}()
 
 	go func() {
@@ -187,16 +187,16 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		for scanner.Scan() {
 			line := scanner.Text()
 			stderrBuf.WriteString(line + "\n")
-			log.Printf("rsync stderr: %s", line)
+			slog.Warn("rsync stderr", "line", line)
 		}
 		if err := scanner.Err(); err != nil {
 			stderrErr = err
-			log.Printf("rsync stderr scanner error: %v", err)
+			slog.Error("rsync stderr scanner error", "error", err)
 		}
 	}()
 
 	// Wait for rsync to complete
-	log.Printf("Waiting for rsync to complete...")
+	slog.Info("Waiting for rsync to complete...")
 	waitErr := cmd.Wait()
 
 	// Wait for goroutines to finish reading
@@ -208,8 +208,8 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		if exitErr, ok := waitErr.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		}
-		log.Printf("rsync exited with error (code %d): %v", exitCode, waitErr)
-		log.Printf("rsync stderr output: %s", stderrBuf.String())
+		slog.Error("rsync exited with error", "exit_code", exitCode, "error", waitErr)
+		slog.Error("rsync stderr output", "stderr", stderrBuf.String())
 
 		m.mu.Lock()
 		m.migrationStatus.Error = stderrBuf.String()
@@ -218,13 +218,13 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 	}
 
 	if stdoutErr != nil {
-		log.Printf("Warning: stdout read error: %v", stdoutErr)
+		slog.Warn("rsync stdout read error", "error", stdoutErr)
 	}
 	if stderrErr != nil {
-		log.Printf("Warning: stderr read error: %v", stderrErr)
+		slog.Warn("rsync stderr read error", "error", stderrErr)
 	}
 
-	log.Printf("rsync completed successfully! Copied %.2f GB", float64(bytesCopied)/1024/1024/1024)
+	slog.Info("rsync completed successfully", "copied_gb", float64(bytesCopied)/1024/1024/1024)
 
 	m.mu.Lock()
 	m.migrationStatus.Progress = 100

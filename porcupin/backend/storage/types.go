@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -76,13 +76,13 @@ func (m *Manager) CancelMigration() error {
 		return fmt.Errorf("no migration in progress")
 	}
 	
-	log.Println("Cancelling migration...")
-	
+	slog.Info("Cancelling migration...")
+
 	// Kill rsync process if running
 	if m.rsyncCmd != nil && m.rsyncCmd.Process != nil {
-		log.Printf("Killing rsync process (PID %d)", m.rsyncCmd.Process.Pid)
+		slog.Info("Killing rsync process", "pid", m.rsyncCmd.Process.Pid)
 		if err := m.rsyncCmd.Process.Kill(); err != nil {
-			log.Printf("Warning: failed to kill rsync: %v", err)
+			slog.Warn("Failed to kill rsync", "error", err)
 		}
 	}
 	
@@ -136,7 +136,7 @@ func isWritable(path string) bool {
 	case result := <-done:
 		return result
 	case <-time.After(5 * time.Second):
-		log.Printf("Warning: write test timed out for path: %s", path)
+		slog.Warn("Write test timed out", "path", path)
 		return false
 	}
 }
@@ -158,17 +158,17 @@ func ExpandPath(path string) (string, error) {
 
 // Migrate moves the IPFS repository to a new location
 func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback func(MigrationStatus)) error {
-	log.Printf("Migrate called: destPath=%s", destPath)
+	slog.Info("Migrate called", "dest_path", destPath)
 	
 	m.mu.Lock()
 	if m.migrationStatus != nil && m.migrationStatus.InProgress {
 		m.mu.Unlock()
-		log.Printf("Migration: already in progress, rejecting")
+		slog.Info("Migration: already in progress, rejecting")
 		return fmt.Errorf("migration already in progress")
 	}
 
 	sourcePath := m.currentPath
-	log.Printf("Migration: source=%s, dest=%s", sourcePath, destPath)
+	slog.Info("Migration: paths determined", "source", sourcePath, "dest", destPath)
 	
 	m.migrationStatus = &MigrationStatus{
 		InProgress: true,
@@ -192,7 +192,7 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("PANIC in migration: %v", r)
+			slog.Error("PANIC in migration", "error", r)
 			m.mu.Lock()
 			m.migrationStatus.InProgress = false
 			m.migrationStatus.Error = fmt.Sprintf("panic: %v", r)
@@ -202,7 +202,7 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 			m.migrationStatus.InProgress = false
 			m.mu.Unlock()
 		}
-		log.Printf("Migration: defer executed, InProgress=false")
+		slog.Debug("Migration: defer executed, InProgress=false")
 	}()
 
 	// Expand destination path
@@ -216,10 +216,10 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 	// This prevents mixing IPFS data with user files
 	if !strings.HasSuffix(destPath, "ipfs") && !strings.HasSuffix(destPath, "porcupin-ipfs") {
 		destPath = filepath.Join(destPath, "porcupin-ipfs")
-		log.Printf("Migration: will create subfolder at %s", destPath)
+		slog.Info("Migration: will create subfolder", "path", destPath)
 	}
 
-	log.Printf("Migration: checking destination %s", destPath)
+	slog.Info("Migration: checking destination", "path", destPath)
 	updateStatus(func(s *MigrationStatus) {
 		s.Phase = "preparing"
 		s.CurrentFile = "Checking destination..."
@@ -229,19 +229,21 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 	// Check if destination is valid
 	destInfo, err := GetStorageInfo(destPath)
 	if err != nil {
-		log.Printf("Migration: GetStorageInfo failed: %v", err)
+		slog.Error("Migration: GetStorageInfo failed", "error", err)
 		return fmt.Errorf("cannot access destination: %w", err)
 	}
 
-	log.Printf("Migration: destination info - writable=%v, mounted=%v, free=%.2f GB", 
-		destInfo.IsWritable, destInfo.IsMounted, float64(destInfo.FreeBytes)/1024/1024/1024)
+	slog.Info("Migration: destination info",
+		"writable", destInfo.IsWritable,
+		"mounted", destInfo.IsMounted,
+		"free_gb", float64(destInfo.FreeBytes)/1024/1024/1024)
 
 	if !destInfo.IsWritable {
-		log.Printf("Migration: destination is not writable")
+		slog.Error("Migration: destination is not writable")
 		return fmt.Errorf("destination is not writable")
 	}
 
-	log.Printf("Migration: calculating source size...")
+	slog.Info("Migration: calculating source size...")
 	updateStatus(func(s *MigrationStatus) {
 		s.CurrentFile = "Calculating source size..."
 	})
@@ -269,7 +271,7 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 	}
 
 	if sameDevice {
-		log.Printf("Migration: same device, using rename")
+		slog.Info("Migration: same device, using rename")
 		updateStatus(func(s *MigrationStatus) {
 			s.Method = "rename"
 			s.Phase = "copying"
@@ -294,7 +296,7 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 		m.currentPath = destPath
 		m.mu.Unlock()
 	} else {
-		log.Printf("Migration: cross-device, using rsync")
+		slog.Info("Migration: cross-device, using rsync")
 		updateStatus(func(s *MigrationStatus) {
 			s.Method = "rsync"
 			s.Phase = "copying"
@@ -304,14 +306,14 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 			return err
 		}
 
-		log.Printf("Migration: rsync complete, cleaning up source")
+		slog.Info("Migration: rsync complete, cleaning up source")
 		updateStatus(func(s *MigrationStatus) {
 			s.Phase = "cleanup"
 			s.CurrentFile = "Removing source files..."
 		})
 
 		if err := os.RemoveAll(sourcePath); err != nil {
-			log.Printf("Warning: failed to remove source after migration: %v", err)
+			slog.Warn("Failed to remove source after migration", "error", err)
 		}
 
 		m.mu.Lock()

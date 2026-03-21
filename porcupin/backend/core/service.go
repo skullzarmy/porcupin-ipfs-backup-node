@@ -726,6 +726,7 @@ func (s *BackupService) VerifyPinHealth() (map[string]int, error) {
 		"updated":       0,
 		"failed":        0,
 		"already_valid": 0,
+		"db_errors":     0,
 	}
 
 	for _, asset := range assets {
@@ -742,15 +743,22 @@ func (s *BackupService) VerifyPinHealth() (map[string]int, error) {
 		if err != nil {
 			asset.Status = db.StatusPending
 			asset.RetryCount = 0
-			database.SaveAsset(&asset)
+			if dbErr := database.SaveAsset(&asset); dbErr != nil {
+				slog.Warn("failed to save asset status", "uri", asset.URI, "error", dbErr)
+				results["db_errors"]++
+			}
 			results["failed"]++
 			continue
 		}
 
 		if asset.SizeBytes != size {
 			asset.SizeBytes = size
-			database.SaveAsset(&asset)
-			results["updated"]++
+			if dbErr := database.SaveAsset(&asset); dbErr != nil {
+				slog.Warn("failed to save asset size", "uri", asset.URI, "error", dbErr)
+				results["db_errors"]++
+			} else {
+				results["updated"]++
+			}
 		} else {
 			results["already_valid"]++
 		}

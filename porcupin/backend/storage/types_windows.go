@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -17,7 +17,7 @@ import (
 
 // getDirSize calculates the total size of a directory using robocopy (Windows)
 func getDirSize(path string) (int64, error) {
-	log.Printf("Calculating size of %s...", path)
+	slog.Info("Calculating directory size", "path", path)
 
 	// Use robocopy in list-only mode to get directory size
 	// /L = List only, /S = include subdirectories, /NFL /NDL /NJH /NJS = minimize output
@@ -37,7 +37,7 @@ func getDirSize(path string) (int64, error) {
 	}
 
 	if err != nil {
-		log.Printf("robocopy failed, falling back to PowerShell: %v", err)
+		slog.Warn("robocopy failed, falling back to PowerShell", "error", err)
 		return getDirSizePowerShell(path)
 	}
 
@@ -55,7 +55,7 @@ func getDirSize(path string) (int64, error) {
 		}
 	}
 
-	log.Printf("Size of %s: %d bytes (%.2f GB)", path, size, float64(size)/1024/1024/1024)
+	slog.Info("Directory size calculated", "path", path, "bytes", size, "gb", float64(size)/1024/1024/1024)
 	return size, nil
 }
 
@@ -66,14 +66,14 @@ func getDirSizePowerShell(path string) (int64, error) {
 
 	output, err := cmd.Output()
 	if err != nil {
-		log.Printf("PowerShell fallback also failed: %v", err)
+		slog.Error("PowerShell fallback also failed", "error", err)
 		return 0, err
 	}
 
 	sizeStr := strings.TrimSpace(string(output))
 	size, _ := strconv.ParseInt(sizeStr, 10, 64)
 
-	log.Printf("Size of %s: %d bytes (%.2f GB)", path, size, float64(size)/1024/1024/1024)
+	slog.Info("Directory size calculated", "path", path, "bytes", size, "gb", float64(size)/1024/1024/1024)
 	return size, nil
 }
 
@@ -105,7 +105,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		"/V",
 	}
 
-	log.Printf("Running: robocopy %s", strings.Join(args, " "))
+	slog.Info("Running robocopy", "args", strings.Join(args, " "))
 
 	cmd := exec.Command("robocopy", args...)
 
@@ -134,7 +134,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		return fmt.Errorf("failed to start robocopy: %w", err)
 	}
 
-	log.Printf("robocopy started with PID %d", cmd.Process.Pid)
+	slog.Info("robocopy started", "pid", cmd.Process.Pid)
 
 	var wg sync.WaitGroup
 	var stderrBuf strings.Builder
@@ -208,7 +208,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 						
 						// Log progress periodically
 						if strings.Contains(line, "Bytes :") || strings.Contains(line, "Files :") {
-							log.Printf("robocopy: %s", line)
+							slog.Debug("robocopy progress", "line", line)
 						}
 					} else {
 						lineBuf.WriteRune(char)
@@ -219,7 +219,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 				break
 			}
 			if err != nil {
-				log.Printf("robocopy stdout read error: %v", err)
+				slog.Error("robocopy stdout read error", "error", err)
 				break
 			}
 		}
@@ -233,20 +233,20 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 			if n > 0 {
 				line := string(buf[:n])
 				stderrBuf.WriteString(line)
-				log.Printf("robocopy stderr: %s", strings.TrimSpace(line))
+				slog.Warn("robocopy stderr", "line", strings.TrimSpace(line))
 			}
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
-				log.Printf("robocopy stderr read error: %v", err)
+				slog.Error("robocopy stderr read error", "error", err)
 				break
 			}
 		}
 	}()
 
 	// Wait for robocopy to complete
-	log.Printf("Waiting for robocopy to complete...")
+	slog.Info("Waiting for robocopy to complete...")
 	waitErr := cmd.Wait()
 
 	// Wait for goroutines to finish reading
@@ -261,8 +261,8 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 	}
 
 	if exitCode >= 8 {
-		log.Printf("robocopy exited with error (code %d): %v", exitCode, waitErr)
-		log.Printf("robocopy stderr output: %s", stderrBuf.String())
+		slog.Error("robocopy exited with error", "exit_code", exitCode, "error", waitErr)
+		slog.Error("robocopy stderr output", "stderr", stderrBuf.String())
 
 		m.mu.Lock()
 		m.migrationStatus.Error = stderrBuf.String()
@@ -270,7 +270,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		return fmt.Errorf("robocopy failed (exit code %d): %w\nstderr: %s", exitCode, waitErr, stderrBuf.String())
 	}
 
-	log.Printf("robocopy completed successfully (exit code %d), copied %.2f GB", exitCode, float64(bytesCopied)/1024/1024/1024)
+	slog.Info("robocopy completed successfully", "exit_code", exitCode, "copied_gb", float64(bytesCopied)/1024/1024/1024)
 
 	m.mu.Lock()
 	m.migrationStatus.Progress = 100

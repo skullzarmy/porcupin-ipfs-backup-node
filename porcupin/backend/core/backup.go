@@ -559,7 +559,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	}
 
 	// Non-IPFS URIs (HTTP/HTTPS) cannot be pinned — mark terminal so they are never retried
-	if !strings.HasPrefix(uri, "ipfs://") && !strings.Contains(uri, "/ipfs/") {
+	if !ipfsuri.IsIPFS(uri) {
 		slog.Debug("skipping non-IPFS URI", "uri", uri)
 		asset.Status = db.StatusSkipped
 		asset.ErrorMsg = ""

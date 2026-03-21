@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -44,23 +43,25 @@ func NewApp(logRing *logging.RingHandler, logFile *os.File) *App {
 // startup is called when the app starts
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
-	log.Println("Porcupin starting up...")
+	slog.Info("Porcupin starting up")
 
 	// Setup data directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		log.Fatalf("Failed to get user home dir: %v", err)
+		slog.Error("Failed to get user home dir", "error", err)
+		os.Exit(1)
 	}
 	dataDir := filepath.Join(homeDir, ".porcupin")
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		log.Fatalf("Failed to create data dir: %v", err)
+		slog.Error("Failed to create data dir", "error", err)
+		os.Exit(1)
 	}
 
 	// Load configuration
 	configPath := filepath.Join(dataDir, "config.yaml")
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
-		log.Printf("Failed to load config: %v, using defaults", err)
+		slog.Warn("Failed to load config, using defaults", "error", err)
 		cfg = config.DefaultConfig()
 		// Ensure IPFS path is absolute if default
 		if cfg.IPFS.RepoPath == "~/.porcupin/ipfs" {
@@ -73,15 +74,17 @@ func (a *App) startup(ctx context.Context) {
 	dbPath := filepath.Join(dataDir, "porcupin.db")
 	gormDB, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		slog.Error("Failed to open database", "error", err)
+		os.Exit(1)
 	}
 
 	if err := db.InitDB(gormDB); err != nil {
-		log.Fatalf("Failed to initialize database: %v", err)
+		slog.Error("Failed to initialize database", "error", err)
+		os.Exit(1)
 	}
 
 	a.database = db.NewDatabase(gormDB)
-	log.Println("Database initialized")
+	slog.Info("Database initialized")
 
 	// Initialize IPFS node
 	// Ensure repo path is absolute
@@ -92,11 +95,12 @@ func (a *App) startup(ctx context.Context) {
 	
 	ipfsNode, err := ipfs.NewNode(repoPath, cfg.IPFS.SwarmPort)
 	if err != nil {
-		log.Fatalf("Failed to create IPFS node: %v", err)
+		slog.Error("Failed to create IPFS node", "error", err)
+		os.Exit(1)
 	}
 
 	if err := ipfsNode.Start(ctx); err != nil {
-		log.Printf("Failed to start IPFS node: %v", err)
+		slog.Error("Failed to start IPFS node", "error", err)
 		wailsRuntime.MessageDialog(ctx, wailsRuntime.MessageDialogOptions{
 			Type:    wailsRuntime.ErrorDialog,
 			Title:   "Startup Failed",
@@ -106,23 +110,23 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	a.ipfsNode = ipfsNode
-	log.Println("IPFS node started")
+	slog.Info("IPFS node started")
 
 	// Initialize indexer
 	a.indexer = indexer.NewIndexer(cfg.TZKT.BaseURL)
-	log.Println("Indexer initialized")
+	slog.Info("Indexer initialized")
 
 	// Initialize backup service (handles automatic syncing)
 	a.backupService = core.NewBackupService(ipfsNode, a.indexer, a.database, cfg)
-	log.Println("Backup service initialized")
+	slog.Info("Backup service initialized")
 	
 	// Initialize updater
 	updaterMgr, err := updater.NewManager(version.Version)
 	if err != nil {
-		log.Printf("Failed to initialize updater: %v", err)
+		slog.Warn("Failed to initialize updater", "error", err)
 	} else {
 		a.updater = updaterMgr
-		log.Println("Updater initialized (current version: " + version.Version + ")")
+		slog.Info("Updater initialized", "version", version.Version)
 
 		// Check for updates in background
 		go func() {
@@ -153,9 +157,9 @@ func (a *App) startup(ctx context.Context) {
 	// Start the automatic backup service
 	a.backupService.Start(ctx)
 	a.backupService.SetWailsCtx(ctx)
-	log.Println("Backup service started - auto-syncing enabled")
+	slog.Info("Backup service started, auto-syncing enabled")
 
-	log.Println("Porcupin startup complete!")
+	slog.Info("Porcupin startup complete")
 }
 
 // shutdown is called during application termination
@@ -165,11 +169,11 @@ func (a *App) shutdown(ctx context.Context) {
 	// chance before we force exit and let the OS reclaim all ports.
 	go func() {
 		time.Sleep(35 * time.Second)
-		log.Println("Forced process exit — shutdown exceeded 35 seconds")
+		slog.Error("Forced process exit — shutdown exceeded 35 seconds")
 		os.Exit(1)
 	}()
 
-	log.Println("Porcupin shutting down...")
+	slog.Info("Porcupin shutting down")
 
 	if a.backupService != nil {
 		a.backupService.Stop()
@@ -177,11 +181,11 @@ func (a *App) shutdown(ctx context.Context) {
 
 	if a.ipfsNode != nil {
 		if err := a.ipfsNode.Stop(); err != nil {
-			log.Printf("Error stopping IPFS node: %v", err)
+			slog.Error("Error stopping IPFS node", "error", err)
 		}
 	}
 
-	log.Println("Porcupin shutdown complete")
+	slog.Info("Porcupin shutdown complete")
 
 	if a.logFile != nil {
 		a.logFile.Close()
@@ -205,11 +209,11 @@ func (a *App) beforeClose(ctx context.Context) (prevent bool) {
 func (a *App) GetStatus() map[string]interface{} {
 	stats, err := a.database.GetAssetStats()
 	if err != nil {
-		log.Printf("GetStatus: failed to get asset stats: %v", err)
+		slog.Warn("GetStatus: failed to get asset stats", "error", err)
 	}
 	wallets, err := a.GetWallets()
 	if err != nil {
-		log.Printf("GetStatus: failed to get wallets: %v", err)
+		slog.Warn("GetStatus: failed to get wallets", "error", err)
 	}
 	
 	return map[string]interface{}{

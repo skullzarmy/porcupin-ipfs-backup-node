@@ -3,7 +3,7 @@
 package ipfs
 
 import (
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/ipfs/kubo/config"
@@ -13,13 +13,13 @@ import (
 // getRoutingOption returns the routing option for the IPFS node
 // We universally use DHT Client option to reduce resource usage and avoid being a public server
 func getRoutingOption() libp2p.RoutingOption {
-	log.Println("IPFS Profile: Using DHT Client routing (Selfish Mode)")
+	slog.Info("IPFS Profile: using DHT Client routing (Selfish Mode)")
 	return libp2p.DHTClientOption
 }
 
 // applyProfileConfig applies profile-specific configuration overrides
 func applyProfileConfig(cfg *config.Config) {
-	log.Println("IPFS Profile: Tuning connection limits for personal usage")
+	slog.Info("IPFS Profile: tuning connection limits for personal usage")
 
 	// Strict connection limits for all users
 	// Default is often 600/900 which is excessive for a personal backup tool

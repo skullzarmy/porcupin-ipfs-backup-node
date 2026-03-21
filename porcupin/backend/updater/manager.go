@@ -3,7 +3,7 @@ package updater
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
@@ -98,7 +98,7 @@ func (m *Manager) CheckForUpdates(ctx context.Context) (*UpdateInfo, error) {
 		return nil, fmt.Errorf("updater not initialized")
 	}
 
-	log.Printf("Checking for updates (current: %s)...", m.currentVer)
+	slog.Info("Checking for updates", "current_version", m.currentVer)
 	
 	latest, found, err := m.updater.DetectLatest(ctx, selfupdate.ParseSlug(Repository))
 	if err != nil {
@@ -111,17 +111,17 @@ func (m *Manager) CheckForUpdates(ctx context.Context) (*UpdateInfo, error) {
 	}
 
 	if !found {
-		log.Println("No updates found.")
+		slog.Info("No updates found")
 		return info, nil
 	}
 
 	// Compare versions
 	if latest.LessOrEqual(m.currentVer) {
-		log.Printf("Latest version %s is not newer than current %s", latest.Version(), m.currentVer)
+		slog.Info("Latest version is not newer", "latest", latest.Version(), "current", m.currentVer)
 		return info, nil
 	}
 
-	log.Printf("New version found: %s", latest.Version())
+	slog.Info("New version found", "version", latest.Version())
 	
 	// Cache the release for installation step
 	m.latestRelease = latest
@@ -157,13 +157,13 @@ func (m *Manager) InstallLatest(ctx context.Context) error {
 		exePath = exe
 	}
 
-	log.Printf("Installing update %s to %s", m.latestRelease.Version(), exePath)
+	slog.Info("Installing update", "version", m.latestRelease.Version(), "path", exePath)
 
 	if err := m.updater.UpdateTo(ctx, m.latestRelease, exePath); err != nil {
 		return fmt.Errorf("failed to update binary: %w", err)
 	}
 
-	log.Println("Update verified and installed successfully")
+	slog.Info("Update verified and installed successfully")
 	return nil
 }
 

@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -473,7 +473,7 @@ func (h *Handlers) DeleteWallet(w http.ResponseWriter, r *http.Request) {
 			cid := core.ExtractCIDFromURI(asset.URI)
 			if cid != "" {
 				if err := h.service.UnpinAsset(cid); err != nil {
-					log.Printf("Warning: failed to unpin asset %s during wallet deletion: %v", cid, err)
+					slog.Warn("failed to unpin asset during wallet deletion", "cid", cid, "error", err)
 				}
 			}
 		}
@@ -758,7 +758,7 @@ func (h *Handlers) GetFailedAssets(w http.ResponseWriter, r *http.Request) {
 	// Debug log
 	count := len(assets)
 	if count > 0 {
-		log.Printf("[API] GetFailedAssets: Found %d failed assets", count)
+		slog.Debug("GetFailedAssets", "count", count)
 	}
 
 	resp := make([]AssetResponse, 0, len(assets))

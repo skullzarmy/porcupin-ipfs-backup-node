@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"porcupin/backend/core"
 	"porcupin/backend/db"
 	"porcupin/backend/ipfs"
 )
@@ -164,7 +165,7 @@ func (a *App) UnpinAsset(assetID uint64) error {
 	}
 
 	// Extract CID from URI
-	cid := extractCIDFromURI(asset.URI)
+	cid := core.ExtractCIDFromURI(asset.URI)
 	if cid == "" {
 		return fmt.Errorf("could not extract CID from URI: %s", asset.URI)
 	}
@@ -201,7 +202,7 @@ func (a *App) DeleteAsset(assetID uint64) error {
 	}
 
 	// Extract CID and unpin
-	cid := extractCIDFromURI(asset.URI)
+	cid := core.ExtractCIDFromURI(asset.URI)
 	if cid != "" {
 		if err := a.ipfsNode.Unpin(a.ctx, cid); err != nil {
 			slog.Warn("unpin failed during delete", "error", err)
@@ -285,17 +286,18 @@ func (a *App) VerifyPinHealth() (map[string]int, error) {
 	}
 	
 	results := map[string]int{
-		"total":   len(assets),
-		"updated": 0,
-		"failed":  0,
+		"total":     len(assets),
+		"updated":   0,
+		"failed":    0,
 		"already_valid": 0,
+		"db_errors": 0,
 	}
 	
 	slog.Info("verifying pinned assets", "count", len(assets))
 	
 	for _, asset := range assets {
 		// Extract CID
-		cid := extractCIDFromURI(asset.URI)
+		cid := core.ExtractCIDFromURI(asset.URI)
 		if cid == "" {
 			results["failed"]++
 			continue
@@ -311,15 +313,22 @@ func (a *App) VerifyPinHealth() (map[string]int, error) {
 			slog.Warn("asset not available, marking for repin", "cid", cid, "error", err)
 			asset.Status = db.StatusPending
 			asset.RetryCount = 0
-			a.database.SaveAsset(&asset)
+			if dbErr := a.database.SaveAsset(&asset); dbErr != nil {
+				slog.Warn("failed to save asset status", "cid", cid, "error", dbErr)
+				results["db_errors"]++
+			}
 			results["failed"]++
 			continue
 		}
-		
+
 		if asset.SizeBytes != size {
 			asset.SizeBytes = size
-			a.database.SaveAsset(&asset)
-			results["updated"]++
+			if dbErr := a.database.SaveAsset(&asset); dbErr != nil {
+				slog.Warn("failed to save asset size", "cid", cid, "error", dbErr)
+				results["db_errors"]++
+			} else {
+				results["updated"]++
+			}
 			slog.Debug("updated asset size", "cid", cid, "size_bytes", size)
 		} else {
 			results["already_valid"]++
@@ -337,7 +346,7 @@ func (a *App) VerifyAsset(assetID uint64) (ipfs.VerifyResult, error) {
 		return ipfs.VerifyResult{Error: "asset not found"}, err
 	}
 
-	cid := extractCIDFromURI(asset.URI)
+	cid := core.ExtractCIDFromURI(asset.URI)
 	if cid == "" {
 		return ipfs.VerifyResult{Error: "could not extract CID"}, fmt.Errorf("could not extract CID from URI")
 	}
@@ -353,7 +362,7 @@ func (a *App) PreviewAsset(assetID uint64, maxBytes int) (map[string]interface{}
 		return nil, fmt.Errorf("asset not found: %w", err)
 	}
 
-	cid := extractCIDFromURI(asset.URI)
+	cid := core.ExtractCIDFromURI(asset.URI)
 	if cid == "" {
 		return nil, fmt.Errorf("could not extract CID from URI")
 	}
@@ -395,7 +404,7 @@ func (a *App) GetAssetGatewayURL(assetID uint64) (map[string]string, error) {
 		return nil, fmt.Errorf("asset not found: %w", err)
 	}
 
-	cid := extractCIDFromURI(asset.URI)
+	cid := core.ExtractCIDFromURI(asset.URI)
 	if cid == "" {
 		return nil, fmt.Errorf("could not extract CID from URI")
 	}
@@ -407,30 +416,4 @@ func (a *App) GetAssetGatewayURL(assetID uint64) (map[string]string, error) {
 		"pinata":       fmt.Sprintf("https://gateway.pinata.cloud/ipfs/%s", cid),
 		"local":        fmt.Sprintf("http://127.0.0.1:8080/ipfs/%s", cid),
 	}, nil
-}
-
-// extractCIDFromURI extracts a CID from an IPFS URI
-func extractCIDFromURI(uri string) string {
-	// Common patterns:
-	// ipfs://QmXXX
-	// https://ipfs.io/ipfs/QmXXX
-
-	if len(uri) > 7 && uri[:7] == "ipfs://" {
-		return strings.Split(uri[7:], "/")[0]
-	}
-
-	// Find /ipfs/ in the URI
-	const ipfsPrefix = "/ipfs/"
-	idx := strings.Index(uri, ipfsPrefix)
-	if idx != -1 {
-		start := idx + len(ipfsPrefix)
-		rest := uri[start:]
-		// Find end (next / or end of string)
-		if slashIdx := strings.Index(rest, "/"); slashIdx != -1 {
-			return rest[:slashIdx]
-		}
-		return rest
-	}
-
-	return ""
 }
