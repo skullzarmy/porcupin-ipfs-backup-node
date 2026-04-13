@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	fslock "github.com/ipfs/go-fs-lock"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
@@ -104,17 +105,27 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 	}
 
-	// Open repo. If locked, surface a clear user-facing error rather than automatically
-	// removing the lock file. OS file locks (flock) are released by the kernel when a
-	// process exits — including crashes and SIGKILL — so a stale lock from a previous
-	// run is self-healing. Automatic removal risks corrupting a live repo.
+	// Open repo. If the lock file is stale (owning process no longer running),
+	// remove it automatically so the user doesn't have to reboot or manually
+	// delete files. We verify staleness using go-fs-lock (the same library
+	// Kubo uses) to attempt a non-blocking lock acquisition.
 	repo, err := fsrepo.Open(n.repoPath)
 	if err != nil {
 		if strings.Contains(err.Error(), "lock") {
-			lockFile := filepath.Join(n.repoPath, "repo.lock")
-			return fmt.Errorf("IPFS repository is locked by another process. If Porcupin is not already running, delete %s and try again", lockFile)
+			slog.Warn("IPFS repo locked, checking if lock is stale", "path", filepath.Join(n.repoPath, "repo.lock"))
+
+			if removeStaleLock(n.repoPath) {
+				slog.Info("Lock was stale (no active holder), retrying open")
+				repo, err = fsrepo.Open(n.repoPath)
+				if err != nil {
+					return fmt.Errorf("failed to open repo after stale lock recovery: %w", err)
+				}
+			} else {
+				return fmt.Errorf("IPFS repository is locked by another process: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to open repo: %w", err)
 		}
-		return fmt.Errorf("failed to open repo: %w", err)
 	}
 
 	// Update swarm port in existing repo config if it differs
@@ -223,20 +234,44 @@ func (n *Node) Stop() error {
 	n.node = nil
 	n.api = nil
 
-	// Only remove the repo lock file after a timeout — if the node closed
-	// cleanly, Kubo already released the lock. Removing unconditionally
-	// risks deleting a lock that a concurrent process legitimately holds.
-	if timedOut {
+	// Remove the repo lock file after clean shutdown. On some Linux systems,
+	// Kubo does not fully release the lock file on close, preventing restart.
+	// Skip removal if shutdown timed out — the node may still be using the repo.
+	if !timedOut {
 		lockFile := filepath.Join(repoPath, "repo.lock")
 		if _, err := os.Stat(lockFile); err == nil {
-			slog.Warn("Removing stale repo lock file after timeout", "path", lockFile)
+			slog.Debug("Cleaning up repo lock file after shutdown", "path", lockFile)
 			if err := os.Remove(lockFile); err != nil {
 				slog.Warn("Failed to remove lock file", "path", lockFile, "error", err)
 			}
 		}
+	} else {
+		slog.Warn("Skipping lock file cleanup — shutdown timed out, repo may still be in use")
 	}
 
 	return closeErr
+}
+
+// removeStaleLock checks whether the IPFS repo lock file is stale (not held by
+// a running process) and removes it if so. It uses go-fs-lock — the same
+// locking library Kubo uses internally — to probe the lock without acquiring
+// it. This is cross-platform (fcntl on POSIX, LockFileEx on Windows).
+// Returns true if a stale lock was found and removed.
+func removeStaleLock(repoPath string) bool {
+	locked, err := fslock.Locked(repoPath, "repo.lock")
+	if err != nil {
+		slog.Warn("Failed to check repo lock status", "error", err)
+		return false
+	}
+	if locked {
+		return false // actively held by another process
+	}
+	// Lock file exists but no process holds it — stale
+	lockFile := filepath.Join(repoPath, "repo.lock")
+	if err := os.Remove(lockFile); err != nil && !os.IsNotExist(err) {
+		slog.Warn("Failed to remove stale repo lock file", "path", lockFile, "error", err)
+	}
+	return true
 }
 
 // isPortConflictError returns true if the error indicates the swarm port is already bound.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     AddWallet,
     SyncWallet,
@@ -11,6 +11,13 @@ import {
 import type { db } from "../../wailsjs/go/models";
 import { ConfirmModal } from "./ConfirmModal";
 import { formatError } from "../utils";
+import { EventsOn } from "../../wailsjs/runtime/runtime";
+
+interface DeleteProgress {
+    phase: string;
+    total: number;
+    current: number;
+}
 
 interface WalletsProps {
     wallets: db.Wallet[];
@@ -31,6 +38,32 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
     const [editingWallet, setEditingWallet] = useState<string | null>(null);
     const [editAlias, setEditAlias] = useState("");
     const [hasFocusedInput, setHasFocusedInput] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [deleteProgress, setDeleteProgress] = useState<DeleteProgress | null>(null);
+
+    useEffect(() => {
+        const unsubStart = EventsOn("wallet:delete:start", () => {
+            setDeleting(true);
+            setDeleteProgress(null);
+        });
+        const unsubProgress = EventsOn("wallet:delete:progress", (data: { phase: string; total: number; current: number }) => {
+            setDeleteProgress({ phase: data.phase, total: data.total, current: data.current });
+        });
+        const unsubComplete = EventsOn("wallet:delete:complete", () => {
+            setDeleting(false);
+            setDeleteProgress(null);
+        });
+        const unsubError = EventsOn("wallet:delete:error", () => {
+            setDeleting(false);
+            setDeleteProgress(null);
+        });
+        return () => {
+            unsubStart();
+            unsubProgress();
+            unsubComplete();
+            unsubError();
+        };
+    }, []);
 
     const handleAddWallet = async () => {
         if (!newAddress) return;
@@ -264,37 +297,63 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
 
             <ConfirmModal
                 isOpen={walletToDelete !== null}
-                title="Delete Wallet"
-                confirmText="Delete"
+                title={deleting ? "Deleting Wallet..." : "Delete Wallet"}
+                confirmText={deleting ? "Deleting..." : "Delete"}
                 cancelText="Cancel"
                 onConfirm={confirmDeleteWallet}
-                onCancel={() => setWalletToDelete(null)}
+                onCancel={() => { if (!deleting) setWalletToDelete(null); }}
                 isDangerous
+                disableConfirm={deleting}
+                disableCancel={deleting}
             >
-                <p className="modal-message">Delete wallet "{walletToDelete?.alias || walletToDelete?.address}"?</p>
-                <p className="modal-message">
-                    This will remove the wallet from tracking and delete associated NFT data from the database.
-                </p>
-                <div className="delete-options">
-                    <label className="delete-option">
-                        <input
-                            type="radio"
-                            name="deleteMode"
-                            checked={deleteMode === "keep-pins"}
-                            onChange={() => setDeleteMode("keep-pins")}
-                        />
-                        <span>Keep pinned content (faster, preserves IPFS data)</span>
-                    </label>
-                    <label className="delete-option">
-                        <input
-                            type="radio"
-                            name="deleteMode"
-                            checked={deleteMode === "unpin"}
-                            onChange={() => setDeleteMode("unpin")}
-                        />
-                        <span>Unpin content (frees disk space after GC)</span>
-                    </label>
-                </div>
+                {deleting && deleteProgress ? (
+                    <div className="delete-progress">
+                        <p className="modal-message">
+                            {deleteProgress.phase === "unpinning" && "Unpinning content..."}
+                            {deleteProgress.phase === "clearing_db" && "Clearing database records..."}
+                            {deleteProgress.phase !== "unpinning" && deleteProgress.phase !== "clearing_db" && "Processing..."}
+                            {deleteProgress.total > 0 && ` ${deleteProgress.current}/${deleteProgress.total}`}
+                        </p>
+                        {deleteProgress.total > 0 && (
+                            <div className="progress-bar">
+                                <div
+                                    className="progress-fill"
+                                    style={{ width: `${Math.round((deleteProgress.current / deleteProgress.total) * 100)}%` }}
+                                />
+                            </div>
+                        )}
+                        <p className="modal-message" style={{ fontSize: "0.85em", opacity: 0.7 }}>Please wait — do not close this dialog.</p>
+                    </div>
+                ) : deleting ? (
+                    <p className="modal-message">Starting delete operation...</p>
+                ) : (
+                    <>
+                        <p className="modal-message">Delete wallet "{walletToDelete?.alias || walletToDelete?.address}"?</p>
+                        <p className="modal-message">
+                            This will remove the wallet from tracking and delete associated NFT data from the database.
+                        </p>
+                        <div className="delete-options">
+                            <label className="delete-option">
+                                <input
+                                    type="radio"
+                                    name="deleteMode"
+                                    checked={deleteMode === "keep-pins"}
+                                    onChange={() => setDeleteMode("keep-pins")}
+                                />
+                                <span>Keep pinned content (faster, preserves IPFS data)</span>
+                            </label>
+                            <label className="delete-option">
+                                <input
+                                    type="radio"
+                                    name="deleteMode"
+                                    checked={deleteMode === "unpin"}
+                                    onChange={() => setDeleteMode("unpin")}
+                                />
+                                <span>Unpin content (frees disk space after GC)</span>
+                            </label>
+                        </div>
+                    </>
+                )}
             </ConfirmModal>
         </div>
     );

@@ -54,13 +54,24 @@ import {
 import type { api, logging, main, storage } from "../../wailsjs/go/models";
 import { formatBytes, compareSemver } from "../utils";
 
+interface ClearStatus {
+    phase: string;
+    message: string;
+    total_pins: number;
+    unpinned_count: number;
+}
+
 interface SettingsProps {
     onStatsChange: () => void;
     scrollToSection?: string;
     onScrolled?: () => void;
+    clearing: boolean;
+    setClearing: (clearing: boolean) => void;
+    clearStatus: ClearStatus | null;
+    setClearStatus: (status: ClearStatus | null) => void;
 }
 
-export function Settings({ onStatsChange, scrollToSection, onScrolled }: SettingsProps) {
+export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing, setClearing, clearStatus, setClearStatus }: SettingsProps) {
     const [storageInfo, setStorageInfo] = useState<main.StorageInfo | null>(null);
     const [repoPath, setRepoPath] = useState("");
     const [saving, setSaving] = useState(false);
@@ -121,13 +132,6 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled }: Setting
 
     // Confirmation dialog state
     const [showResetConfirm, setShowResetConfirm] = useState(false);
-    const [clearing, setClearing] = useState(false);
-    const [clearStatus, setClearStatus] = useState<{
-        phase: string;
-        message: string;
-        total_pins: number;
-        unpinned_count: number;
-    } | null>(null);
 
     // Remote server state
     const {
@@ -280,29 +284,13 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled }: Setting
             loadSettings();
         });
 
-        // Clear data events
-        const unsubClearStart = EventsOn("clear:start", (status) => {
-            console.log("Clear started:", status);
-            setClearing(true);
-            setClearStatus(status);
-        });
-        const unsubClearProgress = EventsOn("clear:progress", (status) => {
-            console.log("Clear progress:", status);
-            setClearStatus(status);
-        });
-        const unsubClearError = EventsOn("clear:error", (status) => {
-            console.log("Clear error:", status);
-            setClearing(false);
-            setClearStatus(null);
+        // Clear data events — state is managed in App.tsx, but we handle Settings-specific UI here
+        const unsubClearError = EventsOn("clear:error", (status: any) => {
             setMessage("Clear failed: " + status.error);
         });
-        const unsubClearComplete = EventsOn("clear:complete", (status) => {
-            console.log("Clear complete:", status);
-            setClearing(false);
-            setClearStatus(null);
+        const unsubClearComplete = EventsOn("clear:complete", (status: any) => {
             setShowResetConfirm(false);
             setMessage(`Cleared ${status.unpinned_count} pins. Re-sync your wallets to rebuild.`);
-            onStatsChange();
             loadSettings();
         });
 
@@ -312,8 +300,6 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled }: Setting
             unsubError();
             unsubComplete();
             unsubCancelled();
-            unsubClearStart();
-            unsubClearProgress();
             unsubClearError();
             unsubClearComplete();
         };
@@ -439,12 +425,14 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled }: Setting
     };
 
     const handleReset = async () => {
+        if (clearing) return;
         try {
             setClearing(true);
             await ResetDatabase();
             // Events will handle the UI updates
         } catch (err) {
             setClearing(false);
+            setClearStatus(null);
             setMessage("Error: " + String(err));
         }
     };

@@ -71,21 +71,53 @@ type TokenMetadata struct {
 // UnmarshalJSON implements json.Unmarshaler. It performs standard field
 // decoding AND stores the complete raw JSON bytes so callers can scan
 // for IPFS URIs in non-standard fields.
+//
+// Some on-chain metadata stores fields like "name" and "description" as
+// arrays instead of strings. The auxiliary struct below accepts those
+// fields as json.RawMessage and coerces them to strings so the rest of
+// the codebase can treat them as plain strings.
 func (m *TokenMetadata) UnmarshalJSON(data []byte) error {
 	// Use an alias type to prevent infinite recursion — the alias has
 	// the same fields but no methods, so json uses default struct decoding.
 	type Alias TokenMetadata
-	var alias Alias
-	if err := json.Unmarshal(data, &alias); err != nil {
+	aux := &struct {
+		Name        json.RawMessage `json:"name"`
+		Description json.RawMessage `json:"description"`
+		*Alias
+	}{
+		Alias: (*Alias)(m),
+	}
+	if err := json.Unmarshal(data, aux); err != nil {
 		return err
 	}
-	*m = TokenMetadata(alias)
+	m.Name = rawJSONToString(aux.Name)
+	m.Description = rawJSONToString(aux.Description)
 
 	// Store a copy of the complete raw JSON.
-	m.RawJSON = make(json.RawMessage, len(data))
-	copy(m.RawJSON, data)
+	m.RawJSON = append(json.RawMessage{}, data...)
 
 	return nil
+}
+
+// rawJSONToString coerces a JSON value that may be a string, an array of
+// strings, or another scalar type into a plain Go string. Returns "" for
+// null or empty input.
+func rawJSONToString(raw json.RawMessage) string {
+	if len(raw) == 0 || strings.TrimSpace(string(raw)) == "null" {
+		return ""
+	}
+	// Fast path: JSON string
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	// Array of strings — join with newlines
+	var arr []string
+	if err := json.Unmarshal(raw, &arr); err == nil {
+		return strings.Join(arr, "\n")
+	}
+	// Fallback: return raw value without surrounding quotes
+	return strings.Trim(string(raw), "\"")
 }
 
 type Format struct {

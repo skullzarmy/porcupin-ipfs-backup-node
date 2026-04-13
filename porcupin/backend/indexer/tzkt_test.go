@@ -125,6 +125,45 @@ func TestTokenMetadataJSONParsing(t *testing.T) {
 			t.Fatalf("failed to unmarshal: %v", err)
 		}
 	})
+
+	t.Run("description as array", func(t *testing.T) {
+		jsonData := `{"name": "Test", "description": ["Line one", "Line two"]}`
+
+		var metadata TokenMetadata
+		if err := json.Unmarshal([]byte(jsonData), &metadata); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if metadata.Description != "Line one\nLine two" {
+			t.Errorf("expected joined description, got %q", metadata.Description)
+		}
+	})
+
+	t.Run("name as array", func(t *testing.T) {
+		jsonData := `{"name": ["Part A", "Part B"], "description": "normal"}`
+
+		var metadata TokenMetadata
+		if err := json.Unmarshal([]byte(jsonData), &metadata); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if metadata.Name != "Part A\nPart B" {
+			t.Errorf("expected joined name, got %q", metadata.Name)
+		}
+		if metadata.Description != "normal" {
+			t.Errorf("expected 'normal', got %q", metadata.Description)
+		}
+	})
+
+	t.Run("description as null", func(t *testing.T) {
+		jsonData := `{"name": "Test", "description": null}`
+
+		var metadata TokenMetadata
+		if err := json.Unmarshal([]byte(jsonData), &metadata); err != nil {
+			t.Fatalf("failed to unmarshal: %v", err)
+		}
+		if metadata.Description != "" {
+			t.Errorf("expected empty description for null, got %q", metadata.Description)
+		}
+	})
 }
 
 // TestTokenJSONParsing tests JSON unmarshaling of Token
@@ -833,3 +872,136 @@ func TestHasIPFSContent_NonStandardFields(t *testing.T) {
 
 // NOTE: TestHeadJSONParsing and TestTokenBalanceJSONParsing were removed.
 // Testing JSON unmarshal on simple structs tests the stdlib, not our code.
+
+// TestTokenMetadata_MalformedFields is a table-driven test covering the
+// kind of on-chain metadata weirdness that exists in the wild on Tezos.
+func TestTokenMetadata_MalformedFields(t *testing.T) {
+	tests := []struct {
+		name        string
+		json        string
+		wantName    string
+		wantDesc    string
+		wantArtifact string
+	}{
+		{
+			name:     "description is integer",
+			json:     `{"name":"Test","description":42}`,
+			wantName: "Test",
+			wantDesc: "42",
+		},
+		{
+			name:     "description is boolean",
+			json:     `{"name":"Test","description":true}`,
+			wantName: "Test",
+			wantDesc: "true",
+		},
+		{
+			name:     "description is empty array",
+			json:     `{"name":"Test","description":[]}`,
+			wantName: "Test",
+			wantDesc: "",
+		},
+		{
+			name:     "description is single-element array",
+			json:     `{"name":"Test","description":["only line"]}`,
+			wantName: "Test",
+			wantDesc: "only line",
+		},
+		{
+			name:     "name is integer",
+			json:     `{"name":123,"description":"ok"}`,
+			wantName: "123",
+			wantDesc: "ok",
+		},
+		{
+			name:     "name is null, description is null",
+			json:     `{"name":null,"description":null}`,
+			wantName: "",
+			wantDesc: "",
+		},
+		{
+			name:     "name is empty object",
+			json:     `{"name":{},"description":"fine"}`,
+			wantName: "{}",
+			wantDesc: "fine",
+		},
+		{
+			name:     "both arrays",
+			json:     `{"name":["a","b"],"description":["c","d","e"]}`,
+			wantName: "a\nb",
+			wantDesc: "c\nd\ne",
+		},
+		{
+			name:         "standard fields still work",
+			json:         `{"name":"NFT","description":"desc","artifactUri":"ipfs://Qm1"}`,
+			wantName:     "NFT",
+			wantDesc:     "desc",
+			wantArtifact: "ipfs://Qm1",
+		},
+		{
+			name:     "unicode in array description",
+			json:     `{"name":"Art","description":["🎨 colorful","日本語テスト"]}`,
+			wantName: "Art",
+			wantDesc: "🎨 colorful\n日本語テスト",
+		},
+		{
+			name:     "empty object",
+			json:     `{}`,
+			wantName: "",
+			wantDesc: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var m TokenMetadata
+			if err := json.Unmarshal([]byte(tc.json), &m); err != nil {
+				t.Fatalf("unmarshal failed: %v", err)
+			}
+			if m.Name != tc.wantName {
+				t.Errorf("Name = %q, want %q", m.Name, tc.wantName)
+			}
+			if m.Description != tc.wantDesc {
+				t.Errorf("Description = %q, want %q", m.Description, tc.wantDesc)
+			}
+			if tc.wantArtifact != "" && m.ArtifactURI != tc.wantArtifact {
+				t.Errorf("ArtifactURI = %q, want %q", m.ArtifactURI, tc.wantArtifact)
+			}
+			if m.RawJSON == nil {
+				t.Error("RawJSON should always be populated")
+			}
+		})
+	}
+}
+
+// FuzzTokenMetadataUnmarshalJSON feeds arbitrary bytes into TokenMetadata
+// unmarshaling and asserts it never panics. Valid JSON should unmarshal
+// without error; invalid JSON may return an error but must not crash.
+//
+//	go test -fuzz=FuzzTokenMetadataUnmarshalJSON -fuzztime=30s ./backend/indexer/
+func FuzzTokenMetadataUnmarshalJSON(f *testing.F) {
+	// Seed corpus with known edge cases
+	seeds := []string{
+		`{"name":"Test","description":"A normal NFT"}`,
+		`{"name":"Test","description":["array","desc"]}`,
+		`{"name":["a","b"],"description":"ok"}`,
+		`{"name":null,"description":null}`,
+		`{"name":123}`,
+		`{"description":true}`,
+		`{"description":[]}`,
+		`{"name":{},"description":{}}`,
+		`{}`,
+		`{"name":"","description":"","artifactUri":"ipfs://QmTest","formats":[{"uri":"ipfs://Qm","mimeType":"image/png"}]}`,
+		`{"name":"x","creators":"solo","decimals":0}`,
+		`{"name":"x","creators":["tz1a","tz1b"],"decimals":"0"}`,
+	}
+	for _, s := range seeds {
+		f.Add([]byte(s))
+	}
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var m TokenMetadata
+		// Must never panic — errors are fine for invalid JSON
+		_ = json.Unmarshal(data, &m)
+	})
+}

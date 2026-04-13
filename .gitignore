@@ -67,3 +67,4 @@ porcupin/frontend/node_modules/
 
 # Release artifacts
 release/
+.temp/

@@ -10,6 +10,8 @@ interface ConfirmModalProps {
     onConfirm: () => void;
     onCancel: () => void;
     isDangerous?: boolean;
+    disableConfirm?: boolean;
+    disableCancel?: boolean;
 }
 
 export function ConfirmModal({
@@ -22,18 +24,15 @@ export function ConfirmModal({
     onConfirm,
     onCancel,
     isDangerous = false,
+    disableConfirm = false,
+    disableCancel = false,
 }: ConfirmModalProps) {
     if (!isOpen) return null;
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Escape") onCancel();
-    };
 
     return (
         <div
             className="modal-overlay"
-            onClick={onCancel}
-            onKeyDown={handleKeyDown}
+            onClick={disableCancel ? undefined : onCancel}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
@@ -42,17 +41,22 @@ export function ConfirmModal({
             <div
                 className="modal-content"
                 onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                    if (e.key === "Escape" && !disableCancel) {
+                        onCancel();
+                    }
+                    e.stopPropagation();
+                }}
                 role="document"
             >
-                <h3 className="modal-title">{title}</h3>
+                <h3 id="modal-title" className="modal-title">{title}</h3>
                 {message && <p className="modal-message">{message}</p>}
                 {children}
                 <div className="modal-actions">
-                    <button type="button" className="btn-secondary" onClick={onCancel}>
+                    <button type="button" className="btn-secondary" onClick={onCancel} disabled={disableCancel}>
                         {cancelText}
                     </button>
-                    <button type="button" className={isDangerous ? "btn-danger" : "btn-primary"} onClick={onConfirm}>
+                    <button type="button" className={isDangerous ? "btn-danger" : "btn-primary"} onClick={onConfirm} disabled={disableConfirm}>
                         {confirmText}
                     </button>
                 </div>
