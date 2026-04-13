@@ -10,6 +10,8 @@ interface ConfirmModalProps {
     onConfirm: () => void;
     onCancel: () => void;
     isDangerous?: boolean;
+    disableConfirm?: boolean;
+    disableCancel?: boolean;
 }
 
 export function ConfirmModal({
@@ -22,17 +24,19 @@ export function ConfirmModal({
     onConfirm,
     onCancel,
     isDangerous = false,
+    disableConfirm = false,
+    disableCancel = false,
 }: ConfirmModalProps) {
     if (!isOpen) return null;
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Escape") onCancel();
+        if (e.key === "Escape" && !disableCancel) onCancel();
     };
 
     return (
         <div
             className="modal-overlay"
-            onClick={onCancel}
+            onClick={disableCancel ? undefined : onCancel}
             onKeyDown={handleKeyDown}
             role="dialog"
             aria-modal="true"
@@ -49,10 +53,10 @@ export function ConfirmModal({
                 {message && <p className="modal-message">{message}</p>}
                 {children}
                 <div className="modal-actions">
-                    <button type="button" className="btn-secondary" onClick={onCancel}>
+                    <button type="button" className="btn-secondary" onClick={onCancel} disabled={disableCancel}>
                         {cancelText}
                     </button>
-                    <button type="button" className={isDangerous ? "btn-danger" : "btn-primary"} onClick={onConfirm}>
+                    <button type="button" className={isDangerous ? "btn-danger" : "btn-primary"} onClick={onConfirm} disabled={disableConfirm}>
                         {confirmText}
                     </button>
                 </div>

@@ -45,6 +45,15 @@ function AppContent() {
         { phase: string; message: string; percent: number } | undefined
     >(undefined);
 
+    // Global clearing state — persists across tab switches
+    const [clearing, setClearing] = useState(false);
+    const [clearStatus, setClearStatus] = useState<{
+        phase: string;
+        message: string;
+        total_pins: number;
+        unpinned_count: number;
+    } | null>(null);
+
     // Get connection state to trigger reloads when it changes
     const { state } = useConnection();
     const isConnected = state.status === "connected";
@@ -123,6 +132,32 @@ function AppContent() {
         });
         return () => cancel();
     }, []);
+
+    // Listen for clear data events at app level so state persists across tab switches
+    useEffect(() => {
+        const unsubStart = EventsOn("clear:start", (status: any) => {
+            setClearing(true);
+            setClearStatus(status);
+        });
+        const unsubProgress = EventsOn("clear:progress", (status: any) => {
+            setClearStatus(status);
+        });
+        const unsubError = EventsOn("clear:error", (status: any) => {
+            setClearing(false);
+            setClearStatus(null);
+        });
+        const unsubComplete = EventsOn("clear:complete", () => {
+            setClearing(false);
+            setClearStatus(null);
+            updateStats();
+        });
+        return () => {
+            unsubStart();
+            unsubProgress();
+            unsubError();
+            unsubComplete();
+        };
+    }, [updateStats]);
 
     // Listen for progress events when update is active
     useEffect(() => {
@@ -223,7 +258,7 @@ function AppContent() {
 
                 {activeTab === "assets" && <Assets onStatsChange={updateStats} />}
 
-                {activeTab === "settings" && <Settings onStatsChange={updateStats} scrollToSection={scrollToSection} onScrolled={() => setScrollToSection("")} />}
+                {activeTab === "settings" && <Settings onStatsChange={updateStats} scrollToSection={scrollToSection} onScrolled={() => setScrollToSection("")} clearing={clearing} setClearing={setClearing} clearStatus={clearStatus} setClearStatus={setClearStatus} />}
 
                 {activeTab === "about" && <About />}
             </main>

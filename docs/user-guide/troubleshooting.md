@@ -322,6 +322,87 @@ If the app has crashed, crash reports are saved to `~/.porcupin/logs/crash-*.txt
 
 ---
 
+## Uninstalling / Full Reset
+
+If you need to completely remove Porcupin or start fresh, follow the instructions for your platform below.
+
+### What Gets Stored Where
+
+Porcupin stores all user data in a single directory:
+
+| Data              | Location                       |
+| ----------------- | ------------------------------ |
+| Database          | `~/.porcupin/porcupin.db`      |
+| IPFS repo         | `~/.porcupin/ipfs/`            |
+| Config            | `~/.porcupin/config.yaml`      |
+| Logs              | `~/.porcupin/logs/`            |
+
+> `~` means your **home directory** — e.g., `/home/yourname` on Linux, `/Users/yourname` on macOS, or `C:\Users\yourname` on Windows.
+
+### macOS
+
+```bash
+# 1. Quit Porcupin
+
+# 2. Remove the application
+rm -rf /Applications/Porcupin.app
+
+# 3. Remove all user data (database, IPFS repo, config, logs)
+rm -rf ~/.porcupin
+```
+
+### Windows
+
+1. Quit Porcupin
+2. Delete the Porcupin folder from where you installed it (e.g., `C:\Program Files\Porcupin\` or your Desktop)
+3. Remove all user data — open PowerShell and run:
+
+```powershell
+Remove-Item -Recurse -Force "$env:USERPROFILE\.porcupin"
+```
+
+Or manually delete the `.porcupin` folder in your user directory (`C:\Users\yourname\.porcupin`).
+
+### Linux
+
+```bash
+# 1. Quit Porcupin
+
+# 2. Remove the binary
+# If installed to /usr/local/bin:
+sudo rm /usr/local/bin/porcupin
+# Or delete wherever you placed the binary/AppImage
+
+# 3. Remove all user data (database, IPFS repo, config, logs)
+rm -rf ~/.porcupin
+```
+
+### Docker
+
+```bash
+docker stop porcupin
+docker rm porcupin
+docker rmi porcupin
+
+# Remove the mounted data volume (if using bind mount):
+rm -rf /path/to/your/porcupin-data
+```
+
+### Fresh Start (Keep App, Reset Data)
+
+If you just want to start over without removing the app itself:
+
+1. Use **Settings → Danger Zone → Clear All Data** in the app to unpin content and clear the database while keeping your wallets
+2. Or manually reset by quitting the app and running:
+
+```bash
+rm -rf ~/.porcupin
+```
+
+The app will recreate all necessary files and directories on next launch.
+
+---
+
 ## Getting Help
 
 If your issue isn't listed:

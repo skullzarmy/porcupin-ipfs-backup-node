@@ -98,17 +98,15 @@ func (a *App) DeleteWalletWithUnpin(address string) error {
 	})
 
 	if err != nil {
-		wailsRuntime.EventsEmit(a.ctx, "wallet:delete:progress", map[string]interface{}{
+		wailsRuntime.EventsEmit(a.ctx, "wallet:delete:error", map[string]interface{}{
 			"address": address,
-			"phase":   "error",
 			"error":   err.Error(),
 		})
 		return err
 	}
 
-	wailsRuntime.EventsEmit(a.ctx, "wallet:delete:progress", map[string]interface{}{
+	wailsRuntime.EventsEmit(a.ctx, "wallet:delete:complete", map[string]interface{}{
 		"address": address,
-		"phase":   "complete",
 	})
 
 	return nil

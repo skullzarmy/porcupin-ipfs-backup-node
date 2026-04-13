@@ -68,6 +68,7 @@ _Connect any Tezos wallet to vote. Your Tez is your vote!_
 - [Docker](docs/user-guide/installation.md#docker)
 - [Configuration](docs/user-guide/configuration.md)
 - [Troubleshooting](docs/user-guide/troubleshooting.md)
+- [Uninstalling / Full Reset](docs/user-guide/troubleshooting.md#uninstalling--full-reset)
 
 ### Supported Platforms
 
