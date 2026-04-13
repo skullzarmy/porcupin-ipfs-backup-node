@@ -104,17 +104,26 @@ func (n *Node) Start(ctx context.Context) error {
 		}
 	}
 
-	// Open repo. If locked, surface a clear user-facing error rather than automatically
-	// removing the lock file. OS file locks (flock) are released by the kernel when a
-	// process exits — including crashes and SIGKILL — so a stale lock from a previous
-	// run is self-healing. Automatic removal risks corrupting a live repo.
+	// Open repo. If the lock file is stale (owning process no longer running),
+	// remove it automatically so the user doesn't have to reboot or manually
+	// delete files. This is safe because Porcupin runs a single embedded IPFS
+	// node — there is no legitimate concurrent process that could hold the lock.
 	repo, err := fsrepo.Open(n.repoPath)
 	if err != nil {
 		if strings.Contains(err.Error(), "lock") {
 			lockFile := filepath.Join(n.repoPath, "repo.lock")
-			return fmt.Errorf("IPFS repository is locked by another process. If Porcupin is not already running, delete %s and try again", lockFile)
+			slog.Warn("IPFS repo locked, attempting stale lock recovery", "path", lockFile)
+			if removeErr := os.Remove(lockFile); removeErr != nil {
+				return fmt.Errorf("IPFS repository is locked and lock file could not be removed: %w (remove error: %v)", err, removeErr)
+			}
+			slog.Info("Removed stale IPFS repo lock file, retrying open")
+			repo, err = fsrepo.Open(n.repoPath)
+			if err != nil {
+				return fmt.Errorf("failed to open repo after removing stale lock: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to open repo: %w", err)
 		}
-		return fmt.Errorf("failed to open repo: %w", err)
 	}
 
 	// Update swarm port in existing repo config if it differs
@@ -223,16 +232,19 @@ func (n *Node) Stop() error {
 	n.node = nil
 	n.api = nil
 
-	// Only remove the repo lock file after a timeout — if the node closed
-	// cleanly, Kubo already released the lock. Removing unconditionally
-	// risks deleting a lock that a concurrent process legitimately holds.
-	if timedOut {
-		lockFile := filepath.Join(repoPath, "repo.lock")
-		if _, err := os.Stat(lockFile); err == nil {
+	// Always remove the repo lock file after shutdown. Porcupin runs a single
+	// embedded IPFS node — there is no concurrent process that could legitimately
+	// hold this lock. On some Linux systems, Kubo does not fully release the
+	// lock file on clean close, preventing the app from restarting.
+	lockFile := filepath.Join(repoPath, "repo.lock")
+	if _, err := os.Stat(lockFile); err == nil {
+		if timedOut {
 			slog.Warn("Removing stale repo lock file after timeout", "path", lockFile)
-			if err := os.Remove(lockFile); err != nil {
-				slog.Warn("Failed to remove lock file", "path", lockFile, "error", err)
-			}
+		} else {
+			slog.Debug("Cleaning up repo lock file after shutdown", "path", lockFile)
+		}
+		if err := os.Remove(lockFile); err != nil {
+			slog.Warn("Failed to remove lock file", "path", lockFile, "error", err)
 		}
 	}
 
