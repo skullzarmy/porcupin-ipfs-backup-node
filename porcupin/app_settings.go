@@ -144,7 +144,11 @@ func (a *App) ResetDatabase() error {
 		Message:    "Starting reset...",
 	})
 
+	var lastUnpinned int
 	err := a.backupService.ClearAllData(func(phase, message string, total, current int) {
+		if phase == "unpinning" {
+			lastUnpinned = current
+		}
 		wailsRuntime.EventsEmit(a.ctx, "clear:progress", ClearDataStatus{
 			InProgress:    true,
 			Phase:         phase,
@@ -155,8 +159,8 @@ func (a *App) ResetDatabase() error {
 	})
 
 	if err != nil {
-		wailsRuntime.EventsEmit(a.ctx, "clear:progress", ClearDataStatus{
-			InProgress: true,
+		wailsRuntime.EventsEmit(a.ctx, "clear:error", ClearDataStatus{
+			InProgress: false,
 			Phase:      "error",
 			Error:      err.Error(),
 			Message:    "Reset failed",
@@ -164,10 +168,11 @@ func (a *App) ResetDatabase() error {
 		return err
 	}
 
-	wailsRuntime.EventsEmit(a.ctx, "clear:progress", ClearDataStatus{
-		InProgress: false,
-		Phase:      "complete",
-		Message:    "Reset complete",
+	wailsRuntime.EventsEmit(a.ctx, "clear:complete", ClearDataStatus{
+		InProgress:    false,
+		Phase:         "complete",
+		Message:       "Reset complete",
+		UnpinnedCount: lastUnpinned,
 	})
 
 	return nil

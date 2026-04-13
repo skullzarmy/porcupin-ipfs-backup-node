@@ -439,12 +439,14 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled }: Setting
     };
 
     const handleReset = async () => {
+        if (clearing) return;
         try {
             setClearing(true);
             await ResetDatabase();
             // Events will handle the UI updates
         } catch (err) {
             setClearing(false);
+            setClearStatus(null);
             setMessage("Error: " + String(err));
         }
     };
