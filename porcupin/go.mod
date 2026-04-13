@@ -10,6 +10,7 @@ require (
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/ipfs/boxo v0.37.0
+	github.com/ipfs/go-fs-lock v0.1.1
 	github.com/ipfs/kubo v0.40.1
 	github.com/wailsapp/wails/v2 v2.11.0
 	golang.org/x/crypto v0.49.0
@@ -104,7 +105,6 @@ require (
 	github.com/ipfs/go-ds-measure v0.2.2 // indirect
 	github.com/ipfs/go-ds-pebble v0.5.9 // indirect
 	github.com/ipfs/go-dsqueue v0.2.0 // indirect
-	github.com/ipfs/go-fs-lock v0.1.1 // indirect
 	github.com/ipfs/go-ipfs-cmds v0.16.0 // indirect
 	github.com/ipfs/go-ipfs-ds-help v1.1.1 // indirect
 	github.com/ipfs/go-ipfs-pq v0.0.4 // indirect

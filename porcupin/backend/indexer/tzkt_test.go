@@ -972,6 +972,129 @@ func TestTokenMetadata_MalformedFields(t *testing.T) {
 			}
 		})
 	}
+
+	// Formats-specific edge cases
+	t.Run("formats with array mimeType", func(t *testing.T) {
+		data := `{"name":"Test","formats":[{"uri":"ipfs://Qm1","mimeType":["image/png","image/jpeg"]}]}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		if len(m.Formats) != 1 {
+			t.Fatalf("expected 1 format, got %d", len(m.Formats))
+		}
+		if m.Formats[0].URI != "ipfs://Qm1" {
+			t.Errorf("Format URI = %q, want %q", m.Formats[0].URI, "ipfs://Qm1")
+		}
+		if m.Formats[0].MimeType != "image/png\nimage/jpeg" {
+			t.Errorf("Format MimeType = %q, want %q", m.Formats[0].MimeType, "image/png\nimage/jpeg")
+		}
+	})
+
+	t.Run("formats with integer mimeType", func(t *testing.T) {
+		data := `{"name":"Test","formats":[{"uri":"ipfs://Qm2","mimeType":42}]}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		if len(m.Formats) != 1 {
+			t.Fatalf("expected 1 format, got %d", len(m.Formats))
+		}
+		if m.Formats[0].MimeType != "42" {
+			t.Errorf("Format MimeType = %q, want %q", m.Formats[0].MimeType, "42")
+		}
+	})
+
+	t.Run("formats with null uri", func(t *testing.T) {
+		data := `{"name":"Test","formats":[{"uri":null,"mimeType":"image/png"}]}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		if len(m.Formats) != 1 {
+			t.Fatalf("expected 1 format, got %d", len(m.Formats))
+		}
+		if m.Formats[0].URI != "" {
+			t.Errorf("Format URI = %q, want empty", m.Formats[0].URI)
+		}
+	})
+
+	t.Run("formats as string instead of array", func(t *testing.T) {
+		data := `{"name":"Test","formats":"not an array"}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		if len(m.Formats) != 0 {
+			t.Errorf("expected 0 formats for non-array, got %d", len(m.Formats))
+		}
+	})
+
+	t.Run("formats with malformed entry mixed with good ones", func(t *testing.T) {
+		data := `{"name":"Test","formats":["not an object",{"uri":"ipfs://Qm3","mimeType":"video/mp4"}]}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		if len(m.Formats) != 1 {
+			t.Fatalf("expected 1 valid format (bad entry skipped), got %d", len(m.Formats))
+		}
+		if m.Formats[0].URI != "ipfs://Qm3" {
+			t.Errorf("Format URI = %q, want %q", m.Formats[0].URI, "ipfs://Qm3")
+		}
+	})
+
+	t.Run("artifactUri as array", func(t *testing.T) {
+		data := `{"name":"Test","artifactUri":["ipfs://Qm1","ipfs://Qm2"]}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		if m.ArtifactURI != "ipfs://Qm1\nipfs://Qm2" {
+			t.Errorf("ArtifactURI = %q, want %q", m.ArtifactURI, "ipfs://Qm1\nipfs://Qm2")
+		}
+	})
+
+	t.Run("all URI fields as integers", func(t *testing.T) {
+		data := `{"name":"Test","artifactUri":1,"displayUri":2,"thumbnailUri":3}`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal failed: %v", err)
+		}
+		if m.ArtifactURI != "1" {
+			t.Errorf("ArtifactURI = %q, want %q", m.ArtifactURI, "1")
+		}
+	})
+
+	t.Run("metadata is a string not an object", func(t *testing.T) {
+		data := `"just a string"`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal should not error for non-object metadata: %v", err)
+		}
+		if m.RawJSON == nil {
+			t.Error("RawJSON should be populated even for non-object metadata")
+		}
+	})
+
+	t.Run("metadata is an array not an object", func(t *testing.T) {
+		data := `["ipfs://Qm1","ipfs://Qm2"]`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal should not error for array metadata: %v", err)
+		}
+		if m.RawJSON == nil {
+			t.Error("RawJSON should be populated even for array metadata")
+		}
+	})
+
+	t.Run("metadata is a number", func(t *testing.T) {
+		data := `42`
+		var m TokenMetadata
+		if err := json.Unmarshal([]byte(data), &m); err != nil {
+			t.Fatalf("unmarshal should not error for numeric metadata: %v", err)
+		}
+	})
 }
 
 // FuzzTokenMetadataUnmarshalJSON feeds arbitrary bytes into TokenMetadata
@@ -994,6 +1117,15 @@ func FuzzTokenMetadataUnmarshalJSON(f *testing.F) {
 		`{"name":"","description":"","artifactUri":"ipfs://QmTest","formats":[{"uri":"ipfs://Qm","mimeType":"image/png"}]}`,
 		`{"name":"x","creators":"solo","decimals":0}`,
 		`{"name":"x","creators":["tz1a","tz1b"],"decimals":"0"}`,
+		`{"formats":[{"uri":"ipfs://Qm","mimeType":["image/png","image/jpeg"]}]}`,
+		`{"formats":"not an array"}`,
+		`{"formats":["not an object",{"uri":"ok","mimeType":"ok"}]}`,
+		`{"formats":[{"uri":null,"mimeType":null}]}`,
+		`{"artifactUri":["ipfs://Qm1"],"displayUri":42,"thumbnailUri":true}`,
+		`{"formats":[{"uri":123,"mimeType":{}}]}`,
+		`"metadata as a string"`,
+		`["metadata","as","array"]`,
+		`42`,
 	}
 	for _, s := range seeds {
 		f.Add([]byte(s))

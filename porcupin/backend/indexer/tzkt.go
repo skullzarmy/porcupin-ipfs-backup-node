@@ -68,33 +68,60 @@ type TokenMetadata struct {
 	RawJSON json.RawMessage `json:"-"`
 }
 
-// UnmarshalJSON implements json.Unmarshaler. It performs standard field
-// decoding AND stores the complete raw JSON bytes so callers can scan
-// for IPFS URIs in non-standard fields.
+// UnmarshalJSON implements json.Unmarshaler with fault-tolerant decoding.
 //
-// Some on-chain metadata stores fields like "name" and "description" as
-// arrays instead of strings. The auxiliary struct below accepts those
-// fields as json.RawMessage and coerces them to strings so the rest of
-// the codebase can treat them as plain strings.
+// Tezos on-chain metadata has no enforced schema — any field can arrive as
+// any JSON type (string, array, object, number, null). A single unexpected
+// type must never fail the entire wallet sync. This decoder unmarshals
+// into a raw map and extracts each field permissively: string fields are
+// coerced via rawJSONToString, the formats array is decoded best-effort
+// (malformed entries are skipped with a warning), and the complete raw
+// JSON is preserved for IPFS URI scanning.
 func (m *TokenMetadata) UnmarshalJSON(data []byte) error {
-	// Use an alias type to prevent infinite recursion — the alias has
-	// the same fields but no methods, so json uses default struct decoding.
-	type Alias TokenMetadata
-	aux := &struct {
-		Name        json.RawMessage `json:"name"`
-		Description json.RawMessage `json:"description"`
-		*Alias
-	}{
-		Alias: (*Alias)(m),
-	}
-	if err := json.Unmarshal(data, aux); err != nil {
-		return err
-	}
-	m.Name = rawJSONToString(aux.Name)
-	m.Description = rawJSONToString(aux.Description)
-
-	// Store a copy of the complete raw JSON.
+	// Store a copy of the complete raw JSON for URI scanning.
 	m.RawJSON = append(json.RawMessage{}, data...)
+
+	// Decode into a raw map so no single field can blow up the parse.
+	// If metadata itself is not a JSON object (string, array, number, etc.)
+	// we keep RawJSON for URI scanning but extract nothing — never fail.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		slog.Warn("metadata is not a JSON object, skipping field extraction", "raw", string(data))
+		return nil
+	}
+
+	m.Name = rawJSONToString(raw["name"])
+	m.Description = rawJSONToString(raw["description"])
+	m.ArtifactURI = rawJSONToString(raw["artifactUri"])
+	m.DisplayURI = rawJSONToString(raw["displayUri"])
+	m.ThumbnailURI = rawJSONToString(raw["thumbnailUri"])
+
+	if v, ok := raw["creators"]; ok {
+		m.Creators = v
+	}
+	if v, ok := raw["decimals"]; ok {
+		m.Decimals = v
+	}
+
+	// Decode formats array permissively — skip any entry that fails.
+	if rawFormats, ok := raw["formats"]; ok {
+		var rawArr []json.RawMessage
+		if json.Unmarshal(rawFormats, &rawArr) == nil {
+			for _, entry := range rawArr {
+				var rawF map[string]json.RawMessage
+				if json.Unmarshal(entry, &rawF) != nil {
+					slog.Warn("skipping malformed format entry in metadata", "raw", string(entry))
+					continue
+				}
+				m.Formats = append(m.Formats, Format{
+					URI:      rawJSONToString(rawF["uri"]),
+					MimeType: rawJSONToString(rawF["mimeType"]),
+				})
+			}
+		} else {
+			slog.Warn("formats field is not an array, skipping", "raw", string(rawFormats))
+		}
+	}
 
 	return nil
 }
