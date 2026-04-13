@@ -49,7 +49,7 @@ export function ConfirmModal({
                 }}
                 role="document"
             >
-                <h3 className="modal-title">{title}</h3>
+                <h3 id="modal-title" className="modal-title">{title}</h3>
                 {message && <p className="modal-message">{message}</p>}
                 {children}
                 <div className="modal-actions">

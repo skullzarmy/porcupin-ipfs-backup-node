@@ -114,7 +114,7 @@ func (n *Node) Start(ctx context.Context) error {
 		if strings.Contains(err.Error(), "lock") {
 			slog.Warn("IPFS repo locked, checking if lock is stale", "path", filepath.Join(n.repoPath, "repo.lock"))
 
-			if isLockStale(n.repoPath) {
+			if removeStaleLock(n.repoPath) {
 				slog.Info("Lock was stale (no active holder), retrying open")
 				repo, err = fsrepo.Open(n.repoPath)
 				if err != nil {
@@ -252,11 +252,12 @@ func (n *Node) Stop() error {
 	return closeErr
 }
 
-// isLockStale checks whether the IPFS repo lock file is stale (not held by a
-// running process). It uses go-fs-lock — the same locking library Kubo uses
-// internally — to probe the lock without acquiring it. This is cross-platform
-// (fcntl on POSIX, LockFileEx on Windows).
-func isLockStale(repoPath string) bool {
+// removeStaleLock checks whether the IPFS repo lock file is stale (not held by
+// a running process) and removes it if so. It uses go-fs-lock — the same
+// locking library Kubo uses internally — to probe the lock without acquiring
+// it. This is cross-platform (fcntl on POSIX, LockFileEx on Windows).
+// Returns true if a stale lock was found and removed.
+func removeStaleLock(repoPath string) bool {
 	locked, err := fslock.Locked(repoPath, "repo.lock")
 	if err != nil {
 		slog.Warn("Failed to check repo lock status", "error", err)
