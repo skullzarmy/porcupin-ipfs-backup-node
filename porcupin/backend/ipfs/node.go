@@ -106,20 +106,21 @@ func (n *Node) Start(ctx context.Context) error {
 
 	// Open repo. If the lock file is stale (owning process no longer running),
 	// remove it automatically so the user doesn't have to reboot or manually
-	// delete files. This is safe because Porcupin runs a single embedded IPFS
-	// node — there is no legitimate concurrent process that could hold the lock.
+	// delete files. We verify staleness by temporarily moving the lock aside
+	// and attempting to open the repo — if it succeeds, the lock was stale.
 	repo, err := fsrepo.Open(n.repoPath)
 	if err != nil {
 		if strings.Contains(err.Error(), "lock") {
-			lockFile := filepath.Join(n.repoPath, "repo.lock")
-			slog.Warn("IPFS repo locked, attempting stale lock recovery", "path", lockFile)
-			if removeErr := os.Remove(lockFile); removeErr != nil {
-				return fmt.Errorf("IPFS repository is locked and lock file could not be removed: %w (remove error: %v)", err, removeErr)
-			}
-			slog.Info("Removed stale IPFS repo lock file, retrying open")
-			repo, err = fsrepo.Open(n.repoPath)
-			if err != nil {
-				return fmt.Errorf("failed to open repo after removing stale lock: %w", err)
+			slog.Warn("IPFS repo locked, checking if lock is stale", "path", filepath.Join(n.repoPath, "repo.lock"))
+
+			if isLockStale(n.repoPath) {
+				slog.Info("Lock was stale (no active holder), retrying open")
+				repo, err = fsrepo.Open(n.repoPath)
+				if err != nil {
+					return fmt.Errorf("failed to open repo after stale lock recovery: %w", err)
+				}
+			} else {
+				return fmt.Errorf("IPFS repository is locked by another process: %w", err)
 			}
 		} else {
 			return fmt.Errorf("failed to open repo: %w", err)
@@ -232,23 +233,50 @@ func (n *Node) Stop() error {
 	n.node = nil
 	n.api = nil
 
-	// Always remove the repo lock file after shutdown. Porcupin runs a single
-	// embedded IPFS node — there is no concurrent process that could legitimately
-	// hold this lock. On some Linux systems, Kubo does not fully release the
-	// lock file on clean close, preventing the app from restarting.
-	lockFile := filepath.Join(repoPath, "repo.lock")
-	if _, err := os.Stat(lockFile); err == nil {
-		if timedOut {
-			slog.Warn("Removing stale repo lock file after timeout", "path", lockFile)
-		} else {
+	// Remove the repo lock file after clean shutdown. On some Linux systems,
+	// Kubo does not fully release the lock file on close, preventing restart.
+	// Skip removal if shutdown timed out — the node may still be using the repo.
+	if !timedOut {
+		lockFile := filepath.Join(repoPath, "repo.lock")
+		if _, err := os.Stat(lockFile); err == nil {
 			slog.Debug("Cleaning up repo lock file after shutdown", "path", lockFile)
+			if err := os.Remove(lockFile); err != nil {
+				slog.Warn("Failed to remove lock file", "path", lockFile, "error", err)
+			}
 		}
-		if err := os.Remove(lockFile); err != nil {
-			slog.Warn("Failed to remove lock file", "path", lockFile, "error", err)
-		}
+	} else {
+		slog.Warn("Skipping lock file cleanup — shutdown timed out, repo may still be in use")
 	}
 
 	return closeErr
+}
+
+// isLockStale checks whether the IPFS repo lock file is stale (not held by a
+// running process). It temporarily renames the lock file and attempts to open
+// the repo. If the open succeeds, the lock was stale. The repo is immediately
+// closed and the renamed file removed. If the open still fails, the original
+// lock file is restored.
+func isLockStale(repoPath string) bool {
+	lockFile := filepath.Join(repoPath, "repo.lock")
+	backupFile := lockFile + ".bak"
+
+	if err := os.Rename(lockFile, backupFile); err != nil {
+		return false
+	}
+
+	repo, err := fsrepo.Open(repoPath)
+	if err != nil {
+		// Lock is actively held — restore original
+		if restoreErr := os.Rename(backupFile, lockFile); restoreErr != nil {
+			slog.Warn("Failed to restore lock file backup", "error", restoreErr)
+		}
+		return false
+	}
+
+	// Lock was stale — close the repo (we'll re-open it in Start)
+	repo.Close()
+	os.Remove(backupFile)
+	return true
 }
 
 // isPortConflictError returns true if the error indicates the swarm port is already bound.

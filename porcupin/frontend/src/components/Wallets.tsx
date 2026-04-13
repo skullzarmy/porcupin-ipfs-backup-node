@@ -309,7 +309,10 @@ export function Wallets({ wallets, loading, setLoading, setError, onWalletsChang
                 {deleting && deleteProgress ? (
                     <div className="delete-progress">
                         <p className="modal-message">
-                            Unpinning content... {deleteProgress.current}/{deleteProgress.total}
+                            {deleteProgress.phase === "unpinning" && "Unpinning content..."}
+                            {deleteProgress.phase === "clearing_db" && "Clearing database records..."}
+                            {deleteProgress.phase !== "unpinning" && deleteProgress.phase !== "clearing_db" && "Processing..."}
+                            {deleteProgress.total > 0 && ` ${deleteProgress.current}/${deleteProgress.total}`}
                         </p>
                         {deleteProgress.total > 0 && (
                             <div className="progress-bar">

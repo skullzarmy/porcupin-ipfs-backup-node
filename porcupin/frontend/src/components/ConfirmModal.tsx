@@ -29,15 +29,10 @@ export function ConfirmModal({
 }: ConfirmModalProps) {
     if (!isOpen) return null;
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Escape" && !disableCancel) onCancel();
-    };
-
     return (
         <div
             className="modal-overlay"
             onClick={disableCancel ? undefined : onCancel}
-            onKeyDown={handleKeyDown}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
@@ -46,7 +41,12 @@ export function ConfirmModal({
             <div
                 className="modal-content"
                 onClick={(e) => e.stopPropagation()}
-                onKeyDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                    if (e.key === "Escape" && !disableCancel) {
+                        onCancel();
+                    }
+                    e.stopPropagation();
+                }}
                 role="document"
             >
                 <h3 className="modal-title">{title}</h3>
