@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	fslock "github.com/ipfs/go-fs-lock"
 	"github.com/ipfs/kubo/config"
 	"github.com/ipfs/kubo/core"
 	"github.com/ipfs/kubo/core/coreapi"
@@ -106,8 +107,8 @@ func (n *Node) Start(ctx context.Context) error {
 
 	// Open repo. If the lock file is stale (owning process no longer running),
 	// remove it automatically so the user doesn't have to reboot or manually
-	// delete files. We verify staleness by temporarily moving the lock aside
-	// and attempting to open the repo — if it succeeds, the lock was stale.
+	// delete files. We verify staleness using go-fs-lock (the same library
+	// Kubo uses) to attempt a non-blocking lock acquisition.
 	repo, err := fsrepo.Open(n.repoPath)
 	if err != nil {
 		if strings.Contains(err.Error(), "lock") {
@@ -252,30 +253,23 @@ func (n *Node) Stop() error {
 }
 
 // isLockStale checks whether the IPFS repo lock file is stale (not held by a
-// running process). It temporarily renames the lock file and attempts to open
-// the repo. If the open succeeds, the lock was stale. The repo is immediately
-// closed and the renamed file removed. If the open still fails, the original
-// lock file is restored.
+// running process). It uses go-fs-lock — the same locking library Kubo uses
+// internally — to probe the lock without acquiring it. This is cross-platform
+// (fcntl on POSIX, LockFileEx on Windows).
 func isLockStale(repoPath string) bool {
-	lockFile := filepath.Join(repoPath, "repo.lock")
-	backupFile := lockFile + ".bak"
-
-	if err := os.Rename(lockFile, backupFile); err != nil {
-		return false
-	}
-
-	repo, err := fsrepo.Open(repoPath)
+	locked, err := fslock.Locked(repoPath, "repo.lock")
 	if err != nil {
-		// Lock is actively held — restore original
-		if restoreErr := os.Rename(backupFile, lockFile); restoreErr != nil {
-			slog.Warn("Failed to restore lock file backup", "error", restoreErr)
-		}
+		slog.Warn("Failed to check repo lock status", "error", err)
 		return false
 	}
-
-	// Lock was stale — close the repo (we'll re-open it in Start)
-	repo.Close()
-	os.Remove(backupFile)
+	if locked {
+		return false // actively held by another process
+	}
+	// Lock file exists but no process holds it — stale
+	lockFile := filepath.Join(repoPath, "repo.lock")
+	if err := os.Remove(lockFile); err != nil && !os.IsNotExist(err) {
+		slog.Warn("Failed to remove stale repo lock file", "path", lockFile, "error", err)
+	}
 	return true
 }
 

@@ -103,7 +103,7 @@ func (m *TokenMetadata) UnmarshalJSON(data []byte) error {
 // strings, or another scalar type into a plain Go string. Returns "" for
 // null or empty input.
 func rawJSONToString(raw json.RawMessage) string {
-	if len(raw) == 0 {
+	if len(raw) == 0 || strings.TrimSpace(string(raw)) == "null" {
 		return ""
 	}
 	// Fast path: JSON string
