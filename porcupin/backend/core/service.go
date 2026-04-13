@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -75,6 +76,8 @@ type BackupService struct {
 	// Wails context for event emission (set after wails.Run starts)
 	wailsCtx       context.Context
 	lastIPFSOnline bool
+
+	clearing atomic.Bool // guards against concurrent ClearAllData calls
 }
 
 // NewBackupService creates a new backup service
@@ -776,6 +779,11 @@ func (s *BackupService) GetStorageManager() *storage.Manager {
 
 // ClearAllData performs a full device reset: unpins everything, GCs, and clears DB
 func (s *BackupService) ClearAllData(progress func(string, string, int, int)) error {
+	if !s.clearing.CompareAndSwap(false, true) {
+		return fmt.Errorf("clear operation already in progress")
+	}
+	defer s.clearing.Store(false)
+
 	s.mu.RLock()
 	ipfsNode := s.ipfs
 	s.mu.RUnlock()
@@ -825,7 +833,7 @@ func (s *BackupService) ClearAllData(progress func(string, string, int, int)) er
 }
 
 // DeleteWalletFull deletes a wallet and all its assets/NFTs from DB and unpins content
-func (s *BackupService) DeleteWalletFull(address string) error {
+func (s *BackupService) DeleteWalletFull(address string, progress func(phase string, total, current int)) error {
 	// Get all assets for this wallet
 	assets, err := s.db.GetAssetsByWallet(address)
 	if err != nil {
@@ -836,7 +844,20 @@ func (s *BackupService) DeleteWalletFull(address string) error {
 	ipfsNode := s.ipfs
 	s.mu.RUnlock()
 
+	// Count unpinnable assets for progress reporting
+	total := 0
+	for _, asset := range assets {
+		if ExtractCIDFromURI(asset.URI) != "" {
+			total++
+		}
+	}
+
+	if progress != nil {
+		progress("unpinning", total, 0)
+	}
+
 	// Unpin each asset — log errors but continue so DB cleanup always happens.
+	unpinned := 0
 	for _, asset := range assets {
 		cid := ExtractCIDFromURI(asset.URI)
 		if cid == "" {
@@ -845,9 +866,16 @@ func (s *BackupService) DeleteWalletFull(address string) error {
 		if err := ipfsNode.Unpin(s.ctx, cid); err != nil {
 			slog.Warn("failed to unpin asset", "cid", cid, "error", err)
 		}
+		unpinned++
+		if progress != nil {
+			progress("unpinning", total, unpinned)
+		}
 	}
 
 	// Delete from database
+	if progress != nil {
+		progress("clearing_db", 0, 0)
+	}
 	if err := s.db.DeleteAssetsByWallet(address); err != nil {
 		return fmt.Errorf("failed to delete assets: %w", err)
 	}

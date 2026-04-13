@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 
 	"porcupin/backend/core"
 	"porcupin/backend/db"
+
+	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // tezosAddressPattern validates Tezos wallet addresses (tz1, tz2, tz3, KT1)
@@ -79,7 +82,36 @@ func (a *App) DeleteWallet(address string, deleteData bool) error {
 
 // DeleteWalletWithUnpin removes a wallet and unpins all its assets from IPFS
 func (a *App) DeleteWalletWithUnpin(address string) error {
-	return a.backupService.DeleteWalletFull(address)
+	slog.Info("Deleting wallet with unpin", "address", address)
+
+	wailsRuntime.EventsEmit(a.ctx, "wallet:delete:start", map[string]string{
+		"address": address,
+	})
+
+	err := a.backupService.DeleteWalletFull(address, func(phase string, total, current int) {
+		wailsRuntime.EventsEmit(a.ctx, "wallet:delete:progress", map[string]interface{}{
+			"address": address,
+			"phase":   phase,
+			"total":   total,
+			"current": current,
+		})
+	})
+
+	if err != nil {
+		wailsRuntime.EventsEmit(a.ctx, "wallet:delete:progress", map[string]interface{}{
+			"address": address,
+			"phase":   "error",
+			"error":   err.Error(),
+		})
+		return err
+	}
+
+	wailsRuntime.EventsEmit(a.ctx, "wallet:delete:progress", map[string]interface{}{
+		"address": address,
+		"phase":   "complete",
+	})
+
+	return nil
 }
 
 // SyncWallet synchronizes NFTs for a given wallet (manual trigger)
