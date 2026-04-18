@@ -14,20 +14,6 @@ Porcupin automatically monitors your Tezos wallets and backs up all NFT content 
 
 ---
 
-## 🗳️ Support This Project
-
-**Porcupin is seeking funding through the Tezos Ecosystem DAO!**
-
-Help us build and maintain this open-source tool for the Tezos community. Vote on our proposal until **December 10th, 2025**:
-
-👉 **[Vote on Tezos Homebase](https://tezos-homebase.io/explorer/lite/dao/64ef1c7d514de7b078cb8ed2/community/proposal/69305001ec807965f1487f61)**
-
-_Connect any Tezos wallet to vote. Your Tez is your vote!_
-
-**💜 We also accept Tezos donations:** `tz1U4wbRsojw1uWcNUpVMK2uihuhhXFYNVg3`
-
----
-
 ## 📖 Documentation
 
 | I want to...                    | Go here                                               |
