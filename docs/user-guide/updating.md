@@ -36,7 +36,7 @@ porcupin --update
 
 ```text
 Checking for updates...
-Porcupin is up to date (version 1.0.0)
+Porcupin is up to date (version 1.0.1)
 ```
 
 **Expected Output (Update Available):**
