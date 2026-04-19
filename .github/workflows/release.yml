@@ -55,8 +55,8 @@ jobs:
                     - os: macos-latest
                       platform: darwin/universal
                       artifact: porcupin-macos
-                      output: porcupin.app
-                      package_cmd: zip -r porcupin-macos.zip porcupin.app
+                      output: Porcupin.app
+                      package_cmd: zip -r porcupin-macos.zip Porcupin.app
                       package_file: porcupin-macos.zip
                       build_tags: ""
 

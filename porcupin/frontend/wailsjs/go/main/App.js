@@ -222,10 +222,10 @@ export function ValidateStoragePath(arg1) {
   return window['go']['main']['App']['ValidateStoragePath'](arg1);
 }
 
-export function VerifyPinHealth() {
-  return window['go']['main']['App']['VerifyPinHealth']();
-}
-
 export function VerifyAsset(arg1) {
   return window['go']['main']['App']['VerifyAsset'](arg1);
+}
+
+export function VerifyPinHealth() {
+  return window['go']['main']['App']['VerifyPinHealth']();
 }

@@ -120,6 +120,6 @@ export function UpdateWalletSettings(arg1:string,arg2:boolean,arg3:boolean):Prom
 
 export function ValidateStoragePath(arg1:string):Promise<void>;
 
-export function VerifyPinHealth():Promise<Record<string, number>>;
-
 export function VerifyAsset(arg1:number):Promise<ipfs.VerifyResult>;
+
+export function VerifyPinHealth():Promise<Record<string, number>>;

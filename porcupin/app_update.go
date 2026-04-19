@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"porcupin/backend/updater"
@@ -98,6 +99,19 @@ func (a *App) RestartApp() error {
 	}
 
 	cmd := exec.Command(executable, args...)
+	if runtime.GOOS == "darwin" {
+		// Spawn a shell that waits for this process to exit, then opens the
+		// .app bundle via Launch Services. Running `open -a` while the current
+		// instance is still alive causes macOS to ignore the request.
+		if bundle := updater.FindAppBundle(executable); bundle != "" {
+			pid := os.Getpid()
+			script := fmt.Sprintf(
+				"while kill -0 %d 2>/dev/null; do sleep 0.2; done; open -a %q",
+				pid, bundle,
+			)
+			cmd = exec.Command("sh", "-c", script)
+		}
+	}
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	cmd.Stdin = nil
