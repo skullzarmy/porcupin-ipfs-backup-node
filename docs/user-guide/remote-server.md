@@ -286,7 +286,7 @@ The `/api/v1/health` endpoint returns IPFS connectivity information:
 ```json
 {
   "status": "ok",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "timestamp": "2026-03-18T12:00:00Z",
   "is_online": true,
   "peer_count": 42
