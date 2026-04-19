@@ -78,20 +78,22 @@ func (u *RealUpdater) UpdateTo(ctx context.Context, release Release, cmdPath str
 
 // Manager handles the update process
 type Manager struct {
-	updater      Updater
-	currentVer   string
+	updater       Updater
+	currentVer    string
 	latestRelease Release
+	// serverAsset is the explicit release asset name for headless server builds.
+	// When set, InstallLatest bypasses go-selfupdate entirely and downloads
+	// this asset by name via the GitHub Releases API.
+	serverAsset string
 }
 
-// NewManager creates a new update manager
+// NewManager creates an update manager for the desktop application.
 func NewManager(currentVersion string) (*Manager, error) {
-	// Configure updater
 	up, err := selfupdate.NewUpdater(selfupdate.Config{
 		Validator: &selfupdate.ChecksumValidator{
 			UniqueFilename: "checksums.txt",
 		},
 	})
-	
 	if err != nil {
 		return nil, fmt.Errorf("failed to create updater: %w", err)
 	}
@@ -99,6 +101,28 @@ func NewManager(currentVersion string) (*Manager, error) {
 	return &Manager{
 		updater:    &RealUpdater{up},
 		currentVer: currentVersion,
+	}, nil
+}
+
+// NewServerManager creates an update manager for the headless server.
+// It resolves the correct release asset name (porcupin-server-{os}-{arch})
+// so InstallLatest downloads the server binary, not the desktop app.
+func NewServerManager(currentVersion string) (*Manager, error) {
+	asset := fmt.Sprintf("porcupin-server-%s-%s", runtime.GOOS, runtime.GOARCH)
+
+	up, err := selfupdate.NewUpdater(selfupdate.Config{
+		Validator: &selfupdate.ChecksumValidator{
+			UniqueFilename: "checksums.txt",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create updater: %w", err)
+	}
+
+	return &Manager{
+		updater:     &RealUpdater{up},
+		currentVer:  currentVersion,
+		serverAsset: asset,
 	}, nil
 }
 
@@ -147,8 +171,9 @@ func (m *Manager) CheckForUpdates(ctx context.Context) (*UpdateInfo, error) {
 }
 
 // InstallLatest downloads and applies the cached latest update.
-// On macOS, replaces the entire .app bundle to preserve code signature integrity.
-// On other platforms, replaces just the binary via go-selfupdate.
+// Headless server builds use explicit asset lookup via the GitHub API.
+// Desktop macOS replaces the entire .app bundle to preserve code signatures.
+// Desktop Windows/Linux use go-selfupdate for binary replacement.
 func (m *Manager) InstallLatest(ctx context.Context) error {
 	if m.updater == nil {
 		return fmt.Errorf("updater not initialized")
@@ -168,15 +193,19 @@ func (m *Manager) InstallLatest(ctx context.Context) error {
 
 	slog.Info("Installing update", "version", m.latestRelease.Version(), "path", exePath)
 
-	// On macOS, replacing just the inner binary breaks the .app bundle's
-	// code signature. Download and swap the entire bundle instead.
+	// Headless server: download the explicit asset by name
+	if m.serverAsset != "" {
+		return m.installServerBinary(ctx, exePath)
+	}
+
+	// Desktop macOS: replace the entire .app bundle
 	if runtime.GOOS == "darwin" {
 		if bundle := FindAppBundle(exePath); bundle != "" {
 			return m.installMacOSBundle(ctx, bundle)
 		}
 	}
 
-	// Windows/Linux: binary replacement via go-selfupdate
+	// Desktop Windows/Linux: binary replacement via go-selfupdate
 	if err := m.updater.UpdateTo(ctx, m.latestRelease, exePath); err != nil {
 		return fmt.Errorf("failed to update binary: %w", err)
 	}
@@ -291,6 +320,71 @@ func (m *Manager) installMacOSBundle(ctx context.Context, bundlePath string) err
 	}
 
 	slog.Info("macOS bundle update installed successfully", "path", bundlePath)
+	return nil
+}
+
+// installServerBinary downloads the headless server binary by explicit asset
+// name, verifies its SHA256 checksum, and atomically replaces the current binary.
+func (m *Manager) installServerBinary(ctx context.Context, exePath string) error {
+	version := m.latestRelease.Version()
+	const checksumAsset = "checksums.txt"
+
+	slog.Info("Downloading server binary update",
+		"version", version,
+		"asset", m.serverAsset)
+
+	assets, err := findReleaseAssetURLs(ctx, version, m.serverAsset, checksumAsset)
+	if err != nil {
+		return fmt.Errorf("find release assets: %w", err)
+	}
+	assetURL := assets[m.serverAsset]
+	checksumURL := assets[checksumAsset]
+
+	// Fetch expected checksum
+	expectedHash, err := fetchExpectedChecksum(ctx, checksumURL, m.serverAsset)
+	if err != nil {
+		return fmt.Errorf("fetch checksum: %w", err)
+	}
+
+	// Download to temp file in the same directory for atomic rename
+	tmpFile, err := os.CreateTemp(filepath.Dir(exePath), ".porcupin-update-*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	defer os.Remove(tmpPath)
+
+	if err := downloadFile(ctx, assetURL, tmpFile); err != nil {
+		tmpFile.Close()
+		return fmt.Errorf("download asset: %w", err)
+	}
+	tmpFile.Close()
+
+	// Verify SHA256 checksum
+	actualHash, err := sha256File(tmpPath)
+	if err != nil {
+		return fmt.Errorf("calculate checksum: %w", err)
+	}
+	if actualHash != expectedHash {
+		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, actualHash)
+	}
+	slog.Info("Checksum verified", "sha256", actualHash)
+
+	// Preserve original file permissions
+	info, err := os.Stat(exePath)
+	if err != nil {
+		return fmt.Errorf("stat current binary: %w", err)
+	}
+	if err := os.Chmod(tmpPath, info.Mode()); err != nil {
+		return fmt.Errorf("set permissions: %w", err)
+	}
+
+	// Atomic swap: rename temp → target
+	if err := os.Rename(tmpPath, exePath); err != nil {
+		return fmt.Errorf("replace binary: %w", err)
+	}
+
+	slog.Info("Update verified and installed successfully")
 	return nil
 }
 

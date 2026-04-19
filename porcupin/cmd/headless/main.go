@@ -77,7 +77,7 @@ func main() {
 	}
 
 	if *updateCheck {
-		updateMgr, err := updater.NewManager(version.Version)
+		updateMgr, err := updater.NewServerManager(version.Version)
 		if err != nil {
 			slog.Error("Failed to initialize updater", "error", err)
 			os.Exit(1)
