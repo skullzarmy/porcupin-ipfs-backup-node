@@ -234,15 +234,17 @@ func (n *Node) Stop() error {
 	n.node = nil
 	n.api = nil
 
-	// Remove the repo lock file after clean shutdown. On some Linux systems,
-	// Kubo does not fully release the lock file on close, preventing restart.
+	// Remove lock files after clean shutdown. On some systems, Kubo/LevelDB do
+	// not fully release these on close, preventing restart.
 	// Skip removal if shutdown timed out — the node may still be using the repo.
 	if !timedOut {
-		lockFile := filepath.Join(repoPath, "repo.lock")
-		if _, err := os.Stat(lockFile); err == nil {
-			slog.Debug("Cleaning up repo lock file after shutdown", "path", lockFile)
-			if err := os.Remove(lockFile); err != nil {
-				slog.Warn("Failed to remove lock file", "path", lockFile, "error", err)
+		for _, rel := range []string{"repo.lock", filepath.Join("datastore", "LOCK")} {
+			lf := filepath.Join(repoPath, rel)
+			if _, err := os.Stat(lf); err == nil {
+				slog.Debug("Cleaning up lock file after shutdown", "path", lf)
+				if err := os.Remove(lf); err != nil {
+					slog.Warn("Failed to remove lock file", "path", lf, "error", err)
+				}
 			}
 		}
 	} else {

@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"time"
 
 	"porcupin/backend/updater"
@@ -48,16 +50,17 @@ func (a *App) InstallUpdate() error {
 	return nil
 }
 
-// RestartApp restarts the application
+// RestartApp restarts the application after an update.
+// Shuts down the IPFS node and backup service first to release lock files,
+// then spawns the new binary and exits.
 func (a *App) RestartApp() error {
 	wailsRuntime.EventsEmit(a.ctx, "app:restarting", true)
-	
+
 	executable, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
 
-	// Clean up arguments: remove existing --update flag if present to prevent loops
 	var args []string
 	for _, arg := range os.Args[1:] {
 		if arg != "--update" {
@@ -65,49 +68,47 @@ func (a *App) RestartApp() error {
 		}
 	}
 
+	// Capture repo path before we nil the node reference.
+	var repoPath string
+	if a.ipfsNode != nil {
+		repoPath = a.ipfsNode.GetRepoPath()
+	}
+
+	// Gracefully shut down services so lock files are released.
+	if a.backupService != nil {
+		a.backupService.Stop()
+	}
+	if a.ipfsNode != nil {
+		if stopErr := a.ipfsNode.Stop(); stopErr != nil {
+			slog.Error("Error stopping IPFS node before restart", "error", stopErr)
+		}
+		a.ipfsNode = nil
+	}
+
+	// Force-remove both lock files. In a restart we are the only legitimate
+	// instance — the new process must be able to acquire these locks even if
+	// Stop() timed out or failed to clean them up.
+	if repoPath != "" {
+		for _, rel := range []string{"repo.lock", filepath.Join("datastore", "LOCK")} {
+			lf := filepath.Join(repoPath, rel)
+			if err := os.Remove(lf); err != nil && !os.IsNotExist(err) {
+				slog.Warn("Failed to remove lock file before restart", "path", lf, "error", err)
+			}
+		}
+	}
+
 	cmd := exec.Command(executable, args...)
-	
-	// Detach process IO
-	// For GUI apps, sharing Stdout/Stdin can cause issues or hang the parent/child
-	// We explicitly leave them nil to ensure independence
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	cmd.Stdin = nil
-	
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to restart: %w", err)
 	}
 
-	// Verify the new process is running
-	// We give it a moment to initialize or fail fast
 	go func() {
-		// Wait short period to check for immediate crash
 		time.Sleep(500 * time.Millisecond)
-		
-		// If process is still running (or finished successfully?), we exit
-		// signal usually 0 for checking existence on unix, but Go os.Process doesn't expose easy check without Wait
-		// simpler: if Start succeeded, we assume good intent. 
-		// The PR review suggests we should be careful about force-exit.
-		
-		// Let's just trust Start() for now but log it? 
-		// Actually, standard practice is to detach and exit. 
-		// If Start() returns nil, the OS has created the process.
-		// The risk is if the new app crashes immediately, the user sees nothing.
-		// There isn't a perfect way to do this without keeping the parent alive as a monitor, 
-		// which defeats the purpose of "Restart".
-		
-		// Reviewer asked: "Consider checking if the spawned process is running before exiting."
-		// We can try to FindProcess?
-		process, err := os.FindProcess(cmd.Process.Pid)
-		if err == nil {
-			// It exists.
-			_ = process
-		}
-		
-		// Exit the current process
 		wailsRuntime.Quit(a.ctx)
-		
-		// Fallback exit if Quit takes too long
 		time.AfterFunc(2*time.Second, func() { os.Exit(0) })
 	}()
 
