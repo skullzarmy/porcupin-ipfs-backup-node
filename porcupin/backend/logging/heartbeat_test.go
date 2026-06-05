@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-func TestCheckPriorCrash_NoFile(t *testing.T) {
+func TestCheckPriorCrashNoFile(t *testing.T) {
 	dir := t.TempDir()
 	got := CheckPriorCrash(dir)
 	if got.Detected {
@@ -18,7 +18,7 @@ func TestCheckPriorCrash_NoFile(t *testing.T) {
 	}
 }
 
-func TestCheckPriorCrash_DeadPID(t *testing.T) {
+func TestCheckPriorCrashDeadPID(t *testing.T) {
 	dir := t.TempDir()
 	// pid 1 (init) exists; we want a definitely-dead pid. Use a very large pid
 	// that is essentially guaranteed to be unused. On Linux pid_max defaults
@@ -38,7 +38,7 @@ func TestCheckPriorCrash_DeadPID(t *testing.T) {
 	}
 }
 
-func TestCheckPriorCrash_LivePID(t *testing.T) {
+func TestCheckPriorCrashLivePID(t *testing.T) {
 	dir := t.TempDir()
 	// Our own pid is definitely alive. A heartbeat containing it should be
 	// interpreted as "another instance running", NOT a crash.
@@ -50,7 +50,7 @@ func TestCheckPriorCrash_LivePID(t *testing.T) {
 	}
 }
 
-func TestCheckPriorCrash_Unparseable(t *testing.T) {
+func TestCheckPriorCrashUnparseable(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, heartbeatFile), []byte("garbage"), 0644); err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestCheckPriorCrash_Unparseable(t *testing.T) {
 	}
 }
 
-func TestStartHeartbeat_WritesAndRemovesFile(t *testing.T) {
+func TestStartHeartbeatWritesAndRemovesFile(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, heartbeatFile)
 
@@ -103,7 +103,38 @@ func TestStartHeartbeat_WritesAndRemovesFile(t *testing.T) {
 	}
 }
 
-func TestStartHeartbeat_StopIsIdempotent(t *testing.T) {
+func TestStartHeartbeatTickerUpdatesFile(t *testing.T) {
+	// Verify the ticker actually re-writes the file periodically — not just
+	// the initial write. Without this, a broken ticker would still pass the
+	// other tests.
+	dir := t.TempDir()
+	path := filepath.Join(dir, heartbeatFile)
+
+	prev := heartbeatInterval
+	heartbeatInterval = 20 * time.Millisecond
+	defer func() { heartbeatInterval = prev }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stop := StartHeartbeat(ctx, dir)
+	defer stop()
+
+	info1, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("initial heartbeat missing: %v", err)
+	}
+	// Wait several intervals; mtime should advance via the ticker path.
+	time.Sleep(150 * time.Millisecond)
+	info2, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("heartbeat removed unexpectedly: %v", err)
+	}
+	if !info2.ModTime().After(info1.ModTime()) {
+		t.Fatalf("ticker did not re-write heartbeat: mtime unchanged at %v", info1.ModTime())
+	}
+}
+
+func TestStartHeartbeatStopIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -115,24 +146,41 @@ func TestStartHeartbeat_StopIsIdempotent(t *testing.T) {
 	stop()
 }
 
-func TestStartHeartbeat_ContextCancelStopsGoroutine(t *testing.T) {
+func TestStartHeartbeatContextCancelExitsGoroutine(t *testing.T) {
+	// Verify that cancelling the context — without ever calling stop() —
+	// terminates the background writer goroutine. We prove this by observing
+	// that the heartbeat file stops being touched after cancellation.
 	dir := t.TempDir()
-	ctx, cancel := context.WithCancel(context.Background())
-	stop := StartHeartbeat(ctx, dir)
-	defer stop()
+	path := filepath.Join(dir, heartbeatFile)
 
+	// Use a fast interval so we don't have to wait 30s for proof.
+	prev := heartbeatInterval
+	heartbeatInterval = 20 * time.Millisecond
+	defer func() { heartbeatInterval = prev }()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = StartHeartbeat(ctx, dir)
+	// Let the writer run for a few ticks.
+	time.Sleep(80 * time.Millisecond)
 	cancel()
-	// Give the goroutine a moment to exit via ctx.Done. Stop should then
-	// return promptly because doneCh is already closed.
-	done := make(chan struct{})
-	go func() {
-		stop()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("stop() did not return after context cancellation")
+
+	// Allow any in-flight write to flush, then snapshot mtime.
+	time.Sleep(50 * time.Millisecond)
+	info1, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("heartbeat file gone before cancel observation: %v", err)
+	}
+	mtime1 := info1.ModTime()
+
+	// Wait several intervals. If the goroutine survived, mtime would advance.
+	time.Sleep(200 * time.Millisecond)
+	info2, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("heartbeat file gone after cancel: %v", err)
+	}
+	if !info2.ModTime().Equal(mtime1) {
+		t.Fatalf("heartbeat file kept being written after ctx cancellation: mtime moved %v → %v",
+			mtime1, info2.ModTime())
 	}
 }
 

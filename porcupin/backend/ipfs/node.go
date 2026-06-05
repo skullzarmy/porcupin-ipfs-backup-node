@@ -268,6 +268,11 @@ func (n *Node) Stop() error {
 // recovery paths inside the main Start flow (port retry, stale-lock removal)
 // but the recovery silently times out or returns deep-wrapped errors that
 // don't make it back to the UI. Here we surface them explicitly.
+//
+// This is best-effort and TOCTOU-prone — between the probe returning "free"
+// and Kubo actually binding, another process could grab the port. The
+// existing isPortConflictError retry loop in Start() is the authoritative
+// guard; preflight just turns the common case into a clear error.
 func (n *Node) preflightCheck() error {
 	// Repo lock: if a live process holds it, no amount of retrying will help.
 	// Try a non-blocking probe; if locked AND the holder is alive, fail fast.
@@ -300,22 +305,29 @@ func (n *Node) preflightCheck() error {
 	return nil
 }
 
-// probePort attempts to bind the swarm port briefly on both TCP and UDP to
-// confirm it is free. Kubo/libp2p binds both (TCP for classic libp2p, UDP
-// for QUIC), so checking only one would miss real conflicts and leave us
-// back at the original silent-failure scenario.
+// probePort confirms the swarm port is free on both TCP and UDP. Kubo/libp2p
+// binds both (TCP for classic libp2p, UDP for QUIC), so a one-protocol check
+// would miss real conflicts.
+//
+// Both listeners are held open until success is confirmed, then closed
+// together. The earlier two-step "open TCP, close, open UDP" form briefly
+// released TCP between the probes — a window in which another process could
+// have taken it without us noticing.
 func probePort(port int) error {
 	addr := fmt.Sprintf(":%d", port)
 	tcpL, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("tcp/%d: %w", port, err)
 	}
-	tcpL.Close()
 	udpL, err := net.ListenPacket("udp", addr)
 	if err != nil {
+		tcpL.Close()
 		return fmt.Errorf("udp/%d: %w", port, err)
 	}
-	return udpL.Close()
+	// Both bound successfully → port is fully free. Release in reverse order.
+	udpL.Close()
+	tcpL.Close()
+	return nil
 }
 
 // removeStaleLock checks whether the IPFS repo lock file is stale (not held by

@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,16 +13,24 @@ import (
 // gatedIPFSNode is a mockIPFSNode whose Pin blocks until released, while
 // tracking concurrent in-flight Pin calls. Used to verify worker-pool bounds
 // and serialization invariants of BackupManager.
+//
+// The gate channel is buffered so pre-arming N releases never blocks the
+// releaser goroutine even if not every release ends up being consumed (e.g.
+// when a test exits dispatch early). Tests must size the buffer to >= the
+// number of releases they intend to send.
 type gatedIPFSNode struct {
 	mockIPFSNode
-	gate        chan struct{} // capacity 0: Pin blocks until a value is sent or it is closed
-	inFlight    int64         // current concurrent Pin calls
-	maxInFlight int64         // observed peak concurrency
+	gate        chan struct{}
+	inFlight    int64 // current concurrent Pin calls
+	maxInFlight int64 // observed peak concurrency
 }
 
-func newGatedIPFSNode() *gatedIPFSNode {
+// newGatedIPFSNode constructs a gated mock with the given gate buffer size.
+// Pass capacity >= the planned number of release() calls to avoid the
+// releaser blocking if dispatch returns early.
+func newGatedIPFSNode(gateCapacity int) *gatedIPFSNode {
 	g := &gatedIPFSNode{
-		gate: make(chan struct{}),
+		gate: make(chan struct{}, gateCapacity),
 	}
 	g.pinned = make(map[string]bool)
 	g.sizes = make(map[string]int64)
@@ -49,10 +58,11 @@ func (g *gatedIPFSNode) Pin(ctx context.Context, cid string, timeout time.Durati
 	return nil
 }
 
-// release lets one in-flight Pin proceed.
+// release queues one credit on the gate. Non-blocking because gate is buffered.
 func (g *gatedIPFSNode) release() { g.gate <- struct{}{} }
 
-// releaseAll closes the gate so any in-flight or future Pin returns immediately.
+// releaseAll closes the gate so any in-flight or future Pin returns immediately
+// (receive on a closed channel never blocks).
 func (g *gatedIPFSNode) releaseAll() { close(g.gate) }
 
 // seedPending inserts n pending IPFS assets attached to a single NFT so
@@ -65,7 +75,7 @@ func seedPending(t *testing.T, database *db.Database, n int) {
 	}
 	for i := 0; i < n; i++ {
 		a := &db.Asset{
-			URI:    "ipfs://QmTestAsset" + itoa(i),
+			URI:    "ipfs://QmTestAsset" + strconv.Itoa(i),
 			NFTID:  nft.ID,
 			Status: db.StatusPending,
 		}
@@ -73,18 +83,6 @@ func seedPending(t *testing.T, database *db.Database, n int) {
 			t.Fatalf("SaveAsset[%d]: %v", i, err)
 		}
 	}
-}
-
-func itoa(i int) string {
-	// Avoid importing strconv for a single conversion; tests stay terse.
-	if i == 0 {
-		return "0"
-	}
-	var b []byte
-	for n := i; n > 0; n /= 10 {
-		b = append([]byte{byte('0' + n%10)}, b...)
-	}
-	return string(b)
 }
 
 // TestProcessPendingAssets_BoundsConcurrency verifies the fix for the OOM
@@ -96,7 +94,7 @@ func TestProcessPendingAssets_BoundsConcurrency(t *testing.T) {
 	cfg := testConfig()
 	cfg.Backup.MaxConcurrency = 3
 
-	gated := newGatedIPFSNode()
+	gated := newGatedIPFSNode(64)
 	bm := &BackupManager{
 		ipfs:    gated,
 		db:      database,
@@ -107,13 +105,12 @@ func TestProcessPendingAssets_BoundsConcurrency(t *testing.T) {
 	const pending = 20
 	seedPending(t, database, pending)
 
-	// Release Pin calls in the background so the dispatch loop can make
-	// progress. Each release lets exactly one Pin return.
-	go func() {
-		for i := 0; i < pending; i++ {
-			gated.release()
-		}
-	}()
+	// Pre-arm one release per pending asset. Buffered gate (sized = pending)
+	// ensures these never block, so if dispatch exits early we don't leak a
+	// goroutine waiting to send.
+	for i := 0; i < pending; i++ {
+		gated.release()
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -139,7 +136,7 @@ func TestHeavyOpMu_SerializesProcessPendingAssets(t *testing.T) {
 	cfg := testConfig()
 	cfg.Backup.MaxConcurrency = 2
 
-	gated := newGatedIPFSNode()
+	gated := newGatedIPFSNode(64)
 	gated.releaseAll() // Pin returns immediately for whoever holds the mutex
 	bm := &BackupManager{
 		ipfs:    gated,
@@ -178,7 +175,7 @@ func TestHeavyOpMu_SerializesProcessPendingAssets(t *testing.T) {
 func TestHeavyOpMu_SerializesAcrossOperations(t *testing.T) {
 	database := testDB(t)
 	cfg := testConfig()
-	gated := newGatedIPFSNode()
+	gated := newGatedIPFSNode(64)
 	gated.releaseAll() // never block on Pin
 	bm := &BackupManager{
 		ipfs:    gated,

@@ -9,14 +9,14 @@ import (
 	"testing"
 )
 
-func TestProbePort_FreePort(t *testing.T) {
+func TestProbePortFreePort(t *testing.T) {
 	port := freePort(t)
 	if err := probePort(port); err != nil {
 		t.Fatalf("probePort(%d) on a free port returned %v, want nil", port, err)
 	}
 }
 
-func TestProbePort_TCPBound(t *testing.T) {
+func TestProbePortTCPBound(t *testing.T) {
 	// Hold a TCP listener so probePort sees the port as taken.
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
@@ -34,7 +34,7 @@ func TestProbePort_TCPBound(t *testing.T) {
 	}
 }
 
-func TestProbePort_UDPBound(t *testing.T) {
+func TestProbePortUDPBound(t *testing.T) {
 	// Hold a UDP listener; TCP is free, UDP is not — probePort should still fail.
 	udp, err := net.ListenPacket("udp", ":0")
 	if err != nil {
@@ -52,7 +52,7 @@ func TestProbePort_UDPBound(t *testing.T) {
 	}
 }
 
-func TestPreflightCheck_FreshRepo(t *testing.T) {
+func TestNodePreflightCheckFreshRepo(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "ipfs-preflight-*")
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestPreflightCheck_FreshRepo(t *testing.T) {
 	}
 }
 
-func TestPreflightCheck_PortInUse(t *testing.T) {
+func TestNodePreflightCheckPortInUse(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "ipfs-preflight-*")
 	if err != nil {
 		t.Fatal(err)
@@ -89,22 +89,28 @@ func TestPreflightCheck_PortInUse(t *testing.T) {
 	}
 }
 
-func TestPreflightCheck_StaleLockTolerated(t *testing.T) {
-	// A stale lock file (no live holder) should be tolerated at preflight —
-	// the main Open() path handles removal. We just want preflight to NOT
-	// fail in this case.
+func TestNodePreflightCheckUnheldLockTolerated(t *testing.T) {
+	// preflight must NOT fail when a lock FILE exists but no process holds
+	// it (stale lock). The actual removal is delegated to the main Open()
+	// flow in Start(), via removeStaleLock(). Here we verify preflight
+	// defers — i.e. doesn't itself reject startup.
+	//
+	// Note: this only exercises the "file present but go-fs-lock reports
+	// not held" branch; that's what preflight branches on. The deeper
+	// stale-lock-recovery behavior (removeStaleLock) is exercised in
+	// Start() integration tests.
 	tmpDir, err := os.MkdirTemp("", "ipfs-preflight-*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	if err := os.WriteFile(filepath.Join(tmpDir, "repo.lock"), []byte("stale"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "repo.lock"), []byte("unheld"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
 	n := &Node{repoPath: tmpDir, swarmPort: freePort(t)}
 	if err := n.preflightCheck(); err != nil {
-		t.Fatalf("preflightCheck rejected a stale lock; should defer to Open(): %v", err)
+		t.Fatalf("preflightCheck rejected an unheld lock; should defer to Open(): %v", err)
 	}
 }

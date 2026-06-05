@@ -60,6 +60,17 @@ type BackupManager struct {
 	// VerifyAndFixPins, ProcessPendingAssets). Running them concurrently on
 	// memory-constrained machines stacks goroutines + pin contexts onto the
 	// same small worker pool and has been observed to trigger OOM kills.
+	//
+	// TRADE-OFF: a slow SyncWallet (TZKT fetches can take minutes on first
+	// sync) holds this mutex for its full duration. While held:
+	//   - VerifyAndFixPins (background integrity check) blocks until done.
+	//   - ProcessPendingAssets (retry tick every 2 min) blocks until done.
+	//   - Websocket-triggered syncs handled by service.run() block in the
+	//     dispatch loop, delaying real-time updates for OTHER wallets until
+	//     the in-flight sync completes.
+	// This is the price of OOM-safety. If real-time latency becomes a
+	// concern, restructure service.run() to handle triggers in their own
+	// goroutines rather than synchronously.
 	heavyOpMu sync.Mutex
 
 	// Pause control

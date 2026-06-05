@@ -13,6 +13,10 @@ import (
 //
 // os.FindProcess on Windows always succeeds even for dead pids, and there is
 // no equivalent of signal 0, so this is the canonical existence check.
+//
+// LIMITATION: same pid-recycling caveat as the Unix variant — a recycled pid
+// belonging to an unrelated live process will report "alive" and the crash
+// detector will miss the prior crash.
 func processAlive(pid int) bool {
 	if pid <= 0 {
 		return false

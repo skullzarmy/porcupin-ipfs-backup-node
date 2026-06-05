@@ -15,8 +15,15 @@ import (
 // is alive. It contains the current pid and the timestamp of the last write.
 const heartbeatFile = "last-alive"
 
-// HeartbeatInterval is how often the heartbeat file is updated.
+// HeartbeatInterval is the default cadence at which the heartbeat file is
+// updated. Tests override the package-level heartbeatInterval below to
+// shorten this without exposing it as a public API.
 const HeartbeatInterval = 30 * time.Second
+
+// heartbeatInterval is the value actually used by StartHeartbeat. It defaults
+// to HeartbeatInterval but tests in this package may override it to avoid
+// 30-second waits.
+var heartbeatInterval = HeartbeatInterval
 
 // PriorCrashInfo describes evidence of a previous process that did not shut
 // down cleanly. Returned by CheckPriorCrash.
@@ -77,7 +84,7 @@ func StartHeartbeat(ctx context.Context, dataDir string) func() {
 
 	go func() {
 		defer close(doneCh)
-		ticker := time.NewTicker(HeartbeatInterval)
+		ticker := time.NewTicker(heartbeatInterval)
 		defer ticker.Stop()
 		for {
 			select {
@@ -109,5 +116,7 @@ func StartHeartbeat(ctx context.Context, dataDir string) func() {
 
 func writeHeartbeat(path string) error {
 	content := strconv.Itoa(os.Getpid()) + " " + strconv.FormatInt(time.Now().Unix(), 10)
-	return os.WriteFile(path, []byte(content), 0644)
+	// 0600: pid + timestamp aren't sensitive, but other ~/.porcupin files
+	// (crash reports, db) are user-private, so keep the heartbeat consistent.
+	return os.WriteFile(path, []byte(content), 0600)
 }

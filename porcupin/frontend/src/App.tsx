@@ -35,6 +35,12 @@ function AppContent() {
     const [isStale, setIsStale] = useState(false);
     const [scrollToSection, setScrollToSection] = useState("");
 
+    // Prior-crash banner: surfaced when the backend detects that the
+    // previous run did not shut down cleanly (SIGKILL/OOM/power loss).
+    // Backend emits "app:prior-crash" from domReady; the payload may omit
+    // pid and/or last_seen when those couldn't be parsed from the marker.
+    const [priorCrash, setPriorCrash] = useState<{ pid?: number; last_seen?: string } | null>(null);
+
     // Update State
     const [showUpdateToast, setShowUpdateToast] = useState(false);
     const [updateVersion, setUpdateVersion] = useState("");
@@ -129,6 +135,16 @@ function AppContent() {
             console.log("[App] Update available:", info);
             setUpdateVersion(info.version);
             setShowUpdateToast(true);
+        });
+        return () => cancel();
+    }, []);
+
+    // Listen for prior-crash notice from backend. Fires at most once per
+    // launch and only when the previous run died ungracefully.
+    useEffect(() => {
+        const cancel = EventsOn("app:prior-crash", (info: { pid?: number; last_seen?: string }) => {
+            console.warn("[App] Previous run did not shut down cleanly:", info);
+            setPriorCrash(info ?? {});
         });
         return () => cancel();
     }, []);
@@ -238,6 +254,21 @@ function AppContent() {
                 {isStale && !error && (
                     <div className="stale-banner" role="status" aria-live="polite">
                         <span>⚠️ Connection unstable - Data may be stale</span>
+                    </div>
+                )}
+
+                {priorCrash && (
+                    <div className="stale-banner" role="status" aria-live="polite">
+                        <span>
+                            ⚠️ Previous run did not shut down cleanly
+                            {priorCrash.last_seen ? ` (last seen ${priorCrash.last_seen})` : ""}
+                            {priorCrash.pid ? ` — pid ${priorCrash.pid}` : ""}
+                            . This often indicates a system OOM kill or forced shutdown. Check
+                            ~/.porcupin/logs/ for details.
+                        </span>
+                        <button type="button" onClick={() => setPriorCrash(null)} aria-label="Dismiss prior-crash notice">
+                            ×
+                        </button>
                     </div>
                 )}
 
