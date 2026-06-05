@@ -3,11 +3,30 @@ package ipfs
 import (
 	"bytes"
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+// freePort asks the kernel for an ephemeral TCP port and returns it.
+// Tests need this to avoid the well-known 4001 swarm port which is often
+// taken on developer machines by other IPFS daemons.
+func freePort(t *testing.T) int {
+	t.Helper()
+	// Bind on all interfaces (":0") so the port the kernel hands us is
+	// immediately re-bindable by code that listens on the same address form,
+	// which is what the preflight probe and libp2p do. Binding 127.0.0.1 here
+	// and then 0.0.0.0 there can hit transient EADDRINUSE on some kernels.
+	l, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.Fatalf("could not allocate free port: %v", err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	return port
+}
 
 func TestNodePinAndVerify(t *testing.T) {
 	// Create a temporary directory for the test IPFS repo
@@ -18,9 +37,9 @@ func TestNodePinAndVerify(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	repoPath := filepath.Join(tmpDir, "ipfs")
-	
-	// Create and start node (0 uses default swarm port)
-	node, err := NewNode(repoPath, 0)
+
+	// Create and start node on a free port (4001 is often taken on dev machines)
+	node, err := NewNode(repoPath, freePort(t))
 	if err != nil {
 		t.Fatalf("Failed to create node: %v", err)
 	}
@@ -88,4 +107,3 @@ func TestNodePinAndVerify(t *testing.T) {
 		t.Error("Content should not be pinned after Unpin")
 	}
 }
-

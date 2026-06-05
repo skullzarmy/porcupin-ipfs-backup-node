@@ -25,7 +25,7 @@ var errAssetSkipped = errors.New("asset skipped: not an IPFS URI")
 // SyncProgress represents the current sync operation progress
 type SyncProgress struct {
 	IsActive      bool      `json:"is_active"`
-	Phase         string    `json:"phase"`           // "idle", "fetching", "processing", "pinning"
+	Phase         string    `json:"phase"` // "idle", "fetching", "processing", "pinning"
 	WalletAddress string    `json:"wallet_address"`
 	TotalNFTs     int       `json:"total_nfts"`
 	ProcessedNFTs int       `json:"processed_nfts"`
@@ -49,22 +49,28 @@ type IPFSClient interface {
 
 // BackupManager orchestrates the backup process
 type BackupManager struct {
-	ipfs     IPFSClient
-	indexer  *indexer.Indexer
-	db       *db.Database
-	config   *config.Config
-	mu       sync.RWMutex
-	workers  chan struct{}
+	ipfs    IPFSClient
+	indexer *indexer.Indexer
+	db      *db.Database
+	config  *config.Config
+	mu      sync.RWMutex
+	workers chan struct{}
+
+	// heavyOpMu serializes large batch operations (SyncWallet,
+	// VerifyAndFixPins, ProcessPendingAssets). Running them concurrently on
+	// memory-constrained machines stacks goroutines + pin contexts onto the
+	// same small worker pool and has been observed to trigger OOM kills.
+	heavyOpMu sync.Mutex
 
 	// Pause control
 	pauseMu  sync.RWMutex
 	isPaused bool
-	
+
 	// Sync progress tracking
 	progressMu    sync.RWMutex
 	progress      SyncProgress
 	processedURIs atomic.Pointer[sync.Map] // tracks URIs processed in current sync to avoid double-counting
-	
+
 	// Disk usage tracking - update after pins, not on every pin
 	diskUsageDirty int32 // atomic flag: 1 if pins happened since last du
 }
@@ -142,6 +148,11 @@ func (bm *BackupManager) updateProgress(fn func(*SyncProgress)) {
 // SyncWallet syncs all NFTs for a given wallet address
 // Returns the blockchain level synced up to, or error
 func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLevel int64, err error) {
+	// Serialize with VerifyAndFixPins / ProcessPendingAssets so the worker
+	// pool isn't multiplexed across three batch workloads at once.
+	bm.heavyOpMu.Lock()
+	defer bm.heavyOpMu.Unlock()
+
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("panic in SyncWallet: %v", r)
@@ -168,7 +179,7 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 		p.StartedAt = time.Now()
 		p.Message = "Fetching NFTs from blockchain..."
 	})
-	
+
 	// Reset processed URIs for this sync
 	bm.processedURIs.Store(new(sync.Map))
 
@@ -302,12 +313,12 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 					}
 				})
 			}()
-			
+
 			// Check pause inside goroutine too
 			if bm.IsPaused() {
 				return
 			}
-			
+
 			if err := bm.processNFT(ctx, address, t); err != nil {
 				slog.Error("error processing NFT", "contract", t.Contract.Address, "token", t.TokenID, "error", err)
 			}
@@ -315,7 +326,7 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 	}
 
 	wg.Wait()
-	
+
 	// Update progress to show completion
 	bm.updateProgress(func(p *SyncProgress) {
 		p.CurrentItem = "Complete"
@@ -325,7 +336,7 @@ func (bm *BackupManager) SyncWallet(ctx context.Context, address string) (headLe
 			p.Message = fmt.Sprintf("Synced %d NFTs", total)
 		}
 	})
-	
+
 	slog.Info("sync complete", "wallet", address)
 	return currentHead, nil
 }
@@ -451,12 +462,12 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 
 	// 2. Queue assets for backup with proper types
 	type assetEntry struct {
-		uri      string
+		uri       string
 		assetType string
 	}
-	
+
 	var assets []assetEntry
-	
+
 	// Add artifact (main content)
 	if token.Metadata.ArtifactURI != "" && ipfsuri.IsIPFS(token.Metadata.ArtifactURI) {
 		assets = append(assets, assetEntry{token.Metadata.ArtifactURI, "artifact"})
@@ -471,7 +482,7 @@ func (bm *BackupManager) processNFT(ctx context.Context, walletAddr string, toke
 	if token.Metadata.ThumbnailURI != "" && token.Metadata.ThumbnailURI != token.Metadata.ArtifactURI && ipfsuri.IsIPFS(token.Metadata.ThumbnailURI) {
 		assets = append(assets, assetEntry{token.Metadata.ThumbnailURI, "thumbnail"})
 	}
-	
+
 	// Add additional formats
 	for _, format := range token.Metadata.Formats {
 		if format.URI != "" && ipfsuri.IsIPFS(format.URI) {
@@ -515,7 +526,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 	// Create or update asset record regardless of pause state
 	// This prevents data loss where an NFT is processed but its assets are skipped due to pause
 	existingAsset, err := bm.db.GetAssetByURI(uri)
-	
+
 	// If it's already pinned, we can skip early
 	if err == nil && existingAsset != nil && existingAsset.Status == db.StatusPinned {
 		slog.Debug("asset already pinned, skipping", "uri", uri)
@@ -576,7 +587,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 
 	// Already saved above, just using the result now if needed, but we re-fetch effectively or use the object.
 	// Actually we already have 'asset' object updated.
-	
+
 	// Check storage limit first - this is the user's hard limit
 	if !bm.isWithinStorageLimit() {
 		slog.Warn("storage limit reached, stopping backup")
@@ -689,7 +700,7 @@ func (bm *BackupManager) backupAsset(ctx context.Context, nftID uint64, uri stri
 // downloadMetadata fetches metadata about an asset without downloading the full file
 func (bm *BackupManager) downloadMetadata(ctx context.Context, uri string) ([]byte, string, int64, error) {
 	httpURI := resolveURI(uri) // Convert ipfs:// to gateway URL
-	
+
 	// Create a new context with timeout to prevent infinite hangs on bad gateways
 	// This is CRITICAL: the parent context might be the service context which lives forever.
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -699,17 +710,17 @@ func (bm *BackupManager) downloadMetadata(ctx context.Context, uri string) ([]by
 	if err != nil {
 		return nil, "", 0, err
 	}
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, "", 0, err
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", 0, fmt.Errorf("bad status: %s", resp.Status)
 	}
-	
+
 	// Just return the info - actual size validation happens in backupAsset
 	return nil, resp.Header.Get("Content-Type"), resp.ContentLength, nil
 }
@@ -717,8 +728,11 @@ func (bm *BackupManager) downloadMetadata(ctx context.Context, uri string) ([]by
 // VerifyAndFixPins iterates through all NFTs and ensures their assets are properly tracked and pinned
 // This fixes data loss from the previous "pause bug" where assets weren't saved to DB
 func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, error) {
+	bm.heavyOpMu.Lock()
+	defer bm.heavyOpMu.Unlock()
+
 	slog.Info("starting VerifyAndFixPins")
-	
+
 	stats := map[string]int{
 		"checked":   0,
 		"processed": 0,
@@ -729,7 +743,7 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 	// Process in batches to avoid memory issues
 	limit := 100
 	offset := 0
-	
+
 	for {
 		// Check for shutdown
 		select {
@@ -742,11 +756,11 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 		if err := bm.db.DB.Order("id asc").Offset(offset).Limit(limit).Find(&nfts).Error; err != nil {
 			return stats, fmt.Errorf("failed to fetch NFTs: %w", err)
 		}
-		
+
 		if len(nfts) == 0 {
 			break
 		}
-		
+
 		for _, nft := range nfts {
 			select {
 			case <-ctx.Done():
@@ -754,7 +768,7 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 			default:
 			}
 			stats["checked"]++
-			
+
 			// Reconstruct Token/Metadata from DB record.
 			// If RawMetadata contains full JSON (new format), parse it to
 			// recover Formats and non-standard IPFS URI fields.
@@ -767,7 +781,7 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 				},
 				Metadata: &metadata,
 			}
-			
+
 			// Call processNFT to ensure assets are tracked
 			// We use a background context or the passed context
 			// We suppress errors to keep going
@@ -778,17 +792,17 @@ func (bm *BackupManager) VerifyAndFixPins(ctx context.Context) (map[string]int, 
 				stats["processed"]++
 			}
 		}
-		
+
 		offset += limit
 	}
-	
+
 	slog.Info("VerifyAndFixPins complete", "checked", stats["checked"], "processed", stats["processed"], "errors", stats["errors"])
 	return stats, nil
 }
 
 // pinWithRetry pins content with exponential backoff
 func (bm *BackupManager) pinWithRetry(ctx context.Context, cid string, retryCount int) error {
-	maxRetries := 2  // Reduced from 3 to avoid long waits
+	maxRetries := 2 // Reduced from 3 to avoid long waits
 	backoff := time.Second
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
@@ -806,9 +820,9 @@ func (bm *BackupManager) pinWithRetry(ctx context.Context, cid string, retryCoun
 		// Use a shorter timeout per attempt to avoid blocking too long
 		timeout := bm.config.IPFS.PinTimeout
 		if timeout > 60*time.Second {
-			timeout = 60 * time.Second  // Cap at 60s per attempt
+			timeout = 60 * time.Second // Cap at 60s per attempt
 		}
-		
+
 		err := bm.getIPFS().Pin(ctx, cid, timeout)
 		if err == nil {
 			return nil
@@ -957,38 +971,38 @@ func (bm *BackupManager) fetchMetadataFromChain(ctx context.Context, contractAdd
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch raw URI: %w", err)
 	}
-	
+
 	// The raw URI should be an IPFS link to the metadata JSON
 	if !strings.HasPrefix(rawURI, "ipfs://") && !strings.Contains(rawURI, "/ipfs/") {
 		return nil, fmt.Errorf("raw URI is not IPFS: %s", rawURI)
 	}
-	
+
 	// Resolve to HTTP gateway and fetch the JSON
 	httpURL := resolveURI(rawURI)
-	
+
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	
+
 	req, err := http.NewRequestWithContext(reqCtx, "GET", httpURL, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("HTTP %d fetching metadata", resp.StatusCode)
 	}
-	
+
 	var metadata indexer.TokenMetadata
 	if err := json.NewDecoder(resp.Body).Decode(&metadata); err != nil {
 		return nil, fmt.Errorf("failed to decode metadata JSON: %w", err)
 	}
-	
+
 	return &metadata, nil
 }
 
@@ -1113,11 +1127,12 @@ func (bm *BackupManager) pinAssetDirect(ctx context.Context, asset *db.Asset) er
 	return nil
 }
 
-// ProcessPendingAssets processes all assets stuck in pending status
-// This is used to resume interrupted syncs or manually retry pending work
-// ProcessPendingAssets processes all assets stuck in pending status
-// This is used to resume interrupted syncs or manually retry pending work
+// ProcessPendingAssets processes all assets stuck in pending status.
+// This is used to resume interrupted syncs or manually retry pending work.
 func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (processed int, pinned int, failed int) {
+	bm.heavyOpMu.Lock()
+	defer bm.heavyOpMu.Unlock()
+
 	assets, err := bm.db.GetPendingAssets(limit)
 	if err != nil {
 		slog.Error("failed to get pending assets", "error", err)
@@ -1133,6 +1148,13 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 	var wg sync.WaitGroup
 	var pCount, pinCount, fCount int64
 
+	// Bound goroutine creation to the configured worker count. Spawning one
+	// goroutine per asset (up to `limit`) and letting them all block on
+	// bm.workers piled goroutines + their captured asset state in memory on
+	// small machines, contributing to OOM kills.
+	sem := make(chan struct{}, cap(bm.workers))
+
+dispatch:
 	for _, asset := range assets {
 		// Early exit checks
 		if ctx.Err() != nil {
@@ -1144,10 +1166,20 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 			break
 		}
 
+		// Block here until a slot is free — caps in-flight goroutines.
+		// A labelled break is required because a plain `break` inside a
+		// select would only exit the select, not the dispatch loop.
+		select {
+		case sem <- struct{}{}:
+		case <-ctx.Done():
+			break dispatch
+		}
+
 		wg.Add(1)
 		// Capture loop variable
 		go func(a db.Asset) {
 			defer wg.Done()
+			defer func() { <-sem }()
 			defer func() {
 				if r := recover(); r != nil {
 					slog.Error("panic processing pending asset", "uri", a.URI, "panic", r)
@@ -1155,15 +1187,7 @@ func (bm *BackupManager) ProcessPendingAssets(ctx context.Context, limit int) (p
 				}
 			}()
 
-			// Acquire worker slot
-			select {
-			case bm.workers <- struct{}{}:
-				defer func() { <-bm.workers }()
-			case <-ctx.Done():
-				return
-			}
-
-			// Re-check pause after acquiring worker
+			// Re-check pause now that we hold a slot
 			if bm.IsPaused() {
 				return
 			}
