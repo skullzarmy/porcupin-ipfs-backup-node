@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -132,15 +131,16 @@ func TestProcessPendingAssets_BoundsConcurrency(t *testing.T) {
 }
 
 // TestHeavyOpMu_SerializesProcessPendingAssets verifies the second OOM fix:
-// two concurrent ProcessPendingAssets calls must not overlap. Without the
-// mutex, three heavy batch ops (sync, integrity check, retry) could stack
-// onto the same small worker pool.
+// ProcessPendingAssets must acquire heavyOpMu. We prove this by holding the
+// mutex externally and confirming a fresh call cannot make progress until
+// we release.
 func TestHeavyOpMu_SerializesProcessPendingAssets(t *testing.T) {
 	database := testDB(t)
 	cfg := testConfig()
 	cfg.Backup.MaxConcurrency = 2
 
 	gated := newGatedIPFSNode()
+	gated.releaseAll() // Pin returns immediately for whoever holds the mutex
 	bm := &BackupManager{
 		ipfs:    gated,
 		db:      database,
@@ -153,42 +153,10 @@ func TestHeavyOpMu_SerializesProcessPendingAssets(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Track whether two ProcessPendingAssets bodies are ever simultaneously
-	// past the mutex acquisition. We hook this by wrapping the call in a
-	// counter; the only way the counter ever reaches 2 is if heavyOpMu is
-	// not holding them apart.
-	var active int64
-	var peakActive int64
-	var wg sync.WaitGroup
-
-	wrappedCall := func() {
-		cur := atomic.AddInt64(&active, 1)
-		defer atomic.AddInt64(&active, -1)
-		for {
-			prev := atomic.LoadInt64(&peakActive)
-			if cur <= prev || atomic.CompareAndSwapInt64(&peakActive, prev, cur) {
-				break
-			}
-		}
-		bm.ProcessPendingAssets(ctx, 4)
-	}
-
-	// Open the gate so Pin returns immediately for whoever holds the mutex.
-	gated.releaseAll()
-
-	wg.Add(2)
-	go func() { defer wg.Done(); wrappedCall() }()
-	go func() { defer wg.Done(); wrappedCall() }()
-	wg.Wait()
-
-	// The wrappedCall counter is informational. The real proof is: if the
-	// mutex works, ProcessPendingAssets serializes. We can also assert that
-	// the mutex itself is actually taken — start a third call and confirm it
-	// blocks while we hold the mutex from a synthetic external acquirer.
 	bm.heavyOpMu.Lock()
 	done := make(chan struct{})
 	go func() {
-		bm.ProcessPendingAssets(ctx, 1)
+		bm.ProcessPendingAssets(ctx, 4)
 		close(done)
 	}()
 	select {
@@ -196,7 +164,7 @@ func TestHeavyOpMu_SerializesProcessPendingAssets(t *testing.T) {
 		bm.heavyOpMu.Unlock()
 		t.Fatal("ProcessPendingAssets ran while heavyOpMu was held externally — serialization broken")
 	case <-time.After(200 * time.Millisecond):
-		// Good: it is blocked on the mutex as expected.
+		// Good: blocked on the mutex as expected.
 	}
 	bm.heavyOpMu.Unlock()
 	<-done // let it finish so the test doesn't leak the goroutine

@@ -277,7 +277,7 @@ func (n *Node) preflightCheck() error {
 			slog.Error("IPFS repo is locked by another running process — refusing to start",
 				"repo", n.repoPath,
 				"hint", "another Porcupin instance is likely already running; quit it first")
-			return fmt.Errorf("IPFS repo at %s is locked by another running process (likely another Porcupin instance)", n.repoPath)
+			return fmt.Errorf("IPFS repo at %s is locked by another running process. Another Porcupin instance is likely already running — quit it first, then relaunch", n.repoPath)
 		}
 		if lerr == nil && !locked {
 			// Stale lock — the main Open() path will clean it. Just log so
@@ -294,7 +294,7 @@ func (n *Node) preflightCheck() error {
 			"port", n.swarmPort,
 			"error", err,
 			"hint", fmt.Sprintf("another process is bound to this port; check with: lsof -i :%d", n.swarmPort))
-		return fmt.Errorf("IPFS swarm port %d is already in use: %w", n.swarmPort, err)
+		return fmt.Errorf("IPFS swarm port %d is already in use (%v). Identify the other process with: lsof -i :%d", n.swarmPort, err, n.swarmPort)
 	}
 
 	return nil
