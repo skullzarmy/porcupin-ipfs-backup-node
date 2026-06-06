@@ -276,7 +276,11 @@ jobs:
                   cat checksums.txt
 
             - name: Create Release
-              uses: softprops/action-gh-release@v1
+              # @v3.0.0 is the first release whose action.yml declares
+              # `using: node24`. v1 and all v2.x are bundled `using: node20`
+              # JS actions, which trip GitHub's Node 20 deprecation warning
+              # on every run.
+              uses: softprops/action-gh-release@v3
               with:
                   tag_name: ${{ inputs.version }}
                   name: ${{ inputs.version }}

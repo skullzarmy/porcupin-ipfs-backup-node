@@ -57,7 +57,10 @@ jobs:
               if: matrix.os == 'ubuntu-latest'
               uses: codecov/codecov-action@v5
               with:
-                  file: porcupin/coverage.txt
+                  # codecov-action v5 renamed `file` → `files`; the old key is
+                  # silently ignored and coverage uploads were running on
+                  # defaults.
+                  files: porcupin/coverage.txt
                   flags: unittests
                   name: porcupin-coverage
                   fail_ci_if_error: false
