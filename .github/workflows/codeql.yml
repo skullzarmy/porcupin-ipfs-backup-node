@@ -44,20 +44,47 @@ jobs:
         # queries: security-extended,security-and-quality
 
 
-    # Autobuild attempts to build any compiled languages  (C/C++, C#, Go, Java/Kotlin, or Swift).
-    # If this step fails, then you should remove it and run the build manually (see below)
+    # JavaScript/TypeScript is interpreted; Autobuild is a no-op for it but
+    # gives CodeQL the language hook it needs.
     - name: Autobuild
+      if: matrix.language != 'go'
       uses: github/codeql-action/autobuild@v4
 
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
+    # Go lives in the ./porcupin workspace and the desktop build needs CGo +
+    # the webkit2_41 build tag. Autobuild can't infer this from the repo root,
+    # so it produces zero compiled Go, which CodeQL reports as
+    # "Go files were found but not processed". The steps below mirror what
+    # ci.yml's build-check job does and give CodeQL a real Go build to trace.
+    - name: Setup Go (CodeQL Go build)
+      if: matrix.language == 'go'
+      uses: actions/setup-go@v6
+      with:
+        go-version: "1.25"
+        cache-dependency-path: porcupin/go.sum
 
-    #   If the Autobuild fails above, remove it and uncomment the following three lines.
-    #   modify them (or add more) to build your code if your project, please refer to the EXAMPLE below for guidance.
+    - name: Install Linux GTK deps (CodeQL Go build)
+      if: matrix.language == 'go'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
 
-    # - run: |
-    #     echo "Run, Build Application using script"
-    #     ./location_of_script_within_repo/buildscript.sh
+    - name: Stub frontend/dist (CodeQL Go build)
+      if: matrix.language == 'go'
+      # main.go uses `//go:embed all:frontend/dist`, which requires the
+      # directory to exist with at least one file at compile time. We don't
+      # need the real bundle — CodeQL only traces the Go compile to extract
+      # source facts, it never runs the binary. Avoids dragging the whole
+      # npm install + vite build into the Go-scanning job.
+      run: |
+        mkdir -p porcupin/frontend/dist
+        echo "codeql-stub" > porcupin/frontend/dist/.placeholder
+
+    - name: Manual Go build for CodeQL
+      if: matrix.language == 'go'
+      working-directory: porcupin
+      run: |
+        CGO_ENABLED=0 go build -o /dev/null ./cmd/headless
+        CGO_ENABLED=1 go build -tags webkit2_41 -o /dev/null .
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
