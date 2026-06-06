@@ -3,11 +3,39 @@ package ipfs
 import (
 	"bytes"
 	"context"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
+
+// freePort returns a port that is free on BOTH TCP and UDP, since Kubo and
+// the preflight probe bind both. It verifies reusability with the same
+// probePort the production code uses, retrying with a different ephemeral
+// port if the probe fails (TIME_WAIT, concurrent process, etc.). Loops up
+// to 20 times to absorb transient kernel races.
+func freePort(t *testing.T) int {
+	t.Helper()
+	for i := 0; i < 20; i++ {
+		// Bind on all interfaces (":0") so the port the kernel hands us is
+		// immediately re-bindable by code that listens on the same address
+		// form, which is what the preflight probe and libp2p do.
+		l, err := net.Listen("tcp", ":0")
+		if err != nil {
+			t.Fatalf("could not allocate free TCP port: %v", err)
+		}
+		port := l.Addr().(*net.TCPAddr).Port
+		l.Close()
+
+		if err := probePort(port); err != nil {
+			continue
+		}
+		return port
+	}
+	t.Fatal("could not find a port free on both TCP and UDP after 20 attempts")
+	return 0
+}
 
 func TestNodePinAndVerify(t *testing.T) {
 	// Create a temporary directory for the test IPFS repo
@@ -18,9 +46,9 @@ func TestNodePinAndVerify(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	repoPath := filepath.Join(tmpDir, "ipfs")
-	
-	// Create and start node (0 uses default swarm port)
-	node, err := NewNode(repoPath, 0)
+
+	// Create and start node on a free port (4001 is often taken on dev machines)
+	node, err := NewNode(repoPath, freePort(t))
 	if err != nil {
 		t.Fatalf("Failed to create node: %v", err)
 	}
@@ -88,4 +116,3 @@ func TestNodePinAndVerify(t *testing.T) {
 		t.Error("Content should not be pinned after Unpin")
 	}
 }
-

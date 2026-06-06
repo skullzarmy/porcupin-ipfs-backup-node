@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -81,6 +82,14 @@ func (n *Node) Start(ctx context.Context) error {
 	}
 
 	slog.Info("IPFS node starting", "repo", n.repoPath, "swarm_port", n.swarmPort)
+
+	// Pre-flight: surface clear, actionable errors for the two failure modes
+	// that historically left users with a flash-closing window and no idea
+	// why. Both checks are advisory — if they pass, real startup proceeds;
+	// if they fail, we log loudly and return an error the UI can display.
+	if err := n.preflightCheck(); err != nil {
+		return err
+	}
 
 	// Setup plugins
 	if err := setupPlugins(""); err != nil {
@@ -178,7 +187,7 @@ func (n *Node) Start(ctx context.Context) error {
 	n.node = node
 	n.api = api
 	n.ctx, n.cancel = context.WithCancel(ctx)
-	
+
 	slog.Info("IPFS node started successfully")
 
 	return nil
@@ -252,6 +261,96 @@ func (n *Node) Stop() error {
 	}
 
 	return closeErr
+}
+
+// preflightCheck probes the two things that have caused silent startup
+// failures in the wild: (1) the swarm port is already bound by another
+// process, and (2) the repo lock is held by a live process. Both have
+// recovery paths inside the main Start flow (port retry, stale-lock removal)
+// but the recovery silently times out or returns deep-wrapped errors that
+// don't make it back to the UI. Here we surface them explicitly.
+//
+// This is best-effort and TOCTOU-prone — between the probe returning "free"
+// and Kubo actually binding, another process could grab the port. The
+// existing isPortConflictError retry loop in Start() is the authoritative
+// guard; preflight just turns the common case into a clear error.
+func (n *Node) preflightCheck() error {
+	// Repo lock: if a live process holds it, no amount of retrying will help.
+	// Try a non-blocking probe; if locked AND the holder is alive, fail fast.
+	if _, err := os.Stat(filepath.Join(n.repoPath, "repo.lock")); err == nil {
+		locked, lerr := fslock.Locked(n.repoPath, "repo.lock")
+		switch {
+		case lerr != nil:
+			// Probe itself failed (permissions, filesystem error). We can't
+			// distinguish stale from held — log loudly and proceed; Start's
+			// existing fsrepo.Open path will report whatever it sees.
+			slog.Warn("could not determine repo lock holder; preflight inconclusive — deferring to Open()",
+				"repo", n.repoPath,
+				"error", lerr)
+		case locked:
+			slog.Error("IPFS repo is locked by another running process — refusing to start",
+				"repo", n.repoPath,
+				"hint", "another Porcupin instance is likely already running; quit it first")
+			return fmt.Errorf("IPFS repo at %s is locked by another running process. Another Porcupin instance is likely already running — quit it first, then relaunch", n.repoPath)
+		default:
+			// Stale lock — the main Open() path will clean it. Just log so
+			// users investigating the log see why startup paused.
+			slog.Warn("IPFS repo lock exists but no live holder — will clean on Open", "repo", n.repoPath)
+		}
+	}
+
+	// Swarm port: probe both TCP and UDP since Kubo binds both. If TCP is
+	// taken, libp2p will fail; we'd rather report that here than after the
+	// QUIC buffer warning where the next failure is hard to attribute.
+	if err := probePort(n.swarmPort); err != nil {
+		hint := portInUseHint(n.swarmPort)
+		slog.Error("IPFS swarm port is in use — refusing to start",
+			"port", n.swarmPort,
+			"error", err,
+			"hint", hint)
+		return fmt.Errorf("IPFS swarm port %d is already in use (%v). %s", n.swarmPort, err, hint)
+	}
+
+	return nil
+}
+
+// portInUseHint returns a user-facing, platform-appropriate suggestion for
+// identifying the process holding a port. Keeps the message in the error
+// dialog actionable on whatever OS the user is running.
+func portInUseHint(port int) string {
+	switch runtime.GOOS {
+	case "windows":
+		return fmt.Sprintf("Identify the other process with: netstat -ano | findstr :%d", port)
+	case "darwin", "linux":
+		return fmt.Sprintf("Identify the other process with: lsof -i :%d", port)
+	default:
+		return fmt.Sprintf("Another process is bound to port %d; identify and quit it, then relaunch.", port)
+	}
+}
+
+// probePort confirms the swarm port is free on both TCP and UDP. Kubo/libp2p
+// binds both (TCP for classic libp2p, UDP for QUIC), so a one-protocol check
+// would miss real conflicts.
+//
+// Both listeners are held open until success is confirmed, then closed
+// together. The earlier two-step "open TCP, close, open UDP" form briefly
+// released TCP between the probes — a window in which another process could
+// have taken it without us noticing.
+func probePort(port int) error {
+	addr := fmt.Sprintf(":%d", port)
+	tcpL, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("tcp/%d: %w", port, err)
+	}
+	udpL, err := net.ListenPacket("udp", addr)
+	if err != nil {
+		tcpL.Close()
+		return fmt.Errorf("udp/%d: %w", port, err)
+	}
+	// Both bound successfully → port is fully free. Release in reverse order.
+	udpL.Close()
+	tcpL.Close()
+	return nil
 }
 
 // removeStaleLock checks whether the IPFS repo lock file is stale (not held by
@@ -504,11 +603,11 @@ func (n *Node) UnpinAll(ctx context.Context, progress ProgressCallback) (int, er
 
 	// Create a channel for Pin().Ls to write pins to
 	pinChan := make(chan iface.Pin)
-	
+
 	// Collect all CIDs first, then unpin them
 	// This avoids issues with modifying pins while iterating
 	var cids []string
-	
+
 	// Start listing pins in a goroutine - Ls closes the channel when done
 	errChan := make(chan error, 1)
 	go func() {
@@ -528,7 +627,7 @@ func (n *Node) UnpinAll(ctx context.Context, progress ProgressCallback) (int, er
 
 	total := len(cids)
 	slog.Info("Found pins to remove", "count", total)
-	
+
 	// Report initial progress
 	if progress != nil {
 		progress(total, 0)
@@ -542,18 +641,18 @@ func (n *Node) UnpinAll(ctx context.Context, progress ProgressCallback) (int, er
 			slog.Error("Invalid pin path", "error", err)
 			continue
 		}
-		
+
 		if err := n.api.Pin().Rm(ctx, p, options.Pin.RmRecursive(true)); err != nil {
 			slog.Error("Failed to unpin", "cid", cidStr, "error", err)
 			continue
 		}
 		count++
-		
+
 		// Report progress
 		if progress != nil {
 			progress(total, count)
 		}
-		
+
 		if count%100 == 0 {
 			slog.Debug("Unpin progress", "unpinned", count, "total", total)
 		}
@@ -573,15 +672,15 @@ func (n *Node) GarbageCollect(ctx context.Context) error {
 	}
 
 	slog.Info("Starting IPFS garbage collection")
-	
+
 	// Use corerepo.GarbageCollect which takes (node, ctx)
 	if err := corerepo.GarbageCollect(n.node, ctx); err != nil {
 		return fmt.Errorf("garbage collection failed: %w", err)
 	}
-	
+
 	// OS-specific cleanup has been removed for safety.
 	// We rely solely on IPFS internal repo garbage collection.
-	
+
 	slog.Info("IPFS garbage collection complete")
 	return nil
 }
@@ -693,7 +792,6 @@ func (n *Node) Cat(ctx context.Context, cidStr string, maxBytes int64) ([]byte, 
 
 	return data[:n_read], mimeType, nil
 }
-
 
 var pluginsOnce sync.Once
 var pluginsErr error

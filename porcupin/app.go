@@ -33,6 +33,9 @@ type App struct {
 	updater       *updater.Manager
 	logRing       *logging.RingHandler
 	logFile       *os.File
+
+	stopHeartbeat func() // nil until startup() runs
+	priorCrash    logging.PriorCrashInfo
 }
 
 // NewApp creates a new App application struct
@@ -55,6 +58,25 @@ func (a *App) startup(ctx context.Context) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		slog.Error("Failed to create data dir", "error", err)
 		os.Exit(1)
+	}
+
+	// Check for evidence the previous run died ungracefully (SIGKILL/OOM/power
+	// loss). Reads only — does not modify the marker. We DEFER the actual
+	// heartbeat start until critical startup succeeds (see below) so that a
+	// failed-startup os.Exit doesn't leave a marker that would later be
+	// misread as a runtime crash.
+	a.priorCrash = logging.CheckPriorCrash(dataDir)
+	if a.priorCrash.Detected {
+		// Only format LastSeen if we actually parsed one from the marker —
+		// otherwise the zero time logs as a misleading 0001-01-01.
+		lastSeen := "unknown"
+		if !a.priorCrash.LastSeen.IsZero() {
+			lastSeen = a.priorCrash.LastSeen.Format(time.RFC3339)
+		}
+		slog.Warn("previous Porcupin run did not shut down cleanly",
+			"prior_pid", a.priorCrash.PID,
+			"last_seen", lastSeen,
+			"hint", "likely OOM kill, system shutdown, or crash with no panic recovery")
 	}
 
 	// Load configuration
@@ -92,7 +114,7 @@ func (a *App) startup(ctx context.Context) {
 	if strings.HasPrefix(repoPath, "~/") {
 		repoPath = filepath.Join(homeDir, repoPath[2:])
 	}
-	
+
 	ipfsNode, err := ipfs.NewNode(repoPath, cfg.IPFS.SwarmPort)
 	if err != nil {
 		slog.Error("Failed to create IPFS node", "error", err)
@@ -112,6 +134,11 @@ func (a *App) startup(ctx context.Context) {
 	a.ipfsNode = ipfsNode
 	slog.Info("IPFS node started")
 
+	// Critical startup succeeded — start the heartbeat marker now. Earlier
+	// failures (homeDir, mkdir, config, db, IPFS init) exit via os.Exit(1)
+	// before we get here, so they leave no marker to poison the next launch.
+	a.stopHeartbeat = logging.StartHeartbeat(ctx, dataDir)
+
 	// Initialize indexer
 	a.indexer = indexer.NewIndexer(cfg.TZKT.BaseURL)
 	slog.Info("Indexer initialized")
@@ -119,7 +146,7 @@ func (a *App) startup(ctx context.Context) {
 	// Initialize backup service (handles automatic syncing)
 	a.backupService = core.NewBackupService(ipfsNode, a.indexer, a.database, cfg)
 	slog.Info("Backup service initialized")
-	
+
 	// Initialize updater
 	updaterMgr, err := updater.NewManager(version.Version)
 	if err != nil {
@@ -142,7 +169,7 @@ func (a *App) startup(ctx context.Context) {
 			}
 		}()
 	}
-	
+
 	// Initialize disk usage in background (don't block startup)
 	go func() {
 		defer func() {
@@ -153,7 +180,7 @@ func (a *App) startup(ctx context.Context) {
 		a.backupService.GetManager().MarkDiskUsageDirty()
 		a.backupService.GetManager().UpdateDiskUsage()
 	}()
-	
+
 	// Start the automatic backup service
 	a.backupService.Start(ctx)
 	a.backupService.SetWailsCtx(ctx)
@@ -185,6 +212,12 @@ func (a *App) shutdown(ctx context.Context) {
 		}
 	}
 
+	// Stop heartbeat last so the marker survives if anything above hangs —
+	// then remove it cleanly to signal "this exit was intentional".
+	if a.stopHeartbeat != nil {
+		a.stopHeartbeat()
+	}
+
 	slog.Info("Porcupin shutdown complete")
 
 	if a.logFile != nil {
@@ -198,6 +231,21 @@ func (a *App) domReady(ctx context.Context) {
 	wailsRuntime.WindowShow(ctx)
 	wailsRuntime.WindowUnminimise(ctx)
 	wailsRuntime.Show(ctx)
+
+	// Tell the frontend if the previous run died ungracefully. Frontend can
+	// listen for "app:prior-crash" and surface a one-shot notice. Fields
+	// (pid, last_seen) are omitted when unknown so the frontend renders
+	// "unknown" rather than zero values.
+	if a.priorCrash.Detected {
+		payload := map[string]interface{}{}
+		if a.priorCrash.PID > 0 {
+			payload["pid"] = a.priorCrash.PID
+		}
+		if !a.priorCrash.LastSeen.IsZero() {
+			payload["last_seen"] = a.priorCrash.LastSeen.Format(time.RFC3339)
+		}
+		wailsRuntime.EventsEmit(ctx, "app:prior-crash", payload)
+	}
 }
 
 // beforeClose is called when the application is about to quit
@@ -215,7 +263,7 @@ func (a *App) GetStatus() map[string]interface{} {
 	if err != nil {
 		slog.Warn("GetStatus: failed to get wallets", "error", err)
 	}
-	
+
 	return map[string]interface{}{
 		"running":       true,
 		"wallets_count": len(wallets),
