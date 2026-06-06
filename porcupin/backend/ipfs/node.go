@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -278,13 +279,20 @@ func (n *Node) preflightCheck() error {
 	// Try a non-blocking probe; if locked AND the holder is alive, fail fast.
 	if _, err := os.Stat(filepath.Join(n.repoPath, "repo.lock")); err == nil {
 		locked, lerr := fslock.Locked(n.repoPath, "repo.lock")
-		if lerr == nil && locked {
+		switch {
+		case lerr != nil:
+			// Probe itself failed (permissions, filesystem error). We can't
+			// distinguish stale from held — log loudly and proceed; Start's
+			// existing fsrepo.Open path will report whatever it sees.
+			slog.Warn("could not determine repo lock holder; preflight inconclusive — deferring to Open()",
+				"repo", n.repoPath,
+				"error", lerr)
+		case locked:
 			slog.Error("IPFS repo is locked by another running process — refusing to start",
 				"repo", n.repoPath,
 				"hint", "another Porcupin instance is likely already running; quit it first")
 			return fmt.Errorf("IPFS repo at %s is locked by another running process. Another Porcupin instance is likely already running — quit it first, then relaunch", n.repoPath)
-		}
-		if lerr == nil && !locked {
+		default:
 			// Stale lock — the main Open() path will clean it. Just log so
 			// users investigating the log see why startup paused.
 			slog.Warn("IPFS repo lock exists but no live holder — will clean on Open", "repo", n.repoPath)
@@ -295,14 +303,29 @@ func (n *Node) preflightCheck() error {
 	// taken, libp2p will fail; we'd rather report that here than after the
 	// QUIC buffer warning where the next failure is hard to attribute.
 	if err := probePort(n.swarmPort); err != nil {
+		hint := portInUseHint(n.swarmPort)
 		slog.Error("IPFS swarm port is in use — refusing to start",
 			"port", n.swarmPort,
 			"error", err,
-			"hint", fmt.Sprintf("another process is bound to this port; check with: lsof -i :%d", n.swarmPort))
-		return fmt.Errorf("IPFS swarm port %d is already in use (%v). Identify the other process with: lsof -i :%d", n.swarmPort, err, n.swarmPort)
+			"hint", hint)
+		return fmt.Errorf("IPFS swarm port %d is already in use (%v). %s", n.swarmPort, err, hint)
 	}
 
 	return nil
+}
+
+// portInUseHint returns a user-facing, platform-appropriate suggestion for
+// identifying the process holding a port. Keeps the message in the error
+// dialog actionable on whatever OS the user is running.
+func portInUseHint(port int) string {
+	switch runtime.GOOS {
+	case "windows":
+		return fmt.Sprintf("Identify the other process with: netstat -ano | findstr :%d", port)
+	case "darwin", "linux":
+		return fmt.Sprintf("Identify the other process with: lsof -i :%d", port)
+	default:
+		return fmt.Sprintf("Another process is bound to port %d; identify and quit it, then relaunch.", port)
+	}
 }
 
 // probePort confirms the swarm port is free on both TCP and UDP. Kubo/libp2p

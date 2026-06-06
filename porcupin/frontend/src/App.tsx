@@ -263,8 +263,8 @@ function AppContent() {
                             ⚠️ Previous run did not shut down cleanly
                             {priorCrash.last_seen ? ` (last seen ${priorCrash.last_seen})` : ""}
                             {priorCrash.pid ? ` — pid ${priorCrash.pid}` : ""}
-                            . This often indicates a system OOM kill or forced shutdown. Check
-                            ~/.porcupin/logs/ for details.
+                            . This often indicates a system OOM kill or forced shutdown. See
+                            Settings → Logs for details.
                         </span>
                         <button type="button" onClick={() => setPriorCrash(null)} aria-label="Dismiss prior-crash notice">
                             ×

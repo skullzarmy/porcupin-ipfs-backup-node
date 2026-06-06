@@ -61,7 +61,10 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	// Check for evidence the previous run died ungracefully (SIGKILL/OOM/power
-	// loss) BEFORE we overwrite the marker with our own heartbeat.
+	// loss). Reads only — does not modify the marker. We DEFER the actual
+	// heartbeat start until critical startup succeeds (see below) so that a
+	// failed-startup os.Exit doesn't leave a marker that would later be
+	// misread as a runtime crash.
 	a.priorCrash = logging.CheckPriorCrash(dataDir)
 	if a.priorCrash.Detected {
 		// Only format LastSeen if we actually parsed one from the marker —
@@ -75,9 +78,6 @@ func (a *App) startup(ctx context.Context) {
 			"last_seen", lastSeen,
 			"hint", "likely OOM kill, system shutdown, or crash with no panic recovery")
 	}
-
-	// Start the heartbeat — touched every 30s, removed on clean shutdown.
-	a.stopHeartbeat = logging.StartHeartbeat(ctx, dataDir)
 
 	// Load configuration
 	configPath := filepath.Join(dataDir, "config.yaml")
@@ -133,6 +133,11 @@ func (a *App) startup(ctx context.Context) {
 
 	a.ipfsNode = ipfsNode
 	slog.Info("IPFS node started")
+
+	// Critical startup succeeded — start the heartbeat marker now. Earlier
+	// failures (homeDir, mkdir, config, db, IPFS init) exit via os.Exit(1)
+	// before we get here, so they leave no marker to poison the next launch.
+	a.stopHeartbeat = logging.StartHeartbeat(ctx, dataDir)
 
 	// Initialize indexer
 	a.indexer = indexer.NewIndexer(cfg.TZKT.BaseURL)
