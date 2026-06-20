@@ -7,7 +7,7 @@ require (
 	github.com/creativeprojects/go-selfupdate v1.5.2
 	github.com/dipdup-net/go-lib v0.4.10
 	github.com/glebarez/sqlite v1.11.0
-	github.com/go-chi/chi/v5 v5.2.3
+	github.com/go-chi/chi/v5 v5.2.4
 	github.com/grandcat/zeroconf v1.0.0
 	github.com/ipfs/boxo v0.37.0
 	github.com/ipfs/go-fs-lock v0.1.1
