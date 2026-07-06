@@ -219,12 +219,12 @@ The headless version doesn't support migration yet. Manual steps:
 
 For Docker or advanced setups, you can use environment variables:
 
-| Variable                  | Description                                      |
-| ------------------------- | ------------------------------------------------ |
-| `PORCUPIN_DATA_DIR`       | Override data directory (default: `~/.porcupin`) |
-| `PORCUPIN_IPFS_PATH`      | Override IPFS repo path                          |
-| `PORCUPIN_MAX_STORAGE_GB` | Override max storage limit                       |
-| `PORCUPIN_API_TOKEN`      | Set API token for remote server mode             |
+| Variable                  | Description                                                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `PORCUPIN_DATA_DIR`       | Override data directory (default: `~/.porcupin`)                                                                  |
+| `PORCUPIN_IPFS_PATH`      | Override IPFS repo path                                                                                           |
+| `PORCUPIN_MAX_STORAGE_GB` | Override max storage limit                                                                                        |
+| `PORCUPIN_API_TOKEN`      | Set API token for remote server mode                                                                              |
 | `IPFS_HTTP_ROUTERS`       | Override delegated `/routing/v1` provider endpoints (see [Content Routing](#content-routing--provider-discovery)) |
 
 ### API Token via Environment

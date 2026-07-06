@@ -71,7 +71,15 @@ interface SettingsProps {
     setClearStatus: (status: ClearStatus | null) => void;
 }
 
-export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing, setClearing, clearStatus, setClearStatus }: SettingsProps) {
+export function Settings({
+    onStatsChange,
+    scrollToSection,
+    onScrolled,
+    clearing,
+    setClearing,
+    clearStatus,
+    setClearStatus,
+}: SettingsProps) {
     const [storageInfo, setStorageInfo] = useState<main.StorageInfo | null>(null);
     const [repoPath, setRepoPath] = useState("");
     const [saving, setSaving] = useState(false);
@@ -164,7 +172,11 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
 
     // IPFS connectivity check state
     const [connectivityChecking, setConnectivityChecking] = useState(false);
-    const [connectivityResult, setConnectivityResult] = useState<{ online: boolean; peers: number; message: string } | null>(null);
+    const [connectivityResult, setConnectivityResult] = useState<{
+        online: boolean;
+        peers: number;
+        message: string;
+    } | null>(null);
 
     // Logs & Diagnostics state
     const [logs, setLogs] = useState<logging.Entry[]>([]);
@@ -558,7 +570,10 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                                         setUpdateCheckMsg("You're running the latest version.");
                                     }
                                 } catch (err) {
-                                    setUpdateCheckMsg("Error checking for updates: " + (err instanceof Error ? err.message : String(err)));
+                                    setUpdateCheckMsg(
+                                        "Error checking for updates: " +
+                                            (err instanceof Error ? err.message : String(err)),
+                                    );
                                 }
                             }}
                         >
@@ -864,8 +879,8 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                         spellCheck={false}
                     />
                     <span className="hint">
-                        One endpoint per line. <code>auto</code> uses the IPNI indexer (cid.contact), which is
-                        required to find most NFT content (Versum, Emprops, nft.storage/web3.storage/Filecoin). Add
+                        One endpoint per line. <code>auto</code> uses the IPNI indexer (cid.contact), which is required
+                        to find most NFT content (Versum, Emprops, nft.storage/web3.storage/Filecoin). Add
                         <code> https://…/routing/v1</code> URLs to query extra routers, or leave empty to use the DHT
                         only. Default: <code>auto</code>.
                     </span>
@@ -890,7 +905,9 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                     {connectivityResult && (
                         <span
                             className="hint"
-                            style={{ color: connectivityResult.online ? "var(--accent-success)" : "var(--accent-danger)" }}
+                            style={{
+                                color: connectivityResult.online ? "var(--accent-success)" : "var(--accent-danger)",
+                            }}
                         >
                             {connectivityResult.online
                                 ? `Online — ${connectivityResult.peers} peer${connectivityResult.peers === 1 ? "" : "s"} connected`
@@ -1248,7 +1265,11 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                 <h3>
                     <FileText size={18} />
                     Logs &amp; Diagnostics
-                    {isRemote() && <span className="hint" style={{ fontWeight: 400, fontSize: "12px", marginLeft: 6 }}>(local client)</span>}
+                    {isRemote() && (
+                        <span className="hint" style={{ fontWeight: 400, fontSize: "12px", marginLeft: 6 }}>
+                            (local client)
+                        </span>
+                    )}
                 </h3>
                 <div className="log-filter">
                     <button
@@ -1338,9 +1359,7 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                     </p>
                 )}
                 {exportError && (
-                    <p style={{ color: "var(--accent-danger)", fontSize: "12px", margin: "4px 0 0" }}>
-                        {exportError}
-                    </p>
+                    <p style={{ color: "var(--accent-danger)", fontSize: "12px", margin: "4px 0 0" }}>{exportError}</p>
                 )}
             </div>
 

@@ -334,12 +334,12 @@ If you need to completely remove Porcupin or start fresh, follow the instruction
 
 Porcupin stores all user data in a single directory:
 
-| Data              | Location                       |
-| ----------------- | ------------------------------ |
-| Database          | `~/.porcupin/porcupin.db`      |
-| IPFS repo         | `~/.porcupin/ipfs/`            |
-| Config            | `~/.porcupin/config.yaml`      |
-| Logs              | `~/.porcupin/logs/`            |
+| Data      | Location                  |
+| --------- | ------------------------- |
+| Database  | `~/.porcupin/porcupin.db` |
+| IPFS repo | `~/.porcupin/ipfs/`       |
+| Config    | `~/.porcupin/config.yaml` |
+| Logs      | `~/.porcupin/logs/`       |
 
 > `~` means your **home directory** — e.g., `/home/yourname` on Linux, `/Users/yourname` on macOS, or `C:\Users\yourname` on Windows.
 
