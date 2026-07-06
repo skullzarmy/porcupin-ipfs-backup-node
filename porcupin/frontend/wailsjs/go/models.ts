@@ -158,6 +158,7 @@ export namespace config {
 	    max_file_size: number;
 	    pin_timeout: number;
 	    rate_limit_mbps: number;
+	    delegated_routers: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new IPFSConfig(source);
@@ -170,6 +171,7 @@ export namespace config {
 	        this.max_file_size = source["max_file_size"];
 	        this.pin_timeout = source["pin_timeout"];
 	        this.rate_limit_mbps = source["rate_limit_mbps"];
+	        this.delegated_routers = source["delegated_routers"];
 	    }
 	}
 	export class Config {

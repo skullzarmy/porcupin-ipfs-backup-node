@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/ipfs/kubo/config"
 )
 
 // freePort returns a port that is free on BOTH TCP and UDP, since Kubo and
@@ -35,6 +37,84 @@ func freePort(t *testing.T) int {
 	}
 	t.Fatal("could not find a port free on both TCP and UDP after 20 attempts")
 	return 0
+}
+
+func TestSanitizeDelegatedRouters(t *testing.T) {
+	const router = "https://my-router.example/routing/v1"
+
+	tests := []struct {
+		name         string
+		in           []string
+		wantAccepted []string
+		wantRejected []string
+	}{
+		{"nil", nil, nil, nil},
+		{"auto only", []string{"auto"}, []string{"auto"}, nil},
+		{"https url", []string{router}, []string{router}, nil},
+		{"http url", []string{"http://r.example/routing/v1"}, []string{"http://r.example/routing/v1"}, nil},
+		{"auto plus custom", []string{"auto", router}, []string{"auto", router}, nil},
+		{"trims whitespace", []string{"  auto  "}, []string{"auto"}, nil},
+		{"skips blanks", []string{"", "auto", "   "}, []string{"auto"}, nil},
+		{"dedupes", []string{"auto", "auto", router, router}, []string{"auto", router}, nil},
+		{"rejects non-url", []string{"not-a-url"}, nil, []string{"not-a-url"}},
+		{"rejects bad scheme", []string{"ftp://x/routing/v1"}, nil, []string{"ftp://x/routing/v1"}},
+		{"rejects missing host", []string{"https://"}, nil, []string{"https://"}},
+		{"mixed valid and invalid", []string{"auto", "bogus", router}, []string{"auto", router}, []string{"bogus"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			accepted, rejected := SanitizeDelegatedRouters(tt.in)
+			if !equalStringSlices(accepted, tt.wantAccepted) {
+				t.Errorf("accepted = %v, want %v", accepted, tt.wantAccepted)
+			}
+			if !equalStringSlices(rejected, tt.wantRejected) {
+				t.Errorf("rejected = %v, want %v", rejected, tt.wantRejected)
+			}
+		})
+	}
+}
+
+func TestApplyDelegatedRouters(t *testing.T) {
+	const router = "https://my-router.example/routing/v1"
+
+	tests := []struct {
+		name string
+		in   []string
+		want []string
+	}{
+		{"nil defaults to auto", nil, []string{"auto"}},
+		{"auto preserved", []string{"auto"}, []string{"auto"}},
+		{"custom added to auto", []string{"auto", router}, []string{"auto", router}},
+		{"all invalid falls back to auto", []string{"bogus", "also-bad"}, []string{"auto"}},
+		{"explicit empty disables (DHT only)", []string{}, nil},
+		{"invalid dropped, valid kept", []string{"auto", "bogus"}, []string{"auto"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{}
+			applyDelegatedRouters(cfg, tt.in)
+			if !equalStringSlices(cfg.Routing.DelegatedRouters, tt.want) {
+				t.Errorf("DelegatedRouters = %v, want %v", cfg.Routing.DelegatedRouters, tt.want)
+			}
+		})
+	}
+
+	// Nil config must not panic.
+	applyDelegatedRouters(nil, []string{"auto"})
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestNodePinAndVerify(t *testing.T) {

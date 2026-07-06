@@ -106,7 +106,8 @@ func TestIsTimeoutError(t *testing.T) {
 		{"exact timeout error string", fmt.Errorf("context deadline exceeded"), true},
 		{"context.DeadlineExceeded", context.DeadlineExceeded, true},
 		{"connection refused", fmt.Errorf("connection refused"), false},
-		{"wrapped timeout (not detected)", fmt.Errorf("failed: context deadline exceeded"), false},
+		{"wrapped timeout (string)", fmt.Errorf("failed: context deadline exceeded"), true},
+		{"wrapped timeout (errors.Is)", fmt.Errorf("max retries exceeded for CID Qm: %w", context.DeadlineExceeded), true},
 		{"context canceled", context.Canceled, false},
 		{"empty error", fmt.Errorf(""), false},
 	}
@@ -248,12 +249,12 @@ func TestCollectAssetURIs(t *testing.T) {
 
 // mockIPFSNode implements the minimal interface needed for testing
 type mockIPFSNode struct {
-	pinned       map[string]bool
-	sizes        map[string]int64
-	pinError     error
-	statError    error
-	repoPath     string
-	mu           sync.Mutex
+	pinned    map[string]bool
+	sizes     map[string]int64
+	pinError  error
+	statError error
+	repoPath  string
+	mu        sync.Mutex
 }
 
 func newMockIPFSNode() *mockIPFSNode {
@@ -308,9 +309,9 @@ func TestNewBackupManager(t *testing.T) {
 	// Create a minimal BackupManager without full IPFS/Indexer
 	// This tests the constructor
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -334,9 +335,9 @@ func TestBackupManager_PauseResume(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -370,13 +371,13 @@ func TestBackupManager_GetProgress(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{
-			Phase:        "syncing",
-			TotalNFTs:    100,
+			Phase:         "syncing",
+			TotalNFTs:     100,
 			ProcessedNFTs: 50,
 		},
 	}
@@ -399,9 +400,9 @@ func TestBackupManager_UpdateProgress(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -431,9 +432,9 @@ func TestBackupManager_ProgressConcurrency(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -463,9 +464,9 @@ func TestBackupManager_MarkDiskUsageDirty(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -497,9 +498,9 @@ func TestBackupManager_IsWithinStorageLimit(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -730,7 +731,6 @@ func TestBackupService_StatusMergesWithProgress(t *testing.T) {
 	// Get status - should merge with progress
 	status := service.GetStatus()
 
-
 	if status.ProcessedNFTs != 25 {
 		t.Errorf("ProcessedNFTs = %d, want 25", status.ProcessedNFTs)
 	}
@@ -756,7 +756,7 @@ func TestBackupManager_VerifyAndFixPins(t *testing.T) {
 	cfg := testConfig()
 	mockNode := newMockIPFSNode()
 	// Mock indexer not strictly needed as we won't hit it for this test if we setup right,
-	// but VerifyAndFixPins constructs a token that processNFT uses. 
+	// but VerifyAndFixPins constructs a token that processNFT uses.
 	// processNFT calls fetchMetadataFromChain if metadata is nil, but we construct it with metadata.
 	// So we should be safe without a real indexer.
 	idx := indexer.NewIndexer(cfg.TZKT.BaseURL)
@@ -770,7 +770,7 @@ func TestBackupManager_VerifyAndFixPins(t *testing.T) {
 	// ------------------------------------------------
 	wallet1 := &db.Wallet{Address: "tz1Integrity"}
 	database.SaveWallet(wallet1)
-	
+
 	nft1 := &db.NFT{
 		TokenID:         "1",
 		ContractAddress: "KT1Integrity",
@@ -801,7 +801,7 @@ func TestBackupManager_VerifyAndFixPins(t *testing.T) {
 		ArtifactURI:     "ipfs://QmGood",
 	}
 	database.SaveNFT(nft2)
-	
+
 	asset2 := &db.Asset{
 		NFTID:     nft2.ID,
 		URI:       "ipfs://QmGood",
@@ -827,13 +827,12 @@ func TestBackupManager_VerifyAndFixPins(t *testing.T) {
 	database.SaveNFT(nft3)
 
 	asset3 := &db.Asset{
-		NFTID:     nft3.ID,
-		URI:       "ipfs://QmPartialArtifact",
-		Status:    db.StatusPinned,
-		Type:      "artifact",
+		NFTID:  nft3.ID,
+		URI:    "ipfs://QmPartialArtifact",
+		Status: db.StatusPinned,
+		Type:   "artifact",
 	}
 	database.SaveAsset(asset3)
-
 
 	// --- RUN VERIFY AND FIX ---
 	stats, err := bm.VerifyAndFixPins(ctx)
@@ -853,8 +852,12 @@ func TestBackupManager_VerifyAndFixPins(t *testing.T) {
 	foundArt := false
 	foundDisp := false
 	for _, a := range finalAssets1 {
-		if a.URI == "ipfs://QmBrokenArtifact" { foundArt = true }
-		if a.URI == "ipfs://QmBrokenDisplay" { foundDisp = true }
+		if a.URI == "ipfs://QmBrokenArtifact" {
+			foundArt = true
+		}
+		if a.URI == "ipfs://QmBrokenDisplay" {
+			foundDisp = true
+		}
 	}
 	if !foundArt || !foundDisp {
 		t.Error("Scenario 1: Missing expected URIs")
@@ -876,10 +879,10 @@ func TestBackupManager_VerifyAndFixPins(t *testing.T) {
 	if len(finalAssets3) != 2 {
 		t.Errorf("Scenario 3: Expected 2 assets (1 existing + 1 fixed), got %d", len(finalAssets3))
 	}
-	
+
 	// Check stats
 	// checked: 3 NFTs
-	// fixed: hard to know exact number from black-box stats without logic change, 
+	// fixed: hard to know exact number from black-box stats without logic change,
 	// but we expect NO errors.
 	if stats["checked"] != 3 {
 		t.Errorf("Stats: Expected 3 checked, got %d", stats["checked"])
@@ -1002,9 +1005,9 @@ func TestBackupManager_WorkerSemaphore(t *testing.T) {
 	cfg.Backup.MaxConcurrency = 2 // Only allow 2 concurrent workers
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -1042,9 +1045,9 @@ func TestBackupManager_Shutdown(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -1060,10 +1063,10 @@ func TestBackupManager_Shutdown(t *testing.T) {
 
 // mockIPFSNodeWithCallCount tracks pin calls for testing retries
 type mockIPFSNodeWithCallCount struct {
-	pinCalls  int32
-	pinError  error
-	mu        sync.Mutex
-	repoPath  string
+	pinCalls int32
+	pinError error
+	mu       sync.Mutex
+	repoPath string
 }
 
 func (m *mockIPFSNodeWithCallCount) Pin(ctx context.Context, cid string, timeout time.Duration) error {
@@ -1101,9 +1104,9 @@ func TestBackupManager_DownloadMetadata_Success(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -1132,9 +1135,9 @@ func TestBackupManager_DownloadMetadata_NotFound(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -1157,9 +1160,9 @@ func TestBackupManager_DownloadMetadata_Timeout(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -1221,11 +1224,11 @@ func TestBackupManager_ProcessedURIsDeduplication(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 	bm.processedURIs.Store(new(sync.Map))
 
@@ -1270,12 +1273,12 @@ func TestBackupManager_SyncWallet_ContextCancellation(t *testing.T) {
 	idx := indexer.NewIndexer(cfg.TZKT.BaseURL)
 
 	bm := &BackupManager{
-		indexer:       idx,
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		indexer: idx,
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Add wallet to database
@@ -1312,11 +1315,11 @@ func TestBackupManager_BackupAsset_NonIPFSURI(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// HTTP URLs should be skipped (no error)
@@ -1337,11 +1340,11 @@ func TestBackupManager_BackupAsset_WhenPaused(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Pause the manager
@@ -1359,11 +1362,11 @@ func TestBackupManager_BackupAsset_Deduplication(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	uri := "ipfs://QmTestDedup"
@@ -1473,9 +1476,9 @@ func TestBackupManager_ConcurrentPauseCheck(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:       database,
-		config:   cfg,
-		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress: SyncProgress{Phase: "idle"},
 	}
@@ -1673,7 +1676,7 @@ func TestBackupService_PerformHealthCheck(t *testing.T) {
 	service := NewBackupService(mockNode, idx, database, cfg)
 
 	// Create wallets with different sync times
-	staleTime := time.Now().Add(-2 * time.Hour) // 2 hours ago - stale
+	staleTime := time.Now().Add(-2 * time.Hour)     // 2 hours ago - stale
 	recentTime := time.Now().Add(-30 * time.Minute) // 30 min ago - recent
 
 	wallet1 := &db.Wallet{
@@ -1828,11 +1831,11 @@ func TestBackupManager_ProcessNFT_WhenPaused(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Pause the manager
@@ -1871,12 +1874,12 @@ func TestBackupManager_ProcessNFT_NoMetadata(t *testing.T) {
 	idx := indexer.NewIndexer(server.URL)
 
 	bm := &BackupManager{
-		indexer:       idx,
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		indexer: idx,
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Add wallet to DB
@@ -1904,11 +1907,11 @@ func TestBackupManager_ProcessNFT_NoIPFSContent(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Add wallet to DB
@@ -1943,13 +1946,13 @@ func TestBackupManager_ProcessNFT_ContextCancelled(t *testing.T) {
 	mockNode := newMockIPFSNode()
 
 	bm := &BackupManager{
-		ipfs:          &ipfs.Node{}, // Non-nil but won't be used since we have metadata
-		indexer:       indexer.NewIndexer("http://localhost:1234"), // Non-nil indexer
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		ipfs:    &ipfs.Node{},                                // Non-nil but won't be used since we have metadata
+		indexer: indexer.NewIndexer("http://localhost:1234"), // Non-nil indexer
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 	_ = mockNode // Used only for type reference
 
@@ -1984,12 +1987,12 @@ func TestBackupManager_ProcessNFT_ShutdownChannel(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		ipfs:          &ipfs.Node{}, // Non-nil but won't be used since we have metadata
-		indexer:       indexer.NewIndexer("http://localhost:1234"), // Non-nil indexer
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
-		progress:      SyncProgress{Phase: "idle"},
+		ipfs:     &ipfs.Node{},                                // Non-nil but won't be used since we have metadata
+		indexer:  indexer.NewIndexer("http://localhost:1234"), // Non-nil indexer
+		db:       database,
+		config:   cfg,
+		workers:  make(chan struct{}, cfg.Backup.MaxConcurrency),
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Add wallet to DB
@@ -2036,10 +2039,10 @@ func TestBackupManager_UpdateDiskUsage_NotDirty(t *testing.T) {
 	}
 
 	bm := &BackupManager{
-		ipfs:           nil, // We'll use UpdateDiskUsage which needs GetRepoPath
-		db:             database,
-		config:         cfg,
-		workers:        make(chan struct{}, cfg.Backup.MaxConcurrency),
+		ipfs:    nil, // We'll use UpdateDiskUsage which needs GetRepoPath
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:       SyncProgress{Phase: "idle"},
 		diskUsageDirty: 0, // Not dirty
@@ -2082,10 +2085,10 @@ func TestBackupManager_UpdateDiskUsage_WhenDirty(t *testing.T) {
 	}
 
 	bm := &BackupManager{
-		ipfs:           &ipfs.Node{}, // We need a non-nil node for GetRepoPath to work
-		db:             database,
-		config:         cfg,
-		workers:        make(chan struct{}, cfg.Backup.MaxConcurrency),
+		ipfs:    &ipfs.Node{}, // We need a non-nil node for GetRepoPath to work
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
 		progress:       SyncProgress{Phase: "idle"},
 		diskUsageDirty: 1, // Mark dirty
@@ -2117,11 +2120,11 @@ func TestBackupManager_PinAssetDirect_NonIPFS(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Create asset with non-IPFS URI
@@ -2172,7 +2175,7 @@ func TestBackupManager_HasSufficientDiskSpace_WithLimit(t *testing.T) {
 	// This test is limited because we can't easily mock the disk space check
 	// hasSufficientDiskSpace uses ipfs.GetRepoPath() which we can't inject
 	// The test above with 0 limit is more reliable
-	
+
 	// Just verify the config is set correctly
 	if cfg.Backup.MinFreeDiskSpaceGB != 1 {
 		t.Errorf("MinFreeDiskSpaceGB should be 1, got %d", cfg.Backup.MinFreeDiskSpaceGB)
@@ -2190,11 +2193,11 @@ func TestBackupManager_BackupAsset_StorageLimitReached(t *testing.T) {
 	cfg.Backup.MaxStorageGB = 1 // 1GB limit
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Add wallet and NFT
@@ -2238,11 +2241,11 @@ func TestBackupManager_BackupAsset_AlreadyPinned(t *testing.T) {
 	cfg := testConfig()
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Add wallet and NFT
@@ -2327,12 +2330,12 @@ func TestBackupManager_FetchMetadataFromChain_NonIPFSURI(t *testing.T) {
 	idx := indexer.NewIndexer(cfg.TZKT.BaseURL)
 
 	bm := &BackupManager{
-		indexer:       idx,
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		indexer: idx,
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Should fail because URI is not IPFS
@@ -2368,13 +2371,13 @@ func TestSyncWallet_NFTsArePersistedToDatabase(t *testing.T) {
 	idx := indexer.NewIndexer(server.URL)
 
 	bm := &BackupManager{
-		db:            database,
-		indexer:       idx,
-		ipfs:          newMockIPFSNode(), // needed to avoid nil-ptr in hasSufficientDiskSpace
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		indexer: idx,
+		ipfs:    newMockIPFSNode(), // needed to avoid nil-ptr in hasSufficientDiskSpace
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Create wallet in DB
@@ -2389,9 +2392,9 @@ func TestSyncWallet_NFTsArePersistedToDatabase(t *testing.T) {
 	// that has an IPFS artifact URI. processNFT saves the NFT synchronously before
 	// launching asset-backup goroutines, so DB persistence is verifiable immediately.
 	token := indexer.Token{
-		ID:       100,
-		TokenID:  "42",
-		Contract: indexer.ContractInfo{Address: "KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton", Alias: "HEN"},
+		ID:          100,
+		TokenID:     "42",
+		Contract:    indexer.ContractInfo{Address: "KT1RJ6PbjHpwc3M5rw5s2Nbmefwbuwbdxton", Alias: "HEN"},
 		FirstMinter: &indexer.MinterInfo{Address: "tz1artist"},
 		Metadata: &indexer.TokenMetadata{
 			Name:        "My Test NFT",
@@ -2493,12 +2496,12 @@ func TestSyncWallet_DuplicateURIsAreDeduped(t *testing.T) {
 	idx := indexer.NewIndexer(cfg.TZKT.BaseURL)
 
 	bm := &BackupManager{
-		indexer:       idx,
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		indexer: idx,
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	wallet := &db.Wallet{Address: "tz1Test", SyncOwned: true, SyncCreated: false}
@@ -2548,12 +2551,12 @@ func TestSyncWallet_IncrementalSyncPassesSinceLevel(t *testing.T) {
 	idx := indexer.NewIndexer(cfg.TZKT.BaseURL)
 
 	bm := &BackupManager{
-		indexer:       idx,
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		indexer: idx,
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Create wallet with a previous sync level
@@ -2599,7 +2602,7 @@ func TestRetryFailedAssets_OnlyRetriesUnderMaxRetries(t *testing.T) {
 	lowRetryAsset := &db.Asset{NFTID: nft.ID, URI: "ipfs://QmLowRetry", Status: db.StatusFailed, RetryCount: 1}
 	maxRetryAsset := &db.Asset{NFTID: nft.ID, URI: "ipfs://QmMaxRetry", Status: db.StatusFailed, RetryCount: 10}
 	unavailableAsset := &db.Asset{NFTID: nft.ID, URI: "ipfs://QmUnavailable", Status: db.StatusFailedUnavailable, RetryCount: 1}
-	
+
 	database.SaveAsset(lowRetryAsset)
 	database.SaveAsset(maxRetryAsset)
 	database.SaveAsset(unavailableAsset)
@@ -2640,11 +2643,11 @@ func TestStorageLimitEnforcement(t *testing.T) {
 	cfg.Backup.MaxStorageGB = 1 // 1GB limit
 
 	bm := &BackupManager{
-		db:            database,
-		config:        cfg,
-		workers:       make(chan struct{}, cfg.Backup.MaxConcurrency),
+		db:      database,
+		config:  cfg,
+		workers: make(chan struct{}, cfg.Backup.MaxConcurrency),
 
-		progress:      SyncProgress{Phase: "idle"},
+		progress: SyncProgress{Phase: "idle"},
 	}
 
 	// Add pinned assets that exceed the limit
@@ -2670,9 +2673,8 @@ func TestStorageLimitEnforcement(t *testing.T) {
 	// Verify progress shows paused when trying to backup with limit exceeded
 	bm.processedURIs.Store(new(sync.Map)) // Reset dedup
 	err := bm.backupAsset(context.Background(), nft.ID, "ipfs://QmNewAsset", "artifact")
-	
+
 	if err == nil || !bm.IsPaused() {
 		t.Error("backupAsset should fail and pause when storage limit exceeded")
 	}
 }
-

@@ -10,7 +10,7 @@ This document outlines potential security and reliability risks identified durin
 
 **Risk**: If the original IPFS host is offline, `ipfs.Pin()` will hang indefinitely or timeout. Content that is effectively gone cannot be backed up.
 
-**Mitigation**: Implemented strict 2-minute timeouts for pinning operations. Assets that timeout are marked as `FAILED_UNAVAILABLE` (distinct from generic `FAILED`) to inform users that the content is no longer available on the IPFS network.
+**Mitigation**: Implemented strict 2-minute timeouts for pinning operations. Assets that timeout are marked as `FAILED_UNAVAILABLE` (distinct from generic `FAILED`) to indicate the content could not be located within the timeout. To maximize the chance content *is* found, the embedded node uses **both** the Amino DHT (client mode) and **delegated HTTP routing to the IPNI indexer** (`cid.contact`). This matters because a large share of NFT content (Versum, Emprops, and anything stored via nft.storage / web3.storage / Filecoin) advertises providers to IPNI but not the DHT; a DHT-only node would incorrectly report such content as unavailable. See `getRoutingOption` (`backend/ipfs/profile_default.go`) and `ensureDelegatedRouters` (`backend/ipfs/node.go`).
 
 ### Huge Files
 

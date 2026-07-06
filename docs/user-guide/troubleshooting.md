@@ -104,9 +104,12 @@ ipfs:
     pin_timeout: 5m
 ```
 
-**Cause 2: Content not available on IPFS**
+**Cause 2: Content couldn't be located in time**
 
-Some NFT content is no longer on the IPFS network. Porcupin will mark these as "Failed (Unavailable)" after timeout.
+Before Porcupin can pin a file, it has to find a peer on the IPFS network that is hosting it. If no provider is found within the pin timeout, the asset is marked "Failed (Unavailable)". This usually means one of:
+
+- The content genuinely has no online host anymore, **or**
+- The provider only advertises itself through the IPNI indexer (`cid.contact`) rather than the DHT. Porcupin queries **both** the DHT and IPNI as of v1.0.4+, which resolves the large batches of "max retries exceeded" failures seen on Versum, Emprops, and other content stored via nft.storage / web3.storage / Filecoin. If you saw many such failures on an older version, simply update and let the retry worker run — no re-import needed.
 
 **Cause 3: Too many concurrent downloads**
 
@@ -119,17 +122,18 @@ backup:
 
 ### Assets marked "Failed (Unavailable)"
 
-This means the content isn't available anywhere on IPFS. This happens when:
+This means Porcupin couldn't locate and retrieve a provider for the content within the timeout. It does **not** always mean the content is gone. Common causes:
 
-- The original host stopped pinning
-- No one else has a copy
-- The IPFS gateway is temporarily down
+- The original host stopped pinning and no one else has a copy (genuinely lost)
+- The content is available but slow to discover/fetch (transient)
+- You are on a version older than v1.0.4, which only queried the DHT and missed content advertised via the IPNI indexer
 
 **What you can do:**
 
-1. Wait - Porcupin periodically retries
-2. Check if the NFT platform still shows the image
-3. If visible on a website, the content may come back
+1. **Update Porcupin** if you're on an older version — v1.0.4+ queries both the DHT and IPNI (`cid.contact`), which recovers most previously "unavailable" assets on the next retry.
+2. Wait — Porcupin periodically retries failed assets automatically.
+3. Check if the NFT platform still shows the image. If a public gateway (e.g. `https://ipfs.io/ipfs/<cid>`) or `https://cid.contact/cid/<cid>` shows providers, the content is on the network and should pin.
+4. If your connection is slow, raise `ipfs.pin_timeout` in `~/.porcupin/config.yaml`.
 
 ### Sync is very slow
 

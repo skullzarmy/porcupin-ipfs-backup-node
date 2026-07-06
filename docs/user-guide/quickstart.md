@@ -115,9 +115,9 @@ You can also run Porcupin using Docker or Docker Compose.
 
 ### Failed Assets
 
-- Some NFTs have broken/missing IPFS content
-- These are marked as "Failed (Unavailable)"
-- Porcupin periodically retries them in case they come back online
+- An asset is marked "Failed (Unavailable)" when Porcupin can't locate a provider for it before the timeout
+- This isn't always permanent — the content may just be slow to discover, or (on versions before v1.0.4) advertised only via the IPNI indexer
+- Porcupin queries both the DHT and IPNI (`cid.contact`) and periodically retries failed assets automatically
 
 ### Skipped Assets
 

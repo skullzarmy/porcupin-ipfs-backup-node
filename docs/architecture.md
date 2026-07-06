@@ -206,6 +206,7 @@ erDiagram
 - **Concurrency**: Uses Go routines and channels for the worker pool. WaitGroup tracking ensures graceful shutdown waits for all goroutines to complete.
 - **Resilience**: Implements exponential backoff for network requests. Panic recovery wrappers on all unprotected goroutines.
 - **IPFS**: Uses `github.com/ipfs/kubo/core` for direct node integration, bypassing the HTTP API overhead for local operations.
+- **Content Routing**: The embedded node runs a DHT **client** (low resource, non-server) **combined with delegated HTTP routing to the IPNI indexer** (`cid.contact`, resolved via Kubo AutoConf). This is essential: most NFT content — Versum, Emprops, and anything stored via nft.storage / web3.storage / Filecoin — advertises its provider records to the IPNI indexer but **not** to the Amino DHT. A DHT-only node cannot discover those providers and pins time out even though the content is widely available. Configured via `ipfs.delegated_routers` (default `["auto"]`; `"auto"` → IPNI). See `getRoutingOption` in `backend/ipfs/profile_default.go` and `applyDelegatedRouters` / `SanitizeDelegatedRouters` in `backend/ipfs/routing.go`. The `IPFS_HTTP_ROUTERS` environment variable overrides the config for a single run.
 - **Logging**: Structured logging via `slog` with a multi-handler fan-out to stderr, an in-memory ring buffer (1000 entries), and daily rotating log files.
 - **Health Monitoring**: Periodic IPFS health checks reporting online/offline status and connected peer count via Kubo's Swarm API.
 

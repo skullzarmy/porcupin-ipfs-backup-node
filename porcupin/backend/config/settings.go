@@ -206,6 +206,16 @@ func formatValue(v reflect.Value) string {
 		return strconv.FormatInt(v.Int(), 10)
 	case reflect.Bool:
 		return strconv.FormatBool(v.Bool())
+	case reflect.Slice:
+		// Render string slices as comma-separated for round-trippable display.
+		if v.Type().Elem().Kind() == reflect.String {
+			parts := make([]string, v.Len())
+			for i := 0; i < v.Len(); i++ {
+				parts[i] = v.Index(i).String()
+			}
+			return strings.Join(parts, ",")
+		}
+		return fmt.Sprintf("%v", v.Interface())
 	default:
 		return fmt.Sprintf("%v", v.Interface())
 	}
@@ -241,6 +251,20 @@ func parseAndSet(field reflect.Value, value string, key string) error {
 			return fmt.Errorf("invalid boolean for %q: %w (use true/false)", key, err)
 		}
 		field.SetBool(b)
+		return nil
+
+	case reflect.Slice:
+		// Comma-separated string list (e.g. "auto,https://router/routing/v1").
+		if field.Type().Elem().Kind() != reflect.String {
+			return fmt.Errorf("unsupported slice type %s for key %q", field.Type(), key)
+		}
+		var items []string
+		for _, part := range strings.Split(value, ",") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				items = append(items, trimmed)
+			}
+		}
+		field.Set(reflect.ValueOf(items))
 		return nil
 
 	default:

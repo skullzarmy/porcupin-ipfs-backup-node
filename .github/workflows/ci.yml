@@ -100,6 +100,31 @@ jobs:
     #               version: latest
     #               working-directory: porcupin
 
+    format:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Setup Go
+              uses: actions/setup-go@v6
+              with:
+                  go-version: ${{ env.GO_VERSION }}
+                  cache-dependency-path: porcupin/go.sum
+
+            - name: Check gofmt
+              working-directory: porcupin
+              run: |
+                  unformatted=$(gofmt -l .)
+                  if [ -n "$unformatted" ]; then
+                    echo "::error::The following Go files are not gofmt-formatted:"
+                    echo "$unformatted"
+                    echo "Run 'gofmt -w .' in the porcupin/ directory and commit the result."
+                    exit 1
+                  fi
+                  echo "All Go files are gofmt-formatted."
+
     build-check:
         runs-on: ubuntu-latest
 

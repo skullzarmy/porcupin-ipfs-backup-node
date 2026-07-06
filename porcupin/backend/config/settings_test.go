@@ -25,6 +25,7 @@ func TestGetByDotNotation(t *testing.T) {
 		{"ipfs.pin_timeout", "2m0s"},
 		{"ipfs.max_file_size", "5368709120"},
 		{"ipfs.rate_limit_mbps", "10"},
+		{"ipfs.delegated_routers", "auto"},
 		{"server.bind_address", "127.0.0.1:8080"},
 		{"server.enable_auth", "false"},
 		{"tzkt.base_url", "https://api.tzkt.io"},
@@ -146,6 +147,31 @@ func TestSetByDotNotation(t *testing.T) {
 	if cfg.API.TLS.Cert != "/path/to/cert.pem" {
 		t.Errorf("TLS.Cert = %q, want '/path/to/cert.pem'", cfg.API.TLS.Cert)
 	}
+
+	// Set string slice (comma-separated)
+	if err := SetByDotNotation(cfg, "ipfs.delegated_routers", "auto, https://r.example/routing/v1"); err != nil {
+		t.Fatalf("SetByDotNotation slice error: %v", err)
+	}
+	if len(cfg.IPFS.DelegatedRouters) != 2 ||
+		cfg.IPFS.DelegatedRouters[0] != "auto" ||
+		cfg.IPFS.DelegatedRouters[1] != "https://r.example/routing/v1" {
+		t.Errorf("DelegatedRouters = %v, want [auto https://r.example/routing/v1]", cfg.IPFS.DelegatedRouters)
+	}
+
+	// Round-trips through formatValue as comma-separated
+	if got, err := GetByDotNotation(cfg, "ipfs.delegated_routers"); err != nil {
+		t.Fatalf("GetByDotNotation slice error: %v", err)
+	} else if got != "auto,https://r.example/routing/v1" {
+		t.Errorf("Get slice = %q, want 'auto,https://r.example/routing/v1'", got)
+	}
+
+	// Empty string clears the slice (opt out of delegated routing)
+	if err := SetByDotNotation(cfg, "ipfs.delegated_routers", ""); err != nil {
+		t.Fatalf("SetByDotNotation empty slice error: %v", err)
+	}
+	if len(cfg.IPFS.DelegatedRouters) != 0 {
+		t.Errorf("DelegatedRouters = %v, want empty", cfg.IPFS.DelegatedRouters)
+	}
 }
 
 func TestSetByDotNotation_Errors(t *testing.T) {
@@ -193,13 +219,13 @@ func TestListAll(t *testing.T) {
 
 	// Check that expected keys are present
 	expectedKeys := map[string]bool{
-		"backup.max_concurrency":      false,
-		"ipfs.repo_path":              false,
-		"server.bind_address":         false,
-		"tzkt.base_url":               false,
-		"api.port":                    false,
-		"api.tls.cert":                false,
-		"api.rate_limit.per_ip":       false,
+		"backup.max_concurrency": false,
+		"ipfs.repo_path":         false,
+		"server.bind_address":    false,
+		"tzkt.base_url":          false,
+		"api.port":               false,
+		"api.tls.cert":           false,
+		"api.rate_limit.per_ip":  false,
 	}
 
 	for _, item := range items {

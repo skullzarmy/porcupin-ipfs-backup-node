@@ -37,6 +37,14 @@ ipfs:
     # Larger files are skipped
     max_file_size: 5368709120
 
+    # Delegated (HTTP) provider routers, queried in parallel with the DHT to
+    # find which peers host a given CID. "auto" expands to the IPNI indexer
+    # (cid.contact), which is required to locate most NFT content. Add
+    # /routing/v1 URLs to query additional routers. An empty list ([]) uses the
+    # DHT only. (Default: ["auto"]. Requires an app restart to take effect.)
+    delegated_routers:
+        - auto
+
 # Backup Settings
 backup:
     # Number of simultaneous downloads (default: 5)
@@ -143,6 +151,50 @@ backup:
 
 ---
 
+## Content Routing & Provider Discovery
+
+Before Porcupin can pin an asset, it must **find a peer that hosts that content**. Porcupin's embedded IPFS node discovers hosts using two systems at once:
+
+1. **The Amino DHT** (peer-to-peer distributed hash table) — in low-resource _client_ mode.
+2. **The IPNI indexer** (`cid.contact`) via delegated HTTP routing — resolved automatically through Kubo AutoConf.
+
+Both are queried in parallel. This dual approach is important: a large amount of NFT content — including **Versum, Emprops, and anything stored via nft.storage / web3.storage / Filecoin** — advertises its providers to the **IPNI indexer only**, not the DHT. A DHT-only node cannot find that content and would report it as "Failed (Unavailable)" even though it is widely available. (This was the cause of large "max retries exceeded" batches before v1.0.4.)
+
+No configuration is required — delegated IPNI routing is enabled by default (`delegated_routers: ["auto"]`), and Porcupin applies it on every start, so even repositories created by older versions get IPNI discovery automatically after upgrading.
+
+### Adding custom provider endpoints (advanced)
+
+You can query additional `/routing/v1` delegated routers — for example a self-hosted [someguy](https://github.com/ipfs/someguy) instance or an alternative indexer — for redundancy, private networks, or self-hosted setups.
+
+**Recommended: the config file.** Add endpoints to the `delegated_routers` list. Keep `auto` to retain IPNI (cid.contact):
+
+```yaml
+ipfs:
+    delegated_routers:
+        - auto # IPNI indexer (cid.contact) — keep this for normal content
+        - https://my-router.example/routing/v1
+```
+
+Or from the command line:
+
+```bash
+porcupin settings ipfs.delegated_routers "auto,https://my-router.example/routing/v1"
+```
+
+Or in the **desktop app**: Settings → IPFS Network → Content Provider Routers (one endpoint per line).
+
+Entries must be `auto` or an absolute `http(s)` `/routing/v1` URL; invalid entries are rejected (UI/CLI) or ignored with a warning (config file). Setting an empty list disables delegated routing entirely (DHT only). **Changes take effect after an app restart.**
+
+**Environment override.** Setting the `IPFS_HTTP_ROUTERS` environment variable overrides the config for the current process. Note it **replaces** the list rather than adding to it, so include `cid.contact` explicitly if you still want IPNI:
+
+```bash
+export IPFS_HTTP_ROUTERS="https://cid.contact https://my-router.example/routing/v1"
+```
+
+None of this is needed for normal use — `cid.contact` (IPNI) already aggregates the major hosting providers.
+
+---
+
 ## Migrating Storage Location
 
 ### Using the Desktop App
@@ -173,6 +225,7 @@ For Docker or advanced setups, you can use environment variables:
 | `PORCUPIN_IPFS_PATH`      | Override IPFS repo path                          |
 | `PORCUPIN_MAX_STORAGE_GB` | Override max storage limit                       |
 | `PORCUPIN_API_TOKEN`      | Set API token for remote server mode             |
+| `IPFS_HTTP_ROUTERS`       | Override delegated `/routing/v1` provider endpoints (see [Content Routing](#content-routing--provider-discovery)) |
 
 ### API Token via Environment
 

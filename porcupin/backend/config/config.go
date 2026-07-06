@@ -21,10 +21,23 @@ type Config struct {
 // IPFSConfig holds IPFS-specific configuration
 type IPFSConfig struct {
 	RepoPath    string        `yaml:"repo_path" json:"repo_path"`
-	SwarmPort   int           `yaml:"swarm_port" json:"swarm_port"`             // IPFS swarm port for p2p connections (default 4001)
-	MaxFileSize int64         `yaml:"max_file_size" json:"max_file_size"`       // in bytes
-	PinTimeout  time.Duration `yaml:"pin_timeout" json:"pin_timeout"`           // timeout for pin operations
-	RateLimit   int           `yaml:"rate_limit_mbps" json:"rate_limit_mbps"`   // bandwidth limit in Mbps
+	SwarmPort   int           `yaml:"swarm_port" json:"swarm_port"`           // IPFS swarm port for p2p connections (default 4001)
+	MaxFileSize int64         `yaml:"max_file_size" json:"max_file_size"`     // in bytes
+	PinTimeout  time.Duration `yaml:"pin_timeout" json:"pin_timeout"`         // timeout for pin operations
+	RateLimit   int           `yaml:"rate_limit_mbps" json:"rate_limit_mbps"` // bandwidth limit in Mbps
+
+	// DelegatedRouters lists the HTTP /routing/v1 endpoints used to discover
+	// which peers host a given CID, queried in parallel with the DHT.
+	//
+	// The special value "auto" expands (via Kubo AutoConf) to the managed IPNI
+	// indexer (cid.contact). This is required for most NFT content — Versum,
+	// Emprops, and anything stored via nft.storage/web3.storage/Filecoin —
+	// which advertises providers to IPNI but NOT the Amino DHT.
+	//
+	// Default: ["auto"]. Add entries to query additional routers, e.g.
+	// ["auto", "https://my-router.example/routing/v1"]. An explicit empty list
+	// disables delegated routing (DHT only). Invalid entries are ignored.
+	DelegatedRouters []string `yaml:"delegated_routers" json:"delegated_routers"`
 }
 
 // ServerConfig holds server configuration
@@ -37,13 +50,13 @@ type ServerConfig struct {
 
 // BackupConfig holds backup-specific configuration
 type BackupConfig struct {
-	MaxConcurrency      int  `yaml:"max_concurrency" json:"max_concurrency"`               // max concurrent workers
-	MinFreeDiskSpaceGB  int  `yaml:"min_free_disk_space_gb" json:"min_free_disk_space_gb"` // minimum free disk space in GB
-	MaxMetadataSizeMB   int  `yaml:"max_metadata_size_mb" json:"max_metadata_size_mb"`     // max metadata size in MB
-	MaxStorageGB        int  `yaml:"max_storage_gb" json:"max_storage_gb"`                 // max storage allocation in GB (0 = unlimited)
-	StorageWarningPct   int  `yaml:"storage_warning_pct" json:"storage_warning_pct"`       // warn when storage reaches this % (default 80)
-	SyncOwned           bool `yaml:"sync_owned" json:"sync_owned"`                         // default: sync owned NFTs for new wallets
-	SyncCreated         bool `yaml:"sync_created" json:"sync_created"`                     // default: sync created NFTs for new wallets
+	MaxConcurrency     int  `yaml:"max_concurrency" json:"max_concurrency"`               // max concurrent workers
+	MinFreeDiskSpaceGB int  `yaml:"min_free_disk_space_gb" json:"min_free_disk_space_gb"` // minimum free disk space in GB
+	MaxMetadataSizeMB  int  `yaml:"max_metadata_size_mb" json:"max_metadata_size_mb"`     // max metadata size in MB
+	MaxStorageGB       int  `yaml:"max_storage_gb" json:"max_storage_gb"`                 // max storage allocation in GB (0 = unlimited)
+	StorageWarningPct  int  `yaml:"storage_warning_pct" json:"storage_warning_pct"`       // warn when storage reaches this % (default 80)
+	SyncOwned          bool `yaml:"sync_owned" json:"sync_owned"`                         // default: sync owned NFTs for new wallets
+	SyncCreated        bool `yaml:"sync_created" json:"sync_created"`                     // default: sync created NFTs for new wallets
 }
 
 // TZKTConfig holds TZKT API configuration
@@ -53,11 +66,11 @@ type TZKTConfig struct {
 
 // APIConfig holds REST API server configuration
 type APIConfig struct {
-	Enabled     bool           `yaml:"enabled" json:"enabled"`           // Set to true by --serve
-	Port        int            `yaml:"port" json:"port"`                 // Default 8085
-	Bind        string         `yaml:"bind" json:"bind"`                 // Default "0.0.0.0"
-	AllowPublic bool           `yaml:"allow_public" json:"allow_public"` // Override IP restrictions
-	TLS         APITLSConfig   `yaml:"tls" json:"tls"`
+	Enabled     bool            `yaml:"enabled" json:"enabled"`           // Set to true by --serve
+	Port        int             `yaml:"port" json:"port"`                 // Default 8085
+	Bind        string          `yaml:"bind" json:"bind"`                 // Default "0.0.0.0"
+	AllowPublic bool            `yaml:"allow_public" json:"allow_public"` // Override IP restrictions
+	TLS         APITLSConfig    `yaml:"tls" json:"tls"`
 	RateLimit   RateLimitConfig `yaml:"rate_limit" json:"rate_limit"`
 }
 
@@ -69,9 +82,9 @@ type APITLSConfig struct {
 
 // RateLimitConfig holds rate limiting configuration
 type RateLimitConfig struct {
-	PerIP  int `yaml:"per_ip" json:"per_ip"`   // Requests per second per IP
-	Global int `yaml:"global" json:"global"`   // Total requests per second
-	Burst  int `yaml:"burst" json:"burst"`     // Burst allowance
+	PerIP  int `yaml:"per_ip" json:"per_ip"` // Requests per second per IP
+	Global int `yaml:"global" json:"global"` // Total requests per second
+	Burst  int `yaml:"burst" json:"burst"`   // Burst allowance
 }
 
 // DefaultConfig returns a configuration with secure defaults
@@ -79,14 +92,16 @@ func DefaultConfig() *Config {
 	return &Config{
 		IPFS: IPFSConfig{
 			RepoPath:    "~/.porcupin/ipfs",
-			SwarmPort:   4001, // default IPFS swarm port
+			SwarmPort:   4001,                   // default IPFS swarm port
 			MaxFileSize: 5 * 1024 * 1024 * 1024, // 5GB
 			PinTimeout:  2 * time.Minute,
 			RateLimit:   10, // 10 Mbps
+			// "auto" expands to the IPNI indexer (cid.contact) via Kubo AutoConf.
+			DelegatedRouters: []string{"auto"},
 		},
 		Server: ServerConfig{
 			BindAddress: "127.0.0.1:8080", // localhost only by default
-			EnableAuth:  false,             // opt-in auth
+			EnableAuth:  false,            // opt-in auth
 			AuthUser:    "",
 			AuthPass:    "",
 		},
@@ -159,7 +174,7 @@ func (c *Config) SaveConfig(path string) error {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
-	
+
 	// Clean up temp file on error
 	defer func() {
 		if tmpFile != nil {

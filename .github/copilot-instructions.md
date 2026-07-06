@@ -36,7 +36,7 @@ The app automatically syncs on startup and watches for new NFTs:
 -   **BackupService** ([porcupin/backend/core/service.go](porcupin/backend/core/service.go)) - Orchestrates automatic sync lifecycle
 -   **BackupManager** ([porcupin/backend/core/backup.go](porcupin/backend/core/backup.go)) - Handles actual NFT processing and pinning
 -   **Indexer** ([porcupin/backend/indexer/tzkt.go](porcupin/backend/indexer/tzkt.go)) - Fetches NFTs via TZKT REST API + WebSocket
--   **IPFS Node** ([porcupin/backend/ipfs/node.go](porcupin/backend/ipfs/node.go)) - Embeds Kubo with Pin, Verify, Cat, Health methods
+-   **IPFS Node** ([porcupin/backend/ipfs/node.go](porcupin/backend/ipfs/node.go)) - Embeds Kubo with Pin, Verify, Cat, Health methods. Content routing uses a DHT **client** + delegated HTTP routing to the IPNI indexer (`cid.contact`) — see `getRoutingOption` in [porcupin/backend/ipfs/profile_default.go](porcupin/backend/ipfs/profile_default.go) and `applyDelegatedRouters`/`SanitizeDelegatedRouters` in [porcupin/backend/ipfs/routing.go](porcupin/backend/ipfs/routing.go). Configurable via `ipfs.delegated_routers` (default `["auto"]`; passed through `ipfs.WithDelegatedRouters(...)` at every `NewNode` call site). IPNI routing is required because most NFT content (Versum, Emprops, nft.storage/web3.storage/Filecoin) advertises providers to IPNI but NOT the Amino DHT; a DHT-only node fails to find them and pins time out.
 -   **Logging** ([porcupin/backend/logging/](porcupin/backend/logging/)) - Structured slog with ring buffer, daily rotating log files, multi-handler fan-out, and crash report writer
 
 ### Key Patterns
@@ -89,7 +89,7 @@ YAML config loaded from `~/.porcupin/config.yaml`. Defaults in [porcupin/backend
 ## External Dependencies
 
 -   **TZKT API** (`api.tzkt.io`): Tezos blockchain indexer - uses `/v1/tokens/balances` and `/v1/tokens` endpoints (WebSocket support in progress)
--   **Kubo/IPFS**: Embedded node, repo at `~/.porcupin/ipfs`
+-   **Kubo/IPFS**: Embedded node, repo at `~/.porcupin/ipfs`. Provider discovery via DHT + IPNI (`cid.contact`); configured with `ipfs.delegated_routers` (default `["auto"]`) or overridden for one run with the `IPFS_HTTP_ROUTERS` env var.
 -   **dipdup-net/go-lib**: TZKT Go client with WebSocket support
 
 ## Upcoming Features

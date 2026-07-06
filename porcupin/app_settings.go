@@ -20,10 +20,10 @@ import (
 
 // StorageInfo represents storage usage information
 type StorageInfo struct {
-	UsedBytes       int64   `json:"used_bytes"`        // From database (sum of asset sizes)
-	UsedGB          float64 `json:"used_gb"`           // From database
-	DiskUsageBytes  int64   `json:"disk_usage_bytes"`  // Actual IPFS repo size on disk
-	DiskUsageGB     float64 `json:"disk_usage_gb"`     // Actual IPFS repo size on disk
+	UsedBytes       int64   `json:"used_bytes"`       // From database (sum of asset sizes)
+	UsedGB          float64 `json:"used_gb"`          // From database
+	DiskUsageBytes  int64   `json:"disk_usage_bytes"` // Actual IPFS repo size on disk
+	DiskUsageGB     float64 `json:"disk_usage_gb"`    // Actual IPFS repo size on disk
 	MaxStorageGB    int     `json:"max_storage_gb"`
 	WarningPct      int     `json:"warning_pct"`
 	UsagePct        float64 `json:"usage_pct"`
@@ -121,11 +121,66 @@ func (a *App) UpdateSettings(settings map[string]interface{}) error {
 			a.config.IPFS.SwarmPort = port
 		}
 	}
+	// Delegated (IPNI/HTTP) provider routers. Accepts a JSON array of strings
+	// or a comma/newline-separated string. Requires app restart to take effect.
+	if raw, ok := settings["delegated_routers"]; ok {
+		entries, err := coerceStringSlice(raw)
+		if err != nil {
+			return fmt.Errorf("invalid delegated_routers: %w", err)
+		}
+		accepted, rejected := ipfs.SanitizeDelegatedRouters(entries)
+		if len(rejected) > 0 {
+			return fmt.Errorf(
+				"invalid delegated router endpoint(s): %s — use \"auto\" or an http(s) /routing/v1 URL",
+				strings.Join(rejected, ", "),
+			)
+		}
+		a.config.IPFS.DelegatedRouters = accepted
+	}
 
 	// Save config to file
 	homeDir, _ := os.UserHomeDir()
 	configPath := filepath.Join(homeDir, ".porcupin", "config.yaml")
 	return a.config.SaveConfig(configPath)
+}
+
+// coerceStringSlice converts a value received over the Wails bridge into a
+// trimmed, non-empty []string. It accepts a JSON array (decoded as
+// []interface{}), a comma/newline-separated string, or nil (empty list).
+func coerceStringSlice(raw interface{}) ([]string, error) {
+	switch v := raw.(type) {
+	case nil:
+		return []string{}, nil
+	case []string:
+		return trimNonEmpty(v), nil
+	case []interface{}:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			s, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("expected string entries, got %T", item)
+			}
+			out = append(out, s)
+		}
+		return trimNonEmpty(out), nil
+	case string:
+		return trimNonEmpty(strings.FieldsFunc(v, func(r rune) bool {
+			return r == ',' || r == '\n' || r == '\r'
+		})), nil
+	default:
+		return nil, fmt.Errorf("expected array or string, got %T", raw)
+	}
+}
+
+// trimNonEmpty trims whitespace from each entry and drops empty results.
+func trimNonEmpty(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		if t := strings.TrimSpace(s); t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 // RecoverMissingAssets triggers the verification and repair process for missing asset records
@@ -261,7 +316,7 @@ func (a *App) MigrateStorage(destPath string) error {
 		slog.Error("Migration failed, attempting to restart with old path", "error", err)
 		wailsRuntime.EventsEmit(a.ctx, "storage:migration:error", err.Error())
 
-		newNode, nodeErr := ipfs.NewNode(currentPath, a.config.IPFS.SwarmPort)
+		newNode, nodeErr := ipfs.NewNode(currentPath, a.config.IPFS.SwarmPort, ipfs.WithDelegatedRouters(a.config.IPFS.DelegatedRouters))
 		if nodeErr == nil {
 			nodeErr = newNode.Start(a.ctx)
 			if nodeErr == nil {
@@ -283,7 +338,7 @@ func (a *App) MigrateStorage(destPath string) error {
 
 	// Start IPFS node with new path
 	slog.Info("Starting IPFS node at new location", "path", expandedDest)
-	newNode, err := ipfs.NewNode(expandedDest, a.config.IPFS.SwarmPort)
+	newNode, err := ipfs.NewNode(expandedDest, a.config.IPFS.SwarmPort, ipfs.WithDelegatedRouters(a.config.IPFS.DelegatedRouters))
 	if err != nil {
 		wailsRuntime.EventsEmit(a.ctx, "storage:migration:error", err.Error())
 		return fmt.Errorf("failed to create node at new location: %w", err)
@@ -334,7 +389,7 @@ func (a *App) CancelMigration() error {
 	slog.Info("Restarting services after cancellation")
 	currentPath := a.ipfsNode.GetRepoPath()
 
-	newNode, err := ipfs.NewNode(currentPath, a.config.IPFS.SwarmPort)
+	newNode, err := ipfs.NewNode(currentPath, a.config.IPFS.SwarmPort, ipfs.WithDelegatedRouters(a.config.IPFS.DelegatedRouters))
 	if err != nil {
 		slog.Error("Failed to create node after cancel", "error", err)
 		return fmt.Errorf("failed to restart IPFS: %w", err)

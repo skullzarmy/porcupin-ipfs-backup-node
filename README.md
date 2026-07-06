@@ -31,6 +31,7 @@ Porcupin automatically monitors your Tezos wallets and backs up all NFT content 
 
 - 🦔 **Set and Forget** — Add wallets once, Porcupin handles the rest
 - 📌 **IPFS Pinning** — Embedded Kubo node, no external services needed
+- 🧭 **Robust Content Discovery** — Finds providers via both the DHT and the IPNI indexer (`cid.contact`), so content stored on nft.storage / web3.storage / Filecoin (Versum, Emprops, etc.) is reliably located and pinned
 - 🔄 **Real-time Sync** — Watches for new NFTs via TZKT
 - 💻 **Cross-Platform** — macOS, Windows, Linux, Raspberry Pi, Docker
 - 🌐 **Remote Server Mode** — Run headless on NAS/Pi, manage from desktop app
