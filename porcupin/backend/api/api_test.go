@@ -930,16 +930,16 @@ func TestWriteNoContent(t *testing.T) {
 // setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *db.Database {
 	t.Helper()
-	
+
 	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("Failed to open test database: %v", err)
 	}
-	
+
 	if err := db.InitDB(gormDB); err != nil {
 		t.Fatalf("Failed to initialize test database: %v", err)
 	}
-	
+
 	return db.NewDatabase(gormDB)
 }
 

@@ -65,7 +65,7 @@ func getDirSizeBytes(path string) (int64, error) {
 	// /BYTES = show sizes in bytes
 	// Output format includes: "Bytes : 1234567890"
 	cmd := exec.Command("robocopy", path, "NUL", "/L", "/S", "/NFL", "/NDL", "/NJH", "/BYTES")
-	
+
 	// robocopy returns non-zero exit codes that don't mean failure:
 	// 0-7 = various success states, 8+ = actual errors
 	output, err := cmd.CombinedOutput()
@@ -77,7 +77,7 @@ func getDirSizeBytes(path string) (int64, error) {
 			}
 		}
 	}
-	
+
 	if err != nil {
 		slog.Warn("robocopy failed, falling back to PowerShell", "error", err)
 		return getDirSizePowerShell(path)
@@ -111,7 +111,7 @@ func getDirSizePowerShell(path string) (int64, error) {
 	// (Get-ChildItem -Path 'path' -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
 	psCmd := `(Get-ChildItem -Path '` + strings.ReplaceAll(path, "'", "''") + `' -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum`
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
-	
+
 	output, err := cmd.Output()
 	if err != nil {
 		slog.Error("PowerShell fallback also failed", "error", err)

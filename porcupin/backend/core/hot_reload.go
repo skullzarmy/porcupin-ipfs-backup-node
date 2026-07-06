@@ -18,13 +18,13 @@ func (s *BackupService) checkForNewWallets() {
 	for _, wallet := range wallets {
 		if !s.watchedWallets[wallet.Address] {
 			slog.Info("Hot Reload: found new wallet, starting watcher", "address", wallet.Address)
-			
+
 			// Mark as watched
 			s.watchedWallets[wallet.Address] = true
-			
+
 			// Start watcher
 			go s.watchWallet(wallet.Address)
-			
+
 			// Trigger immediate sync
 			select {
 			case s.triggerCh <- wallet.Address:

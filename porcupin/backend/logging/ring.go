@@ -12,7 +12,7 @@ import (
 // Entry is a single log record stored in the ring buffer.
 type Entry struct {
 	Time    time.Time `json:"time"`
-	Level   string    `json:"level"`   // "DEBUG", "INFO", "WARN", "ERROR"
+	Level   string    `json:"level"` // "DEBUG", "INFO", "WARN", "ERROR"
 	Message string    `json:"message"`
 }
 

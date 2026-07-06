@@ -29,11 +29,11 @@ func NewDatabase(db *gorm.DB) *Database {
 type Wallet struct {
 	Address         string     `gorm:"primaryKey" json:"address"`
 	Alias           string     `json:"alias"`
-	Type            string     `json:"type"` // "owned" or "created"
+	Type            string     `json:"type"`                             // "owned" or "created"
 	SyncOwned       bool       `json:"sync_owned" gorm:"default:true"`   // Whether to sync owned NFTs
 	SyncCreated     bool       `json:"sync_created" gorm:"default:true"` // Whether to sync created NFTs
-	LastSyncedAt    *time.Time `json:"last_synced_at"`    // When we last fully synced this wallet
-	LastSyncedLevel int64      `json:"last_synced_level"` // Blockchain level at last sync
+	LastSyncedAt    *time.Time `json:"last_synced_at"`                   // When we last fully synced this wallet
+	LastSyncedLevel int64      `json:"last_synced_level"`                // Blockchain level at last sync
 	LastUpdated     time.Time  `json:"last_updated"`
 	NFTs            []NFT      `gorm:"foreignKey:WalletAddress" json:"nfts,omitempty"`
 }
@@ -44,11 +44,11 @@ type NFT struct {
 	TokenID         string    `gorm:"uniqueIndex:idx_token_contract" json:"token_id"`
 	ContractAddress string    `gorm:"uniqueIndex:idx_token_contract" json:"contract_address"`
 	WalletAddress   string    `gorm:"index" json:"wallet_address"`
-	Name            string    `json:"name"`          // Token name from metadata
-	Description     string    `json:"description"`   // Token description
-	CreatorAddress  string    `json:"creator"`       // First minter address
+	Name            string    `json:"name"`        // Token name from metadata
+	Description     string    `json:"description"` // Token description
+	CreatorAddress  string    `json:"creator"`     // First minter address
 	ArtifactURI     string    `json:"artifact_uri"`
-	DisplayURI      string    `json:"display_uri"`   // Often a smaller preview
+	DisplayURI      string    `json:"display_uri"` // Often a smaller preview
 	ThumbnailURI    string    `json:"thumbnail_uri"`
 	RawMetadata     string    `json:"-"` // Full metadata JSON; internal use only, not sent to frontend
 	Assets          []Asset   `gorm:"foreignKey:NFTID" json:"assets,omitempty"`
@@ -62,10 +62,10 @@ type Asset struct {
 	URI        string     `gorm:"uniqueIndex" json:"uri"` // ipfs://...
 	NFTID      uint64     `gorm:"index" json:"nft_id"`
 	NFT        *NFT       `gorm:"foreignKey:NFTID" json:"nft,omitempty"` // Relationship for joins
-	Type       string     `json:"type"`      // "artifact", "thumbnail", "format", "metadata"
-	MimeType   string     `json:"mime_type"` // e.g. "image/png"
-	Status     string     `gorm:"index" json:"status"` // "pending", "pinned", "failed", "failed_unavailable"
-	ErrorMsg   string     `json:"error_msg"` // Last error message if failed
+	Type       string     `json:"type"`                                  // "artifact", "thumbnail", "format", "metadata"
+	MimeType   string     `json:"mime_type"`                             // e.g. "image/png"
+	Status     string     `gorm:"index" json:"status"`                   // "pending", "pinned", "failed", "failed_unavailable"
+	ErrorMsg   string     `json:"error_msg"`                             // Last error message if failed
 	SizeBytes  int64      `json:"size_bytes"`
 	RetryCount int        `json:"retry_count"`
 	CreatedAt  time.Time  `json:"created_at"`
@@ -84,7 +84,7 @@ func InitDB(db *gorm.DB) error {
 	if err := db.Exec("PRAGMA journal_mode=WAL;").Error; err != nil {
 		return err
 	}
-	
+
 	// Set busy timeout to 5 seconds to reduce "database is locked" errors
 	if err := db.Exec("PRAGMA busy_timeout=5000;").Error; err != nil {
 		return err
@@ -104,7 +104,7 @@ func InitDB(db *gorm.DB) error {
 			if err := db.Model(&Wallet{}).Where("1=1").Update("last_synced_level", 0).Error; err != nil {
 				return err
 			}
-			
+
 			// Mark migration as applied
 			if err := db.Create(&Setting{Key: "migration_reset_sync_v1", Value: "true"}).Error; err != nil {
 				return err
@@ -235,7 +235,7 @@ func (d *Database) GetPendingAssets(limit int) ([]Asset, error) {
 // GetAssetStats returns statistics about assets
 func (d *Database) GetAssetStats() (map[string]int64, error) {
 	stats := make(map[string]int64)
-	
+
 	// Count by status
 	statuses := []string{StatusPending, StatusPinned, StatusFailed, StatusFailedUnavailable, StatusSkipped}
 	for _, status := range statuses {
@@ -245,21 +245,21 @@ func (d *Database) GetAssetStats() (map[string]int64, error) {
 		}
 		stats[status] = count
 	}
-	
+
 	// Total size of pinned assets
 	var totalSize int64
 	if err := d.Model(&Asset{}).Where("status = ?", StatusPinned).Select("COALESCE(SUM(size_bytes), 0)").Scan(&totalSize).Error; err != nil {
 		return nil, err
 	}
 	stats["total_size_bytes"] = totalSize
-	
+
 	// Count NFTs
 	var nftCount int64
 	if err := d.Model(&NFT{}).Count(&nftCount).Error; err != nil {
 		return nil, err
 	}
 	stats["nft_count"] = nftCount
-	
+
 	return stats, nil
 }
 
@@ -278,7 +278,7 @@ func (d *Database) DeleteWallet(address string) error {
 // GetRetryableAssets gets failed assets that can be retried
 func (d *Database) GetRetryableAssets(maxRetries int, limit int) ([]Asset, error) {
 	var assets []Asset
-	err := d.Where("status IN (?, ?) AND retry_count < ?", 
+	err := d.Where("status IN (?, ?) AND retry_count < ?",
 		StatusFailed, StatusFailedUnavailable, maxRetries).
 		Order("retry_count ASC, created_at ASC").
 		Limit(limit).
@@ -329,4 +329,3 @@ func (d *Database) DeleteNFTsByWallet(walletAddress string) error {
 func (d *Database) DeleteAsset(id uint64) error {
 	return d.Delete(&Asset{}, id).Error
 }
-

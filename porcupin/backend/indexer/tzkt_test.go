@@ -36,20 +36,20 @@ func TestNewIndexer(t *testing.T) {
 // TestSetTokenCallback tests setting the token callback
 func TestSetTokenCallback(t *testing.T) {
 	idx := NewIndexer("")
-	
+
 	if idx.tokenCallback != nil {
 		t.Error("expected tokenCallback to be nil initially")
 	}
-	
+
 	called := false
 	idx.SetTokenCallback(func(token Token) {
 		called = true
 	})
-	
+
 	if idx.tokenCallback == nil {
 		t.Error("expected tokenCallback to be set")
 	}
-	
+
 	// Call the callback to verify it works
 	idx.tokenCallback(Token{})
 	if !called {
@@ -70,12 +70,12 @@ func TestTokenMetadataJSONParsing(t *testing.T) {
 			"formats": [{"uri": "ipfs://QmFormat", "mimeType": "image/png"}],
 			"decimals": "0"
 		}`
-		
+
 		var metadata TokenMetadata
 		if err := json.Unmarshal([]byte(jsonData), &metadata); err != nil {
 			t.Fatalf("failed to unmarshal: %v", err)
 		}
-		
+
 		if metadata.Name != "Test NFT" {
 			t.Errorf("expected name 'Test NFT', got '%s'", metadata.Name)
 		}
@@ -92,12 +92,12 @@ func TestTokenMetadataJSONParsing(t *testing.T) {
 
 	t.Run("minimal metadata", func(t *testing.T) {
 		jsonData := `{"name": "Minimal"}`
-		
+
 		var metadata TokenMetadata
 		if err := json.Unmarshal([]byte(jsonData), &metadata); err != nil {
 			t.Fatalf("failed to unmarshal: %v", err)
 		}
-		
+
 		if metadata.Name != "Minimal" {
 			t.Errorf("expected name 'Minimal', got '%s'", metadata.Name)
 		}
@@ -105,12 +105,12 @@ func TestTokenMetadataJSONParsing(t *testing.T) {
 
 	t.Run("creators as string", func(t *testing.T) {
 		jsonData := `{"name": "Test", "creators": "single_creator"}`
-		
+
 		var metadata TokenMetadata
 		if err := json.Unmarshal([]byte(jsonData), &metadata); err != nil {
 			t.Fatalf("failed to unmarshal: %v", err)
 		}
-		
+
 		// creators is json.RawMessage so should parse without error
 		if metadata.Creators == nil {
 			t.Error("expected creators to be set")
@@ -119,7 +119,7 @@ func TestTokenMetadataJSONParsing(t *testing.T) {
 
 	t.Run("decimals as integer", func(t *testing.T) {
 		jsonData := `{"name": "Test", "decimals": 0}`
-		
+
 		var metadata TokenMetadata
 		if err := json.Unmarshal([]byte(jsonData), &metadata); err != nil {
 			t.Fatalf("failed to unmarshal: %v", err)
@@ -175,12 +175,12 @@ func TestTokenJSONParsing(t *testing.T) {
 		"firstMinter": {"address": "tz1xyz", "alias": "Artist"},
 		"metadata": {"name": "NFT", "artifactUri": "ipfs://Qm123"}
 	}`
-	
+
 	var token Token
 	if err := json.Unmarshal([]byte(jsonData), &token); err != nil {
 		t.Fatalf("failed to unmarshal: %v", err)
 	}
-	
+
 	if token.ID != 12345 {
 		t.Errorf("expected ID 12345, got %d", token.ID)
 	}
@@ -380,7 +380,7 @@ func TestSyncOwned(t *testing.T) {
 			if r.URL.Path != "/v1/tokens/balances" {
 				t.Errorf("expected path /v1/tokens/balances, got %s", r.URL.Path)
 			}
-			
+
 			// Check query parameters
 			q := r.URL.Query()
 			if q.Get("account") == "" {
@@ -389,7 +389,7 @@ func TestSyncOwned(t *testing.T) {
 			if q.Get("balance.ne") != "0" {
 				t.Error("expected balance.ne=0 parameter")
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			response := []struct {
 				ID    uint64 `json:"id"`
@@ -454,7 +454,7 @@ func TestSyncOwnedSince(t *testing.T) {
 			if q.Get("lastLevel.gt") != "1000" {
 				t.Errorf("expected lastLevel.gt=1000, got %s", q.Get("lastLevel.gt"))
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode([]struct{}{})
 		}))
@@ -475,12 +475,12 @@ func TestSyncCreated(t *testing.T) {
 			if r.URL.Path != "/v1/tokens" {
 				t.Errorf("expected path /v1/tokens, got %s", r.URL.Path)
 			}
-			
+
 			q := r.URL.Query()
 			if q.Get("firstMinter") == "" {
 				t.Error("expected firstMinter parameter")
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			response := []Token{
 				{
@@ -513,7 +513,7 @@ func TestSyncCreatedSince(t *testing.T) {
 			if q.Get("firstLevel.gt") != "2000" {
 				t.Errorf("expected firstLevel.gt=2000, got %s", q.Get("firstLevel.gt"))
 			}
-			
+
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode([]Token{})
 		}))
@@ -877,10 +877,10 @@ func TestHasIPFSContent_NonStandardFields(t *testing.T) {
 // kind of on-chain metadata weirdness that exists in the wild on Tezos.
 func TestTokenMetadata_MalformedFields(t *testing.T) {
 	tests := []struct {
-		name        string
-		json        string
-		wantName    string
-		wantDesc    string
+		name         string
+		json         string
+		wantName     string
+		wantDesc     string
 		wantArtifact string
 	}{
 		{

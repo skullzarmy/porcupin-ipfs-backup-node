@@ -41,7 +41,7 @@ func (a *App) AddWallet(address string, alias string) error {
 	if err := a.database.SaveWallet(wallet); err != nil {
 		return fmt.Errorf("failed to save wallet: %w", err)
 	}
-	
+
 	// Notify backup service to start watching and sync this wallet
 	a.backupService.AddWallet(address)
 

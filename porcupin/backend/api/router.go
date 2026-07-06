@@ -12,11 +12,11 @@ import (
 
 // RouterConfig holds configuration for creating a router with middleware
 type RouterConfig struct {
-	Token           string
-	TokenHash       string
-	AllowPublic     bool
-	RateLimiter     *RateLimiter
-	EnableLogging   bool
+	Token         string
+	TokenHash     string
+	AllowPublic   bool
+	RateLimiter   *RateLimiter
+	EnableLogging bool
 }
 
 // NewRouter creates a new chi router with all routes configured.
@@ -50,7 +50,7 @@ func NewRouterWithConfig(handlers *Handlers, cfg RouterConfig) *chi.Mux {
 	// Global middleware (applied to all routes) - ORDER MATTERS
 	// 1. Recoverer (outermost - catches panics)
 	r.Use(middleware.Recoverer)
-	
+
 	// 2. RealIP (extracts real IP from headers)
 	r.Use(middleware.RealIP)
 
@@ -86,7 +86,7 @@ func mountRoutes(r *chi.Mux, handlers *Handlers) {
 	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
 		// System endpoints
-		r.Get("/health", handlers.GetHealth)   // No auth required (handled in AuthMiddleware)
+		r.Get("/health", handlers.GetHealth) // No auth required (handled in AuthMiddleware)
 		r.Get("/version", handlers.GetVersion)
 		r.Get("/status", handlers.GetStatus)
 

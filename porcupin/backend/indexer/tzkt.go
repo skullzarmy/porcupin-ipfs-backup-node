@@ -31,7 +31,7 @@ func NewIndexer(baseURL string) *Indexer {
 	if baseURL == "" {
 		baseURL = "https://api.tzkt.io"
 	}
-	
+
 	// Create API client with default HTTP client
 	client := api.New(baseURL)
 
@@ -58,7 +58,7 @@ type TokenMetadata struct {
 	ArtifactURI  string          `json:"artifactUri"`
 	DisplayURI   string          `json:"displayUri"`
 	ThumbnailURI string          `json:"thumbnailUri"`
-	Creators     json.RawMessage `json:"creators,omitempty"`  // Can be string or []string
+	Creators     json.RawMessage `json:"creators,omitempty"` // Can be string or []string
 	Formats      []Format        `json:"formats"`
 	Decimals     json.RawMessage `json:"decimals,omitempty"` // Can be string or int
 
@@ -244,16 +244,16 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 		// balance.ne=0 ensures we only get tokens the account actually holds
 		reqURL := fmt.Sprintf("%s/v1/tokens/balances?account=%s&balance.ne=0&limit=%d&sort.asc=id",
 			i.baseURL, address, limit)
-		
+
 		if lastId > 0 {
 			reqURL += fmt.Sprintf("&id.gt=%d", lastId)
 		}
-		
+
 		// Filter by lastLevel if we're doing an incremental sync
 		if sinceLevel > 0 {
 			reqURL += fmt.Sprintf("&lastLevel.gt=%d", sinceLevel)
 		}
-		
+
 		slog.Debug("SyncOwned: requesting page", "url", reqURL)
 
 		var balances []struct {
@@ -311,7 +311,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 		if len(balances) < limit {
 			break // Last page
 		}
-		
+
 		time.Sleep(100 * time.Millisecond) // Rate limiting
 	}
 
@@ -405,7 +405,7 @@ func (i *Indexer) SyncCreatedSince(ctx context.Context, address string, sinceLev
 			slog.Debug("SyncCreated: last page reached", "count", len(tokens), "limit", limit)
 			break // Last page
 		}
-		
+
 		slog.Debug("SyncCreated: fetching next page", "id_gt", lastId)
 		time.Sleep(100 * time.Millisecond) // Rate limiting
 	}
@@ -485,7 +485,7 @@ func (i *Indexer) GetTokenMetadataBigMapID(ctx context.Context, contractAddress 
 		if bm.Path == "token_metadata" {
 			return bm.Ptr, nil
 		}
-		
+
 		// Check tags as fallback
 		for _, tag := range bm.Tags {
 			if tag == "token_metadata" {
@@ -510,13 +510,13 @@ func (i *Indexer) Listen(ctx context.Context, address string) error {
 		i.events.Close()
 		return fmt.Errorf("failed to subscribe: %w", err)
 	}
-	
+
 	// Block on handleEvents - it will return when the connection closes
 	err := i.handleEvents(ctx)
-	
+
 	// Always close on exit to clean up
 	i.events.Close()
-	
+
 	return err
 }
 
@@ -533,7 +533,7 @@ func (i *Indexer) handleEvents(ctx context.Context) (err error) {
 	if msgChan == nil {
 		return fmt.Errorf("listen returned nil channel")
 	}
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -543,28 +543,28 @@ func (i *Indexer) handleEvents(ctx context.Context) (err error) {
 			if !ok {
 				return fmt.Errorf("websocket channel closed")
 			}
-			
+
 			// Check if still connected before processing
 			if !i.events.IsConnected() {
 				return fmt.Errorf("websocket disconnected")
 			}
-			
+
 			switch msg.Channel {
 			case events.ChannelTokenBalances:
 				// Ignore nil or empty balance updates (connection keep-alives)
 				if msg.Body == nil {
 					continue
 				}
-				
+
 				// Check if body has actual content (not just empty state message)
 				if msg.Type == 0 {
 					// Type 0 is state message (subscription confirmation), not data
 					slog.Info("WebSocket subscription confirmed", "state", msg.State)
 					continue
 				}
-				
+
 				slog.Debug("received token balance update", "type", msg.Type, "state", msg.State)
-				
+
 				// Only fire callback for actual data messages (type 1)
 				if i.tokenCallback != nil && msg.Type == 1 {
 					i.tokenCallback(Token{})
@@ -605,12 +605,12 @@ func isLikelyNFT(t Token) bool {
 	if t.Metadata != nil && HasIPFSContent(t.Metadata) {
 		return true
 	}
-	
+
 	// Check if from a known NFT contract
 	if knownNFTContracts[t.Contract.Address] {
 		return true
 	}
-	
+
 	// Check contract alias for common NFT platforms
 	alias := strings.ToLower(t.Contract.Alias)
 	if strings.Contains(alias, "nft") ||
@@ -626,7 +626,7 @@ func isLikelyNFT(t Token) bool {
 		strings.Contains(alias, "8bidou") {
 		return true
 	}
-	
+
 	// If metadata is null but contract looks like it could be an NFT platform, include it
 	// We'll try to fetch metadata from chain later
 	if t.Metadata == nil {
@@ -634,7 +634,7 @@ func isLikelyNFT(t Token) bool {
 		// We can filter out non-NFTs later during processing
 		return true
 	}
-	
+
 	return false
 }
 

@@ -57,7 +57,6 @@ type Manager struct {
 	rsyncCmd        *exec.Cmd          // Reference to rsync process for cancellation
 }
 
-
 // NewManager creates a new storage manager
 func NewManager(currentPath string) *Manager {
 	return &Manager{
@@ -66,16 +65,15 @@ func NewManager(currentPath string) *Manager {
 	}
 }
 
-
 // CancelMigration cancels an ongoing migration
 func (m *Manager) CancelMigration() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if m.migrationStatus == nil || !m.migrationStatus.InProgress {
 		return fmt.Errorf("no migration in progress")
 	}
-	
+
 	slog.Info("Cancelling migration...")
 
 	// Kill rsync process if running
@@ -85,16 +83,16 @@ func (m *Manager) CancelMigration() error {
 			slog.Warn("Failed to kill rsync", "error", err)
 		}
 	}
-	
+
 	// Cancel context if set
 	if m.cancelFunc != nil {
 		m.cancelFunc()
 	}
-	
+
 	m.migrationStatus.Phase = "cancelled"
 	m.migrationStatus.Error = "Migration cancelled by user"
 	m.migrationStatus.InProgress = false
-	
+
 	return nil
 }
 
@@ -118,7 +116,7 @@ func (m *Manager) GetMigrationStatus() MigrationStatus {
 // isWritable checks if a path is writable with timeout
 func isWritable(path string) bool {
 	testFile := filepath.Join(path, ".porcupin_write_test")
-	
+
 	// Use a channel to implement timeout
 	done := make(chan bool, 1)
 	go func() {
@@ -131,7 +129,7 @@ func isWritable(path string) bool {
 		os.Remove(testFile)
 		done <- true
 	}()
-	
+
 	select {
 	case result := <-done:
 		return result
@@ -159,7 +157,7 @@ func ExpandPath(path string) (string, error) {
 // Migrate moves the IPFS repository to a new location
 func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback func(MigrationStatus)) error {
 	slog.Info("Migrate called", "dest_path", destPath)
-	
+
 	m.mu.Lock()
 	if m.migrationStatus != nil && m.migrationStatus.InProgress {
 		m.mu.Unlock()
@@ -169,14 +167,14 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 
 	sourcePath := m.currentPath
 	slog.Info("Migration: paths determined", "source", sourcePath, "dest", destPath)
-	
+
 	m.migrationStatus = &MigrationStatus{
 		InProgress: true,
 		SourcePath: sourcePath,
 		DestPath:   destPath,
 		Phase:      "preparing",
 	}
-	
+
 	m.mu.Unlock()
 
 	// Helper to update status and callback
@@ -291,7 +289,7 @@ func (m *Manager) Migrate(ctx context.Context, destPath string, progressCallback
 			s.BytesCopied = sourceSize
 			s.Phase = "complete"
 		})
-		
+
 		m.mu.Lock()
 		m.currentPath = destPath
 		m.mu.Unlock()
@@ -366,7 +364,7 @@ func ValidatePath(path string) error {
 	}
 
 	writable := isWritable(testDir)
-	
+
 	// Clean up if we created the parent just for testing
 	if parentCreated {
 		os.RemoveAll(parentDir)

@@ -22,7 +22,7 @@ func (a *App) GetAssetStats() (map[string]int64, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get cached disk usage from DB (updated on pin/unpin/migration)
 	diskUsageStr, _ := a.database.GetSetting("disk_usage_bytes")
 	if diskUsageStr != "" {
@@ -30,7 +30,7 @@ func (a *App) GetAssetStats() (map[string]int64, error) {
 		fmt.Sscanf(diskUsageStr, "%d", &diskUsage)
 		stats["disk_usage_bytes"] = diskUsage
 	}
-	
+
 	return stats, nil
 }
 
@@ -38,9 +38,9 @@ func (a *App) GetAssetStats() (map[string]int64, error) {
 func (a *App) GetAssets(page int, limit int, status string, search string) ([]db.Asset, error) {
 	var assets []db.Asset
 	offset := (page - 1) * limit
-	
+
 	query := a.database.DB.Model(&db.Asset{}).Preload("NFT")
-	
+
 	if status != "" && status != "all" {
 		query = query.Where("status = ?", status)
 	}
@@ -49,10 +49,10 @@ func (a *App) GetAssets(page int, limit int, status string, search string) ([]db
 		likeSearch := "%" + search + "%"
 		// Join with NFT table for searching by NFT name/description
 		query = query.Joins("LEFT JOIN nfts ON nfts.id = assets.nft_id").
-			Where("assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ? OR nfts.name LIKE ? OR nfts.description LIKE ?", 
+			Where("assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ? OR nfts.name LIKE ? OR nfts.description LIKE ?",
 				likeSearch, likeSearch, likeSearch, likeSearch, likeSearch)
 	}
-	
+
 	err := query.Order("assets.id desc").Offset(offset).Limit(limit).Find(&assets).Error
 	if err != nil {
 		slog.Error("failed to get assets", "error", err)
@@ -82,34 +82,34 @@ func (a *App) GetRecentActivity(limit int) ([]db.Asset, error) {
 func (a *App) GetNFTsWithAssets(page int, limit int, status string, search string) ([]db.NFT, error) {
 	var nfts []db.NFT
 	offset := (page - 1) * limit
-	
+
 	query := a.database.DB.Model(&db.NFT{}).Preload("Assets")
 
 	// If filtering by asset status, we need to join/filter
-	// This is tricky with GORM Preload + Pagination. 
+	// This is tricky with GORM Preload + Pagination.
 	// Easier to find matching NFT IDs first if filters are present.
 	if status != "" && status != "all" || search != "" {
 		subQuery := a.database.DB.Model(&db.NFT{}).Select("DISTINCT nfts.id").
 			Joins("LEFT JOIN assets ON assets.nft_id = nfts.id")
-		
+
 		if status != "" && status != "all" {
 			subQuery = subQuery.Where("assets.status = ?", status)
 		}
-		
+
 		if search != "" {
 			likeSearch := "%" + search + "%"
-			subQuery = subQuery.Where("nfts.name LIKE ? OR nfts.description LIKE ? OR assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ?", 
+			subQuery = subQuery.Where("nfts.name LIKE ? OR nfts.description LIKE ? OR assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ?",
 				likeSearch, likeSearch, likeSearch, likeSearch, likeSearch)
 		}
-		
+
 		query = query.Where("id IN (?)", subQuery)
 	}
-	
+
 	err := query.Order("id desc").
 		Offset(offset).
 		Limit(limit).
 		Find(&nfts).Error
-	
+
 	if err != nil {
 		slog.Error("failed to get NFTs with assets", "error", err)
 		return nil, err
@@ -124,7 +124,7 @@ func (a *App) RetryAsset(assetID uint64) error {
 	// Use the backup service to immediately pin the asset
 	ctx, cancel := context.WithTimeout(a.ctx, 5*time.Minute)
 	defer cancel()
-	
+
 	return a.backupService.PinAsset(ctx, assetID)
 }
 
@@ -232,7 +232,7 @@ func (a *App) ResyncAsset(assetID uint64) error {
 // ShowInFinder opens the IPFS blocks directory in the system file explorer
 func (a *App) ShowInFinder() error {
 	blocksPath := filepath.Join(a.ipfsNode.GetRepoPath(), "blocks")
-	
+
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
@@ -244,7 +244,7 @@ func (a *App) ShowInFinder() error {
 	default:
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
-	
+
 	return cmd.Start()
 }
 
@@ -255,9 +255,9 @@ func (a *App) RepinZeroSizeAssets() (int, error) {
 	if err := a.database.DB.Where("status = ? AND size_bytes <= 0", db.StatusPinned).Find(&assets).Error; err != nil {
 		return 0, fmt.Errorf("failed to query assets: %w", err)
 	}
-	
+
 	slog.Info("found assets with zero/negative size to repin", "count", len(assets))
-	
+
 	count := 0
 	for _, asset := range assets {
 		// Reset to pending so backup manager will re-process
@@ -270,7 +270,7 @@ func (a *App) RepinZeroSizeAssets() (int, error) {
 		}
 		count++
 	}
-	
+
 	slog.Info("reset assets for re-pinning", "count", count)
 	return count, nil
 }
@@ -284,17 +284,17 @@ func (a *App) VerifyPinHealth() (map[string]int, error) {
 	if err := a.database.DB.Where("status = ?", db.StatusPinned).Find(&assets).Error; err != nil {
 		return nil, fmt.Errorf("failed to query assets: %w", err)
 	}
-	
+
 	results := map[string]int{
-		"total":     len(assets),
-		"updated":   0,
-		"failed":    0,
+		"total":         len(assets),
+		"updated":       0,
+		"failed":        0,
 		"already_valid": 0,
-		"db_errors": 0,
+		"db_errors":     0,
 	}
-	
+
 	slog.Info("verifying pinned assets", "count", len(assets))
-	
+
 	for _, asset := range assets {
 		// Extract CID
 		cid := core.ExtractCIDFromURI(asset.URI)
@@ -302,12 +302,12 @@ func (a *App) VerifyPinHealth() (map[string]int, error) {
 			results["failed"]++
 			continue
 		}
-		
+
 		// Try to get size from IPFS
 		ctx, cancel := context.WithTimeout(a.ctx, 30*time.Second)
 		size, err := a.ipfsNode.Stat(ctx, cid)
 		cancel()
-		
+
 		if err != nil {
 			// Content not actually pinned/available
 			slog.Warn("asset not available, marking for repin", "cid", cid, "error", err)
@@ -334,7 +334,7 @@ func (a *App) VerifyPinHealth() (map[string]int, error) {
 			results["already_valid"]++
 		}
 	}
-	
+
 	slog.Info("verify complete", "updated", results["updated"], "failed", results["failed"], "already_valid", results["already_valid"])
 	return results, nil
 }
@@ -410,10 +410,10 @@ func (a *App) GetAssetGatewayURL(assetID uint64) (map[string]string, error) {
 	}
 
 	return map[string]string{
-		"ipfs_io":      fmt.Sprintf("https://ipfs.io/ipfs/%s", cid),
-		"dweb":         fmt.Sprintf("https://dweb.link/ipfs/%s", cid),
-		"cloudflare":   fmt.Sprintf("https://cloudflare-ipfs.com/ipfs/%s", cid),
-		"pinata":       fmt.Sprintf("https://gateway.pinata.cloud/ipfs/%s", cid),
-		"local":        fmt.Sprintf("http://127.0.0.1:8080/ipfs/%s", cid),
+		"ipfs_io":    fmt.Sprintf("https://ipfs.io/ipfs/%s", cid),
+		"dweb":       fmt.Sprintf("https://dweb.link/ipfs/%s", cid),
+		"cloudflare": fmt.Sprintf("https://cloudflare-ipfs.com/ipfs/%s", cid),
+		"pinata":     fmt.Sprintf("https://gateway.pinata.cloud/ipfs/%s", cid),
+		"local":      fmt.Sprintf("http://127.0.0.1:8080/ipfs/%s", cid),
 	}, nil
 }

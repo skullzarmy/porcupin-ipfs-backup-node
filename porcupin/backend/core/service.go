@@ -23,54 +23,54 @@ import (
 type ServiceState string
 
 const (
-	StateStarting  ServiceState = "starting"
-	StateSyncing   ServiceState = "syncing"
-	StateWatching  ServiceState = "watching"
-	StatePaused    ServiceState = "paused"
-	StateStopped   ServiceState = "stopped"
+	StateStarting ServiceState = "starting"
+	StateSyncing  ServiceState = "syncing"
+	StateWatching ServiceState = "watching"
+	StatePaused   ServiceState = "paused"
+	StateStopped  ServiceState = "stopped"
 )
 
 // ServiceStatus represents the current status of the backup service
 type ServiceStatus struct {
-	State           ServiceState `json:"state"`
-	Message         string       `json:"message"`
-	IsPaused        bool         `json:"is_paused"`
-	CurrentWallet   string       `json:"current_wallet"`
-	WalletsTotal    int          `json:"wallets_total"`
-	WalletsSynced   int          `json:"wallets_synced"`
-	TotalNFTs       int          `json:"total_nfts"`
-	ProcessedNFTs   int          `json:"processed_nfts"`
-	TotalAssets     int          `json:"total_assets"`
-	PinnedAssets    int          `json:"pinned_assets"`
-	FailedAssets    int          `json:"failed_assets"`
-	PendingRetries  int          `json:"pending_retries"`
-	CurrentItem     string       `json:"current_item"`
-	LastSyncAt      *time.Time   `json:"last_sync_at"`
+	State          ServiceState `json:"state"`
+	Message        string       `json:"message"`
+	IsPaused       bool         `json:"is_paused"`
+	CurrentWallet  string       `json:"current_wallet"`
+	WalletsTotal   int          `json:"wallets_total"`
+	WalletsSynced  int          `json:"wallets_synced"`
+	TotalNFTs      int          `json:"total_nfts"`
+	ProcessedNFTs  int          `json:"processed_nfts"`
+	TotalAssets    int          `json:"total_assets"`
+	PinnedAssets   int          `json:"pinned_assets"`
+	FailedAssets   int          `json:"failed_assets"`
+	PendingRetries int          `json:"pending_retries"`
+	CurrentItem    string       `json:"current_item"`
+	LastSyncAt     *time.Time   `json:"last_sync_at"`
 }
 
 // BackupService manages the automatic backup lifecycle
 type BackupService struct {
-	manager  *BackupManager
-	indexer  *indexer.Indexer
-	db       *db.Database
-	config   *config.Config
-	ipfs     *ipfs.Node
-	storage  *storage.Manager
-	
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup
+	manager *BackupManager
+	indexer *indexer.Indexer
+	db      *db.Database
+	config  *config.Config
+	ipfs    *ipfs.Node
+	storage *storage.Manager
 
-	mu        sync.RWMutex
-	status    ServiceStatus
-	isPaused  bool
-	
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+
+	mu       sync.RWMutex
+	status   ServiceStatus
+	isPaused bool
+
 	// Channels for coordination
 	pauseCh    chan struct{}
 	resumeCh   chan struct{}
-	triggerCh  chan string  // wallet address to sync
+	triggerCh  chan string   // wallet address to sync
 	fullSyncCh chan struct{} // signal run() to perform a full catch-up sync
-	
+
 	watchedWallets map[string]bool // Track which wallets have active watchers
 
 	// Wails context for event emission (set after wails.Run starts)
@@ -83,22 +83,22 @@ type BackupService struct {
 // NewBackupService creates a new backup service
 func NewBackupService(ipfsNode *ipfs.Node, idx *indexer.Indexer, database *db.Database, cfg *config.Config) *BackupService {
 	manager := NewBackupManager(ipfsNode, idx, database, cfg)
-	
+
 	// Create storage manager pointing to current repo path
 	storageMgr := storage.NewManager(ipfsNode.GetRepoPath())
 
 	return &BackupService{
-		manager:   manager,
-		indexer:   idx,
-		db:        database,
-		config:    cfg,
-		ipfs:      ipfsNode,
-		storage:   storageMgr,
-		status:    ServiceStatus{State: StateStopped},
-		pauseCh:    make(chan struct{}),
-		resumeCh:   make(chan struct{}),
-		triggerCh:  make(chan string, 100),
-		fullSyncCh: make(chan struct{}, 1), // buffer of 1 coalesces rapid triggers
+		manager:        manager,
+		indexer:        idx,
+		db:             database,
+		config:         cfg,
+		ipfs:           ipfsNode,
+		storage:        storageMgr,
+		status:         ServiceStatus{State: StateStopped},
+		pauseCh:        make(chan struct{}),
+		resumeCh:       make(chan struct{}),
+		triggerCh:      make(chan string, 100),
+		fullSyncCh:     make(chan struct{}, 1), // buffer of 1 coalesces rapid triggers
 		watchedWallets: make(map[string]bool),
 	}
 }
@@ -132,10 +132,10 @@ func (s *BackupService) Start(ctx context.Context) {
 func (s *BackupService) run() {
 	// Phase 1: Initial catch-up sync for all wallets
 	s.performCatchUpSync()
-	
+
 	// Phase 2: Start WebSocket listeners for real-time updates
 	s.startWatching()
-	
+
 	// Phase 2.5: Run integrity check in background to fix any missing asset records (e.g. from previous bugs)
 	go func() {
 		defer s.wg.Done()
@@ -152,7 +152,7 @@ func (s *BackupService) run() {
 			slog.Info("background integrity check complete", "checked", stats["checked"], "processed", stats["processed"], "errors", stats["errors"])
 		}
 	}()
-	
+
 	// Phase 3: Periodic health check
 	healthTicker := time.NewTicker(5 * time.Minute)
 	defer healthTicker.Stop()
@@ -160,7 +160,7 @@ func (s *BackupService) run() {
 	// Hot Reload Ticker: Check for new wallets frequently (every 15 seconds)
 	hotReloadTicker := time.NewTicker(15 * time.Second)
 	defer hotReloadTicker.Stop()
-	
+
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -169,7 +169,7 @@ func (s *BackupService) run() {
 				st.Message = "Service stopped"
 			})
 			return
-			
+
 		case <-s.pauseCh:
 			s.updateStatus(func(st *ServiceStatus) {
 				st.State = StatePaused
@@ -194,13 +194,13 @@ func (s *BackupService) run() {
 					return
 				}
 			}
-			
+
 		case walletAddr := <-s.triggerCh:
 			// Manual or WebSocket triggered sync for a specific wallet
 			if !s.IsPaused() {
 				s.syncWallet(walletAddr)
 			}
-			
+
 		case <-hotReloadTicker.C:
 			// fast check for new wallets added via CLI
 			if !s.IsPaused() {
@@ -229,34 +229,34 @@ func (s *BackupService) performCatchUpSync() {
 		st.State = StateSyncing
 		st.Message = "Catching up on missed NFTs..."
 	})
-	
+
 	wallets, err := s.db.GetAllWallets()
 	if err != nil {
 		slog.Error("failed to get wallets for catch-up sync", "error", err)
 		return
 	}
-	
+
 	s.updateStatus(func(st *ServiceStatus) {
 		st.WalletsTotal = len(wallets)
 		st.WalletsSynced = 0
 	})
-	
+
 	for i, wallet := range wallets {
 		if s.IsPaused() {
 			break
 		}
-		
+
 		select {
 		case <-s.ctx.Done():
 			return
 		default:
 		}
-		
+
 		s.updateStatus(func(st *ServiceStatus) {
 			st.CurrentWallet = wallet.Address
 			st.Message = "Syncing wallet " + wallet.Address[:8] + "..."
 		})
-		
+
 		headLevel, err := s.manager.SyncWallet(s.ctx, wallet.Address)
 		if err != nil {
 			slog.Error("failed to sync wallet", "wallet", wallet.Address, "error", err)
@@ -264,12 +264,12 @@ func (s *BackupService) performCatchUpSync() {
 			// Update wallet sync time with the head level we synced up to
 			s.db.UpdateWalletSyncTime(wallet.Address, headLevel)
 		}
-		
+
 		s.updateStatus(func(st *ServiceStatus) {
 			st.WalletsSynced = i + 1
 		})
 	}
-	
+
 	now := time.Now()
 	s.updateStatus(func(st *ServiceStatus) {
 		st.State = StateWatching
@@ -292,13 +292,13 @@ func (s *BackupService) startWatching() {
 		st.State = StateWatching
 		st.Message = "Watching for new NFTs"
 	})
-	
+
 	wallets, err := s.db.GetAllWallets()
 	if err != nil {
 		slog.Error("failed to get wallets for watching", "error", err)
 		return
 	}
-	
+
 	// Lock for map access
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -347,7 +347,7 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx
 
 	// Create a dedicated indexer for this wallet's WebSocket connection
 	idx := indexer.NewIndexer(s.config.TZKT.BaseURL)
-	
+
 	// Set up the callback for when new tokens are received
 	idx.SetTokenCallback(func(token indexer.Token) {
 		// Don't trigger syncs when paused
@@ -355,7 +355,7 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx
 			slog.Debug("ignoring token update, service paused", "wallet", address)
 			return
 		}
-		
+
 		slog.Info("new token received via websocket", "wallet", address, "token_id", token.TokenID)
 		// Trigger a sync for this wallet
 		select {
@@ -364,7 +364,7 @@ func (s *BackupService) watchWalletWithRetry(address string, crashCount int, ctx
 			// Channel full, will catch up on next health check
 		}
 	})
-	
+
 	for {
 		// Check context before attempting connection
 		select {
@@ -404,14 +404,14 @@ func (s *BackupService) syncWallet(address string) {
 		st.CurrentWallet = address
 		st.Message = "Syncing " + address[:8] + "..."
 	})
-	
+
 	headLevel, err := s.manager.SyncWallet(s.ctx, address)
 	if err != nil {
 		slog.Error("failed to sync wallet", "wallet", address, "error", err)
 	} else if headLevel > 0 {
 		s.db.UpdateWalletSyncTime(address, headLevel)
 	}
-	
+
 	now := time.Now()
 	s.updateStatus(func(st *ServiceStatus) {
 		st.State = StateWatching
@@ -430,7 +430,7 @@ func (s *BackupService) retryWorker() {
 	}()
 	ticker := time.NewTicker(2 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-s.ctx.Done():
@@ -470,35 +470,35 @@ func (s *BackupService) retryFailedAssets() {
 		slog.Error("failed to get retryable assets", "error", err)
 		return
 	}
-	
+
 	if len(assets) == 0 {
 		return
 	}
-	
+
 	s.updateStatus(func(st *ServiceStatus) {
 		st.PendingRetries = len(assets)
 		st.Message = fmt.Sprintf("Retrying %d failed assets...", len(assets))
 	})
-	
+
 	slog.Info("retrying failed assets", "count", len(assets))
-	
+
 	for _, asset := range assets {
 		select {
 		case <-s.ctx.Done():
 			return
 		default:
 		}
-		
+
 		if s.IsPaused() {
 			return
 		}
-		
+
 		// Reset status to pending
 		asset.Status = db.StatusPending
 		if err := s.db.SaveAsset(&asset); err != nil {
 			slog.Warn("failed to reset asset to pending", "asset_id", asset.ID, "error", err)
 		}
-		
+
 		// The BackupManager's processNFT will pick this up
 		// For now, we just mark them as pending and let the next sync handle them
 	}
@@ -508,14 +508,14 @@ func (s *BackupService) retryFailedAssets() {
 func (s *BackupService) performHealthCheck() {
 	// Update disk usage if any pins happened
 	s.manager.UpdateDiskUsage()
-	
+
 	wallets, err := s.db.GetAllWallets()
 	if err != nil {
 		return
 	}
-	
+
 	staleThreshold := time.Now().Add(-1 * time.Hour)
-	
+
 	for _, wallet := range wallets {
 		if wallet.LastSyncedAt == nil || wallet.LastSyncedAt.Before(staleThreshold) {
 			slog.Debug("health check: wallet needs sync", "wallet", wallet.Address, "last_synced_at", wallet.LastSyncedAt)
@@ -557,10 +557,10 @@ func (s *BackupService) Pause() {
 	s.mu.Lock()
 	s.isPaused = true
 	s.mu.Unlock()
-	
+
 	// Also pause the backup manager to stop in-progress work
 	s.manager.SetPaused(true)
-	
+
 	select {
 	case s.pauseCh <- struct{}{}:
 	default:
@@ -572,10 +572,10 @@ func (s *BackupService) Resume() {
 	s.mu.Lock()
 	s.isPaused = false
 	s.mu.Unlock()
-	
+
 	// Resume the backup manager
 	s.manager.SetPaused(false)
-	
+
 	select {
 	case s.resumeCh <- struct{}{}:
 	default:
@@ -593,11 +593,11 @@ func (s *BackupService) IsPaused() bool {
 func (s *BackupService) GetStatus() ServiceStatus {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	// Merge with BackupManager progress
 	progress := s.manager.GetProgress()
 	status := s.status
-	
+
 	if progress.IsActive {
 		status.TotalNFTs = progress.TotalNFTs
 		status.ProcessedNFTs = progress.ProcessedNFTs
@@ -609,7 +609,7 @@ func (s *BackupService) GetStatus() ServiceStatus {
 			status.Message = progress.Message
 		}
 	}
-	
+
 	return status
 }
 
@@ -815,7 +815,7 @@ func (s *BackupService) ClearAllData(progress func(string, string, int, int)) er
 	if progress != nil {
 		progress("clearing_db", "Clearing database records...", 0, 0)
 	}
-	
+
 	// Transactional clear
 	return s.db.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Exec("DELETE FROM assets").Error; err != nil {
@@ -824,9 +824,9 @@ func (s *BackupService) ClearAllData(progress func(string, string, int, int)) er
 		if err := tx.Exec("DELETE FROM nfts").Error; err != nil {
 			return err
 		}
-		// Reset wallets to sync=false/levels=0 instead of deleting? 
+		// Reset wallets to sync=false/levels=0 instead of deleting?
 		// Original implementation didn't delete wallets in ResetDatabase, it says "clearing all NFTs, assets".
-		// Actually app.go ResetDatabase did DELETE FROM assets, nfts. 
+		// Actually app.go ResetDatabase did DELETE FROM assets, nfts.
 		// It did NOT delete wallets.
 		return nil
 	})

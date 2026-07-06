@@ -56,12 +56,12 @@ func (m *MDNSServer) Start() error {
 
 	// Register the service
 	server, err := zeroconf.Register(
-		instanceName,      // Instance name
-		MDNSServiceType,   // Service type
-		MDNSDomain,        // Domain
-		m.port,            // Port
-		txt,               // TXT records
-		nil,               // Interfaces (nil = all)
+		instanceName,    // Instance name
+		MDNSServiceType, // Service type
+		MDNSDomain,      // Domain
+		m.port,          // Port
+		txt,             // TXT records
+		nil,             // Interfaces (nil = all)
 	)
 	if err != nil {
 		return fmt.Errorf("failed to register mDNS service: %w", err)
@@ -82,7 +82,7 @@ func (m *MDNSServer) Stop() {
 			m.server.Shutdown()
 			close(done)
 		}()
-		
+
 		select {
 		case <-done:
 			// Clean shutdown
@@ -96,19 +96,19 @@ func (m *MDNSServer) Stop() {
 
 // DiscoveredServer represents a Porcupin server found via mDNS
 type DiscoveredServer struct {
-	Name     string   `json:"name"`
-	Host     string   `json:"host"`
-	Port     int      `json:"port"`
-	Version  string   `json:"version"`
-	UseTLS   bool     `json:"useTLS"`
-	IPs      []string `json:"ips"`
+	Name    string   `json:"name"`
+	Host    string   `json:"host"`
+	Port    int      `json:"port"`
+	Version string   `json:"version"`
+	UseTLS  bool     `json:"useTLS"`
+	IPs     []string `json:"ips"`
 }
 
 // DiscoverServers scans for Porcupin servers on the local network via mDNS
 // timeout specifies how long to scan (e.g., 5*time.Second)
 func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredServer, error) {
 	slog.Debug("mDNS: starting discovery scan", "service_type", MDNSServiceType, "domain", MDNSDomain, "timeout", timeout)
-	
+
 	// Find interfaces with IPv4 addresses for multicast
 	var ipv4Ifaces []net.Interface
 	interfaces, _ := net.Interfaces()
@@ -134,11 +134,11 @@ func DiscoverServers(ctx context.Context, timeout time.Duration) ([]DiscoveredSe
 			slog.Debug("mDNS: using interface for discovery", "interface", iface.Name)
 		}
 	}
-	
+
 	if len(ipv4Ifaces) == 0 {
 		slog.Warn("mDNS: no interfaces with IPv4 addresses found")
 	}
-	
+
 	// Create resolver with IPv4 only and specific interfaces
 	resolver, err := zeroconf.NewResolver(
 		zeroconf.SelectIPTraffic(zeroconf.IPv4),
