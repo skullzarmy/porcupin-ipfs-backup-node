@@ -71,7 +71,15 @@ interface SettingsProps {
     setClearStatus: (status: ClearStatus | null) => void;
 }
 
-export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing, setClearing, clearStatus, setClearStatus }: SettingsProps) {
+export function Settings({
+    onStatsChange,
+    scrollToSection,
+    onScrolled,
+    clearing,
+    setClearing,
+    clearStatus,
+    setClearStatus,
+}: SettingsProps) {
     const [storageInfo, setStorageInfo] = useState<main.StorageInfo | null>(null);
     const [repoPath, setRepoPath] = useState("");
     const [saving, setSaving] = useState(false);
@@ -102,6 +110,8 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
     const [syncCreated, setSyncCreated] = useState(true);
     const [ipfsSwarmPort, setIpfsSwarmPort] = useState(4001);
     const [ipfsPortChanged, setIpfsPortChanged] = useState(false);
+    const [delegatedRouters, setDelegatedRouters] = useState<string>("auto");
+    const [routersChanged, setRoutersChanged] = useState(false);
 
     // Storage location state
     const [currentLocation, setCurrentLocation] = useState<storage.StorageLocation | null>(null);
@@ -162,7 +172,11 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
 
     // IPFS connectivity check state
     const [connectivityChecking, setConnectivityChecking] = useState(false);
-    const [connectivityResult, setConnectivityResult] = useState<{ online: boolean; peers: number; message: string } | null>(null);
+    const [connectivityResult, setConnectivityResult] = useState<{
+        online: boolean;
+        peers: number;
+        message: string;
+    } | null>(null);
 
     // Logs & Diagnostics state
     const [logs, setLogs] = useState<logging.Entry[]>([]);
@@ -216,6 +230,11 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
             if (cfg?.IPFS) {
                 setIpfsSwarmPort(cfg.IPFS.swarm_port || 4001);
                 setIpfsPortChanged(false);
+                const routers = Object.prototype.hasOwnProperty.call(cfg.IPFS, "delegated_routers")
+                    ? (cfg.IPFS.delegated_routers ?? [])
+                    : ["auto"];
+                setDelegatedRouters(routers.join("\n"));
+                setRoutersChanged(false);
             }
         } catch (err: unknown) {
             console.error(err);
@@ -344,9 +363,13 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                 sync_owned: syncOwned,
                 sync_created: syncCreated,
                 ipfs_swarm_port: ipfsSwarmPort,
+                delegated_routers: delegatedRouters
+                    .split(/[\n,]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean),
             });
-            if (ipfsPortChanged) {
-                setMessage("Settings saved! Restart the app for IPFS port change to take effect.");
+            if (ipfsPortChanged || routersChanged) {
+                setMessage("Settings saved! Restart the app for IPFS network changes to take effect.");
             } else {
                 setMessage("Settings saved!");
             }
@@ -550,7 +573,10 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                                         setUpdateCheckMsg("You're running the latest version.");
                                     }
                                 } catch (err) {
-                                    setUpdateCheckMsg("Error checking for updates: " + (err instanceof Error ? err.message : String(err)));
+                                    setUpdateCheckMsg(
+                                        "Error checking for updates: " +
+                                            (err instanceof Error ? err.message : String(err)),
+                                    );
                                 }
                             }}
                         >
@@ -842,6 +868,33 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                     )}
                 </div>
                 <div className="form-group">
+                    <label htmlFor="delegatedRouters">Content Provider Routers</label>
+                    <textarea
+                        id="delegatedRouters"
+                        rows={3}
+                        value={delegatedRouters}
+                        placeholder="auto"
+                        onChange={(e) => {
+                            setDelegatedRouters(e.target.value);
+                            setRoutersChanged(true);
+                        }}
+                        disabled={isRemote()}
+                        spellCheck={false}
+                    />
+                    <span className="hint">
+                        One endpoint per line. <code>auto</code> uses the IPNI indexer (cid.contact), which is required
+                        to find most NFT content (Versum, Emprops, nft.storage/web3.storage/Filecoin). Add
+                        <code> https://…/routing/v1</code> URLs to query extra routers, or leave empty to use the DHT
+                        only. Default: <code>auto</code>.
+                    </span>
+                    {routersChanged && !isRemote() && (
+                        <div className="warning-notice">
+                            <AlertTriangle size={14} />
+                            <span>Changing provider routers requires an app restart to take effect.</span>
+                        </div>
+                    )}
+                </div>
+                <div className="form-group">
                     <label>IPFS Connectivity</label>
                     <button
                         type="button"
@@ -855,7 +908,9 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                     {connectivityResult && (
                         <span
                             className="hint"
-                            style={{ color: connectivityResult.online ? "var(--accent-success)" : "var(--accent-danger)" }}
+                            style={{
+                                color: connectivityResult.online ? "var(--accent-success)" : "var(--accent-danger)",
+                            }}
                         >
                             {connectivityResult.online
                                 ? `Online — ${connectivityResult.peers} peer${connectivityResult.peers === 1 ? "" : "s"} connected`
@@ -1213,7 +1268,11 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                 <h3>
                     <FileText size={18} />
                     Logs &amp; Diagnostics
-                    {isRemote() && <span className="hint" style={{ fontWeight: 400, fontSize: "12px", marginLeft: 6 }}>(local client)</span>}
+                    {isRemote() && (
+                        <span className="hint" style={{ fontWeight: 400, fontSize: "12px", marginLeft: 6 }}>
+                            (local client)
+                        </span>
+                    )}
                 </h3>
                 <div className="log-filter">
                     <button
@@ -1303,9 +1362,7 @@ export function Settings({ onStatsChange, scrollToSection, onScrolled, clearing,
                     </p>
                 )}
                 {exportError && (
-                    <p style={{ color: "var(--accent-danger)", fontSize: "12px", margin: "4px 0 0" }}>
-                        {exportError}
-                    </p>
+                    <p style={{ color: "var(--accent-danger)", fontSize: "12px", margin: "4px 0 0" }}>{exportError}</p>
                 )}
             </div>
 

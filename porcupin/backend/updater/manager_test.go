@@ -16,10 +16,10 @@ type MockRelease struct {
 	versionStr string
 }
 
-func (r *MockRelease) Version() string { return r.versionStr }
-func (r *MockRelease) GetReleaseNotes() string { return "mock notes" }
+func (r *MockRelease) Version() string           { return r.versionStr }
+func (r *MockRelease) GetReleaseNotes() string   { return "mock notes" }
 func (r *MockRelease) GetPublishedAt() time.Time { return time.Now() }
-func (r *MockRelease) GetAssetURL() string { return "http://mock.com/asset" }
+func (r *MockRelease) GetAssetURL() string       { return "http://mock.com/asset" }
 func (r *MockRelease) LessOrEqual(other string) bool {
 	v1, _ := semver.NewVersion(r.versionStr)
 	v2, _ := semver.NewVersion(other)
@@ -36,7 +36,7 @@ func (m *MockUpdater) DetectLatest(ctx context.Context, repository selfupdate.Re
 	if m.shouldError {
 		return nil, false, errors.New("mock error")
 	}
-	
+
 	return &MockRelease{versionStr: m.latestVersion}, true, nil
 }
 
@@ -54,8 +54,8 @@ func TestNewManager(t *testing.T) {
 	if err != nil {
 		// NewManager uses real selfupdate.NewUpdater, checking if it fails on system
 		// If simple validation pass, it shouldn't error.
-		// If selfupdate.NewUpdater is strict about environment, this might fail, 
-		// but given standard usage it likely succeeds. 
+		// If selfupdate.NewUpdater is strict about environment, this might fail,
+		// but given standard usage it likely succeeds.
 		// If it fails due to network/env during creation, we log it.
 		// But NewUpdater mostly checks config validity.
 		if err.Error() != "some specific expected error" {
@@ -72,7 +72,7 @@ func TestNewManager(t *testing.T) {
 func TestInstallLatest(t *testing.T) {
 	// Setup test scenarios
 	tests := []struct {
-		name          string
+		name            string
 		preCacheRelease bool
 		updaterInit     bool
 		mockError       bool
@@ -80,28 +80,28 @@ func TestInstallLatest(t *testing.T) {
 		errorContains   string
 	}{
 		{
-			name:          "Fails manager not initialized",
+			name:            "Fails manager not initialized",
 			preCacheRelease: true,
 			updaterInit:     false,
 			expectError:     true,
 			errorContains:   "updater not initialized",
 		},
 		{
-			name:          "Fails no update cached",
+			name:            "Fails no update cached",
 			preCacheRelease: false,
 			updaterInit:     true,
 			expectError:     true,
 			errorContains:   "no update available",
 		},
 		{
-			name:          "Success update flow",
+			name:            "Success update flow",
 			preCacheRelease: true,
 			updaterInit:     true,
 			mockError:       false,
 			expectError:     false,
 		},
 		{
-			name:          "Fails underlying update",
+			name:            "Fails underlying update",
 			preCacheRelease: true,
 			updaterInit:     true,
 			mockError:       true,
@@ -115,19 +115,19 @@ func TestInstallLatest(t *testing.T) {
 			mock := &MockUpdater{
 				shouldError: tt.mockError,
 			}
-			
+
 			mgr := &Manager{}
 			if tt.updaterInit {
 				mgr.updater = mock
 			}
-			
+
 			if tt.preCacheRelease {
 				// We can just use MockRelease here since Manager uses the Release interface
 				mgr.latestRelease = &MockRelease{versionStr: "0.2.0"}
 			}
-			
+
 			err := mgr.InstallLatest(context.Background())
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Error("expected error but got nil")
@@ -152,10 +152,10 @@ func contains(s, substr string) bool {
 
 func TestCheckForUpdates(t *testing.T) {
 	tests := []struct {
-		name           string
-		currentVer     string
-		latestVer      string
-		expectUpdate   bool
+		name         string
+		currentVer   string
+		latestVer    string
+		expectUpdate bool
 	}{
 		{
 			name:         "Newer version available",
@@ -182,21 +182,21 @@ func TestCheckForUpdates(t *testing.T) {
 			mock := &MockUpdater{
 				latestVersion: tt.latestVer,
 			}
-			
+
 			mgr := &Manager{
 				updater:    mock,
 				currentVer: tt.currentVer,
 			}
-			
+
 			info, err := mgr.CheckForUpdates(context.Background())
 			if err != nil {
 				t.Fatalf("CheckForUpdates failed: %v", err)
 			}
-			
+
 			if info.Available != tt.expectUpdate {
 				t.Errorf("expected update available=%v, got %v", tt.expectUpdate, info.Available)
 			}
-			
+
 			if tt.expectUpdate && info.Version != tt.latestVer {
 				t.Errorf("expected version %s, got %s", tt.latestVer, info.Version)
 			}

@@ -91,13 +91,15 @@ Every few minutes. When you receive or mint an NFT, it's usually backed up withi
 
 ### What if an NFT is "Failed (Unavailable)"?
 
-This means the content isn't available on IPFS anymore. Porcupin will:
+It means Porcupin couldn't find and fetch a provider for the content before the timeout — not necessarily that the content is gone. Porcupin will:
 
 1. Mark it as failed
 2. Periodically retry
-3. Pin it if it becomes available again
+3. Pin it once a provider is found
 
-Unfortunately, if no one has the content, it's lost. This is why Porcupin exists - to prevent this!
+Most "unavailable" batches (especially large groups of Versum, Emprops, or nft.storage/web3.storage-hosted tokens) were caused by Porcupin only searching the DHT. As of **v1.0.4+**, Porcupin also queries the **IPNI indexer** (`cid.contact`), where that content is advertised, so those assets pin on the next retry. Update and let it run — no re-import needed.
+
+Content is only truly lost if **no** host exists on either the DHT or IPNI. That's exactly what Porcupin exists to prevent going forward.
 
 ### What does "Skipped" mean?
 

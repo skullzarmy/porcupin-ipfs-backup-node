@@ -44,14 +44,30 @@ type Node struct {
 	node      *core.IpfsNode
 	repoPath  string
 	swarmPort int
-	mu        sync.RWMutex
-	cancel    context.CancelFunc
-	ctx       context.Context
+	// delegatedRouters holds the configured delegated (HTTP/IPNI) provider
+	// routing endpoints. A nil value means "use the built-in default"
+	// (["auto"] → IPNI/cid.contact); see applyDelegatedRouters.
+	delegatedRouters []string
+	mu               sync.RWMutex
+	cancel           context.CancelFunc
+	ctx              context.Context
+}
+
+// Option configures optional behaviour on a Node created via NewNode.
+type Option func(*Node)
+
+// WithDelegatedRouters sets the delegated (HTTP/IPNI) provider routing
+// endpoints. The special value "auto" expands to the managed IPNI indexer
+// (cid.contact). Passing nil (or omitting this option) keeps the built-in
+// default; passing an explicit empty slice disables delegated routing. Entries
+// are validated at node start; invalid entries are ignored.
+func WithDelegatedRouters(routers []string) Option {
+	return func(n *Node) { n.delegatedRouters = routers }
 }
 
 // NewNode creates a new IPFS node instance
 // swarmPort specifies the port for p2p connections (0 uses default 4001)
-func NewNode(repoPath string, swarmPort int) (*Node, error) {
+func NewNode(repoPath string, swarmPort int, opts ...Option) (*Node, error) {
 	// Expand tilde if present
 	if len(repoPath) > 0 && repoPath[0] == '~' {
 		home, err := os.UserHomeDir()
@@ -66,10 +82,14 @@ func NewNode(repoPath string, swarmPort int) (*Node, error) {
 		swarmPort = DefaultSwarmPort
 	}
 
-	return &Node{
+	n := &Node{
 		repoPath:  repoPath,
 		swarmPort: swarmPort,
-	}, nil
+	}
+	for _, opt := range opts {
+		opt(n)
+	}
+	return n, nil
 }
 
 // Start initializes and starts the IPFS node
@@ -143,10 +163,24 @@ func (n *Node) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to update swarm port: %w", err)
 	}
 
+	// Read the repo config so routing can be constructed from it (delegated
+	// HTTP routers / IPNI endpoints are resolved from the config via AutoConf).
+	repoCfg, err := repo.Config()
+	if err != nil {
+		repo.Close()
+		return fmt.Errorf("failed to read repo config: %w", err)
+	}
+
+	// Apply the configured delegated (IPNI/HTTP) provider routers to the repo
+	// config before routing is constructed. This is authoritative on every
+	// start, so existing repos whose persisted config omits delegated routing
+	// are corrected automatically.
+	applyDelegatedRouters(repoCfg, n.delegatedRouters)
+
 	// Construct node
 	nodeOptions := &core.BuildCfg{
 		Online:  true,
-		Routing: getRoutingOption(),
+		Routing: getRoutingOption(repoCfg),
 		Repo:    repo,
 		ExtraOpts: map[string]bool{
 			"pubsub": true,

@@ -100,11 +100,11 @@ func main() {
 		fmt.Printf("New version available: %s\n", info.Version)
 		fmt.Printf("Release notes:\n%s\n", info.ReleaseNotes)
 		fmt.Print("Installing update... ")
-		
+
 		// Use longer timeout for download and install
 		ctxInstall, cancelInstall := context.WithTimeout(context.Background(), 15*time.Minute)
 		defer cancelInstall()
-		
+
 		if err := updateMgr.InstallLatest(ctxInstall); err != nil {
 			fmt.Printf("Failed\n")
 			slog.Error("Failed to install update", "error", err)
@@ -250,7 +250,7 @@ func main() {
 	if *unpinWallet != "" || *deleteWallet != "" || *runGC {
 		// Start IPFS node
 		ipfsRepoPath := filepath.Join(dataPath, "ipfs")
-		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
+		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort, ipfs.WithDelegatedRouters(cfg.IPFS.DelegatedRouters))
 		if err != nil {
 			slog.Error("Failed to create IPFS node", "error", err)
 			os.Exit(1)
@@ -360,7 +360,7 @@ func main() {
 			os.Exit(1)
 		}
 		totalAssets := stats["pending"] + stats["pinned"] + stats["failed"] + stats["failed_unavailable"]
-		
+
 		// Get actual disk usage from IPFS repo directory
 		ipfsRepoPath := resolveRepoPath(cfg, dataPath)
 		storageBytes, err := core.GetDiskUsageBytes(ipfsRepoPath)
@@ -368,7 +368,7 @@ func main() {
 			slog.Warn("Could not get disk usage", "error", err)
 			storageBytes = 0
 		}
-		
+
 		cli.PrintStats(
 			stats["nft_count"],
 			totalAssets,
@@ -397,7 +397,7 @@ func main() {
 		fmt.Printf("Found %d pending assets, starting IPFS node...\n", pendingCount)
 
 		ipfsRepoPath := resolveRepoPath(cfg, dataPath)
-		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
+		ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort, ipfs.WithDelegatedRouters(cfg.IPFS.DelegatedRouters))
 		if err != nil {
 			slog.Error("Failed to create IPFS node", "error", err)
 			os.Exit(1)
@@ -428,7 +428,7 @@ func main() {
 	fmt.Println("Starting IPFS node...")
 
 	ipfsRepoPath := resolveRepoPath(cfg, dataPath)
-	ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort)
+	ipfsNode, err := ipfs.NewNode(ipfsRepoPath, cfg.IPFS.SwarmPort, ipfs.WithDelegatedRouters(cfg.IPFS.DelegatedRouters))
 	if err != nil {
 		slog.Error("Failed to create IPFS node", "error", err)
 		os.Exit(1)
@@ -464,8 +464,8 @@ func main() {
 
 	// Start API server if requested
 	if *serveAPI {
-		var plainToken string  // Used for env var or flag (direct comparison)
-		var tokenHash string   // Used for file-based auth (bcrypt comparison)
+		var plainToken string // Used for env var or flag (direct comparison)
+		var tokenHash string  // Used for file-based auth (bcrypt comparison)
 		var isNew bool
 
 		if *apiToken != "" {

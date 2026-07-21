@@ -23,6 +23,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.IPFS.RateLimit != 10 {
 		t.Errorf("IPFS.RateLimit = %d, want 10", cfg.IPFS.RateLimit)
 	}
+	if len(cfg.IPFS.DelegatedRouters) != 1 || cfg.IPFS.DelegatedRouters[0] != "auto" {
+		t.Errorf("IPFS.DelegatedRouters = %v, want [auto]", cfg.IPFS.DelegatedRouters)
+	}
 
 	// Server Defaults
 	if cfg.Server.BindAddress != "127.0.0.1:8080" {
@@ -61,6 +64,72 @@ func TestDefaultConfig(t *testing.T) {
 	}
 }
 
+// TestLoadConfig_UpgradePath_DelegatedRouters verifies that a config.yaml
+// written by an older version (which had no `delegated_routers` key) loads with
+// the default ["auto"] router, so existing users get IPNI provider discovery
+// after upgrading without editing their config.
+func TestLoadConfig_UpgradePath_DelegatedRouters(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "config-upgrade-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	// A pre-existing config from an older release: note the absence of any
+	// `delegated_routers` key under `ipfs`.
+	oldYAML := "" +
+		"ipfs:\n" +
+		"  repo_path: /old/ipfs\n" +
+		"  swarm_port: 4001\n" +
+		"backup:\n" +
+		"  max_concurrency: 3\n"
+	if err := os.WriteFile(configPath, []byte(oldYAML), 0o600); err != nil {
+		t.Fatalf("failed to write old config: %v", err)
+	}
+
+	loaded, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if len(loaded.IPFS.DelegatedRouters) != 1 || loaded.IPFS.DelegatedRouters[0] != "auto" {
+		t.Errorf("upgrade path: DelegatedRouters = %v, want default [auto]", loaded.IPFS.DelegatedRouters)
+	}
+	// Values that were present must still be respected.
+	if loaded.IPFS.RepoPath != "/old/ipfs" {
+		t.Errorf("RepoPath = %q, want '/old/ipfs'", loaded.IPFS.RepoPath)
+	}
+	if loaded.Backup.MaxConcurrency != 3 {
+		t.Errorf("MaxConcurrency = %d, want 3", loaded.Backup.MaxConcurrency)
+	}
+}
+
+// TestLoadConfig_ExplicitEmptyDelegatedRouters verifies that a user can opt out
+// of delegated routing by setting an explicit empty list.
+func TestLoadConfig_ExplicitEmptyDelegatedRouters(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "config-empty-*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	configPath := filepath.Join(tmpDir, "config.yaml")
+	yaml := "ipfs:\n  delegated_routers: []\n"
+	if err := os.WriteFile(configPath, []byte(yaml), 0o600); err != nil {
+		t.Fatalf("failed to write config: %v", err)
+	}
+
+	loaded, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if len(loaded.IPFS.DelegatedRouters) != 0 {
+		t.Errorf("explicit empty: DelegatedRouters = %v, want []", loaded.IPFS.DelegatedRouters)
+	}
+}
+
 func TestLoadConfig_NonExistent(t *testing.T) {
 	cfg, err := LoadConfig("/nonexistent/path/to/config.yaml")
 	if err != nil {
@@ -89,10 +158,11 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	// Create custom config
 	cfg := &Config{
 		IPFS: IPFSConfig{
-			RepoPath:    "/custom/ipfs/path",
-			MaxFileSize: 10 * 1024 * 1024 * 1024, // 10GB
-			PinTimeout:  5 * time.Minute,
-			RateLimit:   50,
+			RepoPath:         "/custom/ipfs/path",
+			MaxFileSize:      10 * 1024 * 1024 * 1024, // 10GB
+			PinTimeout:       5 * time.Minute,
+			RateLimit:        50,
+			DelegatedRouters: []string{"auto", "https://my-router.example/routing/v1"},
 		},
 		Server: ServerConfig{
 			BindAddress: "0.0.0.0:9090",
@@ -143,6 +213,11 @@ func TestSaveAndLoadConfig(t *testing.T) {
 	}
 	if loaded.IPFS.RateLimit != 50 {
 		t.Errorf("IPFS.RateLimit = %d, want 50", loaded.IPFS.RateLimit)
+	}
+	if len(loaded.IPFS.DelegatedRouters) != 2 ||
+		loaded.IPFS.DelegatedRouters[0] != "auto" ||
+		loaded.IPFS.DelegatedRouters[1] != "https://my-router.example/routing/v1" {
+		t.Errorf("IPFS.DelegatedRouters = %v, want [auto https://my-router.example/routing/v1]", loaded.IPFS.DelegatedRouters)
 	}
 
 	// Server

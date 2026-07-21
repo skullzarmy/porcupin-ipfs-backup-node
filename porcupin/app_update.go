@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"porcupin/backend/updater"
@@ -27,10 +28,10 @@ func (a *App) InstallUpdate() error {
 		Message: "Downloading update from GitHub...",
 		Percent: 0,
 	})
-	
+
 	// Phase 2: Installing/Replacing
 	// Note: InstallLatest blocks until done
-	
+
 	err := a.updater.InstallLatest(a.ctx)
 	if err != nil {
 		wailsRuntime.EventsEmit(a.ctx, "update:progress", updater.UpdateProgress{
@@ -40,15 +41,45 @@ func (a *App) InstallUpdate() error {
 		})
 		return err
 	}
-	
+
 	// Phase 3: Complete
 	wailsRuntime.EventsEmit(a.ctx, "update:progress", updater.UpdateProgress{
 		Phase:   "complete",
 		Message: "Update complete! Restarting...",
 		Percent: 100,
 	})
-	
+
 	return nil
+}
+
+// resolveRelaunchPath returns the path of the binary to relaunch after an
+// in-place update. On Linux/Windows, go-selfupdate renames the running binary
+// to ".<name>.old" and installs the new binary at the original path; because
+// the OS reports the running process via that renamed (and often deleted)
+// inode, os.Executable() returns a stale path. Reconstruct the original path so
+// we relaunch the freshly installed binary. Falls back to the given path if the
+// reconstructed path does not exist.
+func resolveRelaunchPath(exe string) string {
+	dir := filepath.Dir(exe)
+	base := filepath.Base(exe)
+
+	// Linux reports a deleted running binary as "<path> (deleted)".
+	base = strings.TrimSuffix(base, " (deleted)")
+
+	// go-selfupdate renames the previous binary to ".<name>.old".
+	if strings.HasPrefix(base, ".") && strings.HasSuffix(base, ".old") {
+		base = strings.TrimSuffix(strings.TrimPrefix(base, "."), ".old")
+	}
+
+	if base == "" {
+		return exe
+	}
+
+	candidate := filepath.Join(dir, base)
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate
+	}
+	return exe
 }
 
 // RestartApp restarts the application after an update.
@@ -61,6 +92,7 @@ func (a *App) RestartApp() error {
 	if err != nil {
 		return fmt.Errorf("failed to get executable path: %w", err)
 	}
+	executable = resolveRelaunchPath(executable)
 
 	var args []string
 	for _, arg := range os.Args[1:] {

@@ -22,7 +22,7 @@ func (bm *BackupManager) hasSufficientDiskSpace() bool {
 	// This correctly handles external drives, network shares, etc.
 	repoPath := bm.ipfs.GetRepoPath()
 	pathToCheck := "C:\\" // Default fallback
-	
+
 	if len(repoPath) >= 2 && repoPath[1] == ':' {
 		// Extract drive letter from path (e.g., "D:\ipfs" -> "D:\")
 		pathToCheck = string(repoPath[0]) + ":\\"

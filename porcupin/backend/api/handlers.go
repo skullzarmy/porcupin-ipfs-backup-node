@@ -29,11 +29,11 @@ func IsValidTezosAddress(addr string) bool {
 
 // Handlers holds the API handlers and their dependencies
 type Handlers struct {
-	db       *db.Database
-	service  *core.BackupService
-	ipfs     *ipfs.Node
-	dataDir  string
-	version  string
+	db      *db.Database
+	service *core.BackupService
+	ipfs    *ipfs.Node
+	dataDir string
+	version string
 }
 
 // NewHandlers creates a new Handlers instance
@@ -162,12 +162,12 @@ func (h *Handlers) GetStats(w http.ResponseWriter, r *http.Request) {
 
 // ActivityItem represents a recent activity item
 type ActivityItem struct {
-	ID        uint64 `json:"id"`
-	URI       string `json:"uri"`
-	Type      string `json:"type"`
-	Status    string `json:"status"`
-	PinnedAt  string `json:"pinned_at,omitempty"`
-	NFTName   string `json:"nft_name,omitempty"`
+	ID       uint64 `json:"id"`
+	URI      string `json:"uri"`
+	Type     string `json:"type"`
+	Status   string `json:"status"`
+	PinnedAt string `json:"pinned_at,omitempty"`
+	NFTName  string `json:"nft_name,omitempty"`
 }
 
 // GetActivity returns recent pinned assets
@@ -587,7 +587,7 @@ func (h *Handlers) GetNFTs(w http.ResponseWriter, r *http.Request) {
 	search := r.URL.Query().Get("search")
 	if search != "" {
 		likeSearch := "%" + search + "%"
-		query = query.Where("name LIKE ? OR description LIKE ? OR token_id LIKE ? OR contract_address LIKE ? OR creator_address LIKE ?", 
+		query = query.Where("name LIKE ? OR description LIKE ? OR token_id LIKE ? OR contract_address LIKE ? OR creator_address LIKE ?",
 			likeSearch, likeSearch, likeSearch, likeSearch, likeSearch)
 	}
 
@@ -706,7 +706,7 @@ func (h *Handlers) GetAssets(w http.ResponseWriter, r *http.Request) {
 		// Join with NFT table for searching by NFT name/description
 		// We need to use a subquery or join for this
 		query = query.Joins("LEFT JOIN nfts ON nfts.id = assets.nft_id").
-			Where("assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ? OR nfts.name LIKE ? OR nfts.description LIKE ?", 
+			Where("assets.type LIKE ? OR assets.mime_type LIKE ? OR assets.uri LIKE ? OR nfts.name LIKE ? OR nfts.description LIKE ?",
 				likeSearch, likeSearch, likeSearch, likeSearch, likeSearch)
 	}
 
@@ -859,7 +859,7 @@ func (h *Handlers) RetryAllFailed(w http.ResponseWriter, r *http.Request) {
 // DELETE /api/v1/assets/failed
 func (h *Handlers) ClearFailed(w http.ResponseWriter, r *http.Request) {
 	result := h.db.Where("status IN ?", []string{db.StatusFailed, db.StatusFailedUnavailable}).Delete(&db.Asset{})
-	
+
 	WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"message": "cleared failed assets",
 		"count":   result.RowsAffected,

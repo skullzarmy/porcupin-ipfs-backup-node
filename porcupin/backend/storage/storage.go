@@ -39,12 +39,12 @@ func isNetworkMountDarwin(path string) bool {
 	if err != nil {
 		return false
 	}
-	
+
 	// Find the mount point for this path
 	lines := strings.Split(string(out), "\n")
 	for _, line := range lines {
-		if strings.Contains(line, "smbfs") || strings.Contains(line, "nfs") || 
-		   strings.Contains(line, "afpfs") || strings.Contains(line, "cifs") {
+		if strings.Contains(line, "smbfs") || strings.Contains(line, "nfs") ||
+			strings.Contains(line, "afpfs") || strings.Contains(line, "cifs") {
 			parts := strings.Fields(line)
 			if len(parts) >= 3 {
 				mountPoint := parts[2]
@@ -61,22 +61,22 @@ func isNetworkMountDarwin(path string) bool {
 func isNetworkMountLinux(path string) bool {
 	// Network filesystem types on Linux
 	networkFSTypes := map[string]bool{
-		"nfs":    true,
-		"nfs4":   true,
-		"cifs":   true,
-		"smbfs":  true,
-		"sshfs":  true,
+		"nfs":        true,
+		"nfs4":       true,
+		"cifs":       true,
+		"smbfs":      true,
+		"sshfs":      true,
 		"fuse.sshfs": true,
-		"ncpfs":  true,
-		"9p":     true, // Plan 9 / WSL
+		"ncpfs":      true,
+		"9p":         true, // Plan 9 / WSL
 	}
-	
+
 	file, err := os.Open("/proc/mounts")
 	if err != nil {
 		return false
 	}
 	defer file.Close()
-	
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -85,7 +85,7 @@ func isNetworkMountLinux(path string) bool {
 		if len(fields) >= 3 {
 			mountPoint := fields[1]
 			fsType := fields[2]
-			
+
 			// Check if path is under this mount point and it's a network FS
 			if strings.HasPrefix(path, mountPoint) && networkFSTypes[fsType] {
 				return true
@@ -166,7 +166,7 @@ func GetStorageInfo(path string) (*StorageLocation, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		checkPath = filepath.Dir(path)
 	}
-	
+
 	if err := syscall.Statfs(checkPath, &stat); err == nil {
 		loc.TotalBytes = int64(stat.Blocks) * int64(stat.Bsize)
 		loc.FreeBytes = int64(stat.Bavail) * int64(stat.Bsize)
@@ -199,7 +199,7 @@ func generateLabelForOS(path string, storageType StorageType, goos string) strin
 	var volumeName string
 	path = filepath.Clean(path)
 	parts := strings.Split(path, string(filepath.Separator))
-	
+
 	switch goos {
 	case "darwin":
 		// /Volumes/Name -> ["", "Volumes", "Name"]
@@ -225,7 +225,7 @@ func generateLabelForOS(path string, storageType StorageType, goos string) strin
 			volumeName = vol + " Drive"
 		}
 	}
-	
+
 	if volumeName != "" {
 		switch storageType {
 		case StorageTypeExternal:
@@ -236,7 +236,7 @@ func generateLabelForOS(path string, storageType StorageType, goos string) strin
 			return volumeName
 		}
 	}
-	
+
 	switch storageType {
 	case StorageTypeExternal:
 		return "External Drive"
@@ -255,7 +255,7 @@ func getMountPoint(path string) string {
 // getMountPointForOS is the testable implementation that accepts OS as parameter
 func getMountPointForOS(path string, goos string) string {
 	path = filepath.Clean(path)
-	
+
 	// Determine separator based on OS explicitly for testing
 	sep := "/"
 	if goos == "windows" {
@@ -266,11 +266,11 @@ func getMountPointForOS(path string, goos string) string {
 	// On non-Windows running Windows tests, filepath.Clean might strictly use /
 	// so we need to be careful. The input path in tests is usually hardcoded with correct separators.
 	// But strings.Split needs the exact char.
-	
+
 	// If we are on Non-Windows but testing Windows, input like "C:\\Users" comes in.
 	// filepath.Clean on macOS might keep it or treat backslash as char.
 	// Simplest approach: Use the sep derived from goos.
-	
+
 	parts := strings.Split(path, sep)
 
 	switch goos {
@@ -354,7 +354,7 @@ func ListAvailableLocations() ([]*StorageLocation, error) {
 				}
 			}
 		}
-		
+
 		// Scan /media/user/ and /run/media/user/ (modern Linux distros)
 		mediaRoots := []string{"/media", "/run/media"}
 		for _, mediaRoot := range mediaRoots {

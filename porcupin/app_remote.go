@@ -52,18 +52,18 @@ func (a *App) DiscoverServers() ([]api.DiscoveredServer, error) {
 // TestRemoteConnection tests connectivity to a remote Porcupin server
 func (a *App) TestRemoteConnection(cfg RemoteServerConfig) (*RemoteHealthResponse, error) {
 	slog.Info("TestRemoteConnection: connecting", "host", cfg.Host, "port", cfg.Port, "tls", cfg.UseTLS)
-	
+
 	client := api.NewRemoteClient(cfg.Host, cfg.Port, cfg.Token, cfg.UseTLS)
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	
+
 	health, err := client.Health(ctx)
 	if err != nil {
 		slog.Error("TestRemoteConnection failed", "error", err)
 		return nil, err
 	}
-	
+
 	slog.Info("TestRemoteConnection: success", "version", health.Version)
 	return &RemoteHealthResponse{
 		Status:    health.Status,
@@ -76,25 +76,25 @@ func (a *App) TestRemoteConnection(cfg RemoteServerConfig) (*RemoteHealthRespons
 // This allows the frontend to make any API call to a remote server via Go
 func (a *App) RemoteProxy(req RemoteProxyRequest) (*RemoteProxyResponse, error) {
 	slog.Info("RemoteProxy: proxying request", "method", req.Method, "path", req.Path, "host", req.Host, "port", req.Port)
-	
+
 	client := api.NewRemoteClient(req.Host, req.Port, req.Token, req.UseTLS)
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	proxyReq := api.ProxyRequest{
 		Method:  req.Method,
 		Path:    req.Path,
 		Headers: req.Headers,
 		Body:    req.Body,
 	}
-	
+
 	resp, err := client.Proxy(ctx, proxyReq)
 	if err != nil {
 		slog.Error("RemoteProxy failed", "error", err)
 		return nil, err
 	}
-	
+
 	slog.Info("RemoteProxy: response received", "status_code", resp.StatusCode)
 	return &RemoteProxyResponse{
 		StatusCode: resp.StatusCode,

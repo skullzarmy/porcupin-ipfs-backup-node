@@ -1,8 +1,10 @@
 package updater
 
 import (
+	"archive/tar"
 	"archive/zip"
 	"bufio"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -43,10 +45,9 @@ type selfupdateReleaseAdapter struct {
 	*selfupdate.Release
 }
 
-func (r *selfupdateReleaseAdapter) GetReleaseNotes() string { return r.ReleaseNotes }
+func (r *selfupdateReleaseAdapter) GetReleaseNotes() string   { return r.ReleaseNotes }
 func (r *selfupdateReleaseAdapter) GetPublishedAt() time.Time { return r.PublishedAt }
-func (r *selfupdateReleaseAdapter) GetAssetURL() string { return r.AssetURL }
-
+func (r *selfupdateReleaseAdapter) GetAssetURL() string       { return r.AssetURL }
 
 // Updater interface allows mocking the selfupdate.Updater
 type Updater interface {
@@ -133,7 +134,7 @@ func (m *Manager) CheckForUpdates(ctx context.Context) (*UpdateInfo, error) {
 	}
 
 	slog.Info("Checking for updates", "current_version", m.currentVer)
-	
+
 	latest, found, err := m.updater.DetectLatest(ctx, selfupdate.ParseSlug(Repository))
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect update: %w", err)
@@ -156,7 +157,7 @@ func (m *Manager) CheckForUpdates(ctx context.Context) (*UpdateInfo, error) {
 	}
 
 	slog.Info("New version found", "version", latest.Version())
-	
+
 	// Cache the release for installation step
 	m.latestRelease = latest
 
@@ -166,14 +167,15 @@ func (m *Manager) CheckForUpdates(ctx context.Context) (*UpdateInfo, error) {
 	info.ReleaseNotes = latest.GetReleaseNotes()
 	info.PubDate = latest.GetPublishedAt()
 	info.AssetURL = latest.GetAssetURL()
-	
+
 	return info, nil
 }
 
 // InstallLatest downloads and applies the cached latest update.
 // Headless server builds use explicit asset lookup via the GitHub API.
 // Desktop macOS replaces the entire .app bundle to preserve code signatures.
-// Desktop Windows/Linux use go-selfupdate for binary replacement.
+// Desktop Linux downloads the explicit desktop archive by name.
+// Desktop Windows uses go-selfupdate for binary replacement.
 func (m *Manager) InstallLatest(ctx context.Context) error {
 	if m.updater == nil {
 		return fmt.Errorf("updater not initialized")
@@ -205,7 +207,15 @@ func (m *Manager) InstallLatest(ctx context.Context) error {
 		}
 	}
 
-	// Desktop Windows/Linux: binary replacement via go-selfupdate
+	// Desktop Linux: download the explicit desktop archive by name. Relying on
+	// go-selfupdate here is unsafe because its suffix matcher also matches the
+	// headless server asset (porcupin-server-linux-<arch>), which would replace
+	// the GUI binary with the headless server and leave the app unable to open.
+	if runtime.GOOS == "linux" {
+		return m.installLinuxBinary(ctx, exePath)
+	}
+
+	// Desktop Windows: binary replacement via go-selfupdate
 	if err := m.updater.UpdateTo(ctx, m.latestRelease, exePath); err != nil {
 		return fmt.Errorf("failed to update binary: %w", err)
 	}
@@ -385,6 +395,88 @@ func (m *Manager) installServerBinary(ctx context.Context, exePath string) error
 	}
 
 	slog.Info("Update verified and installed successfully")
+	return nil
+}
+
+// installLinuxBinary downloads the desktop Linux archive (porcupin-linux-<arch>.tar.gz)
+// by explicit asset name, verifies its SHA256 checksum, extracts the "porcupin"
+// binary, and atomically replaces the current binary. Using an explicit asset
+// name avoids go-selfupdate matching the headless server binary.
+func (m *Manager) installLinuxBinary(ctx context.Context, exePath string) error {
+	version := m.latestRelease.Version()
+	asset := fmt.Sprintf("porcupin-linux-%s.tar.gz", runtime.GOARCH)
+	const checksumAsset = "checksums.txt"
+
+	slog.Info("Downloading Linux desktop update",
+		"version", version,
+		"asset", asset)
+
+	assets, err := findReleaseAssetURLs(ctx, version, asset, checksumAsset)
+	if err != nil {
+		return fmt.Errorf("find release assets: %w", err)
+	}
+	assetURL := assets[asset]
+	checksumURL := assets[checksumAsset]
+
+	// Fetch expected checksum for the archive
+	expectedHash, err := fetchExpectedChecksum(ctx, checksumURL, asset)
+	if err != nil {
+		return fmt.Errorf("fetch checksum: %w", err)
+	}
+
+	// Download archive to temp file
+	tmpArchive, err := os.CreateTemp("", "porcupin-update-*.tar.gz")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+	tmpArchivePath := tmpArchive.Name()
+	defer os.Remove(tmpArchivePath)
+
+	if err := downloadFile(ctx, assetURL, tmpArchive); err != nil {
+		tmpArchive.Close()
+		return fmt.Errorf("download asset: %w", err)
+	}
+	tmpArchive.Close()
+
+	// Verify SHA256 checksum of the archive
+	actualHash, err := sha256File(tmpArchivePath)
+	if err != nil {
+		return fmt.Errorf("calculate checksum: %w", err)
+	}
+	if actualHash != expectedHash {
+		return fmt.Errorf("checksum mismatch: expected %s, got %s", expectedHash, actualHash)
+	}
+	slog.Info("Checksum verified", "sha256", actualHash)
+
+	// Extract the "porcupin" binary into the target directory so the final
+	// rename is atomic (same filesystem).
+	tmpBin, err := os.CreateTemp(filepath.Dir(exePath), ".porcupin-update-*")
+	if err != nil {
+		return fmt.Errorf("create temp binary: %w", err)
+	}
+	tmpBinPath := tmpBin.Name()
+	tmpBin.Close()
+	defer os.Remove(tmpBinPath)
+
+	if err := extractTarGzFile(tmpArchivePath, "porcupin", tmpBinPath); err != nil {
+		return fmt.Errorf("extract update: %w", err)
+	}
+
+	// Preserve original file permissions
+	info, err := os.Stat(exePath)
+	if err != nil {
+		return fmt.Errorf("stat current binary: %w", err)
+	}
+	if err := os.Chmod(tmpBinPath, info.Mode()); err != nil {
+		return fmt.Errorf("set permissions: %w", err)
+	}
+
+	// Atomic swap: rename temp → target
+	if err := os.Rename(tmpBinPath, exePath); err != nil {
+		return fmt.Errorf("replace binary: %w", err)
+	}
+
+	slog.Info("Linux desktop update installed successfully", "path", exePath)
 	return nil
 }
 
@@ -579,6 +671,50 @@ func extractZip(zipPath, destDir string) error {
 	}
 
 	return nil
+}
+
+// extractTarGzFile extracts a single named regular file from a .tar.gz archive
+// to destPath. It matches by base name so it works regardless of any leading
+// path components in the archive.
+func extractTarGzFile(archivePath, wantName, destPath string) error {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return fmt.Errorf("open archive: %w", err)
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("gzip reader: %w", err)
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("read tar: %w", err)
+		}
+		if hdr.Typeflag != tar.TypeReg || filepath.Base(hdr.Name) != wantName {
+			continue
+		}
+
+		out, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+		if err != nil {
+			return fmt.Errorf("create output: %w", err)
+		}
+		if _, err := io.Copy(out, tr); err != nil {
+			out.Close()
+			return fmt.Errorf("extract %s: %w", wantName, err)
+		}
+		out.Close()
+		return nil
+	}
+
+	return fmt.Errorf("file %q not found in archive", wantName)
 }
 
 // FindAppBundle walks up from an executable path to find the enclosing .app bundle.

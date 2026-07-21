@@ -286,6 +286,15 @@ porcupin settings ipfs.pin_timeout 5m
 # Output: ipfs.pin_timeout: 2m0s → 5m0s
 ```
 
+List values (such as `ipfs.delegated_routers`) are comma-separated. Keep `auto`
+to retain IPNI (cid.contact) provider discovery; an empty value uses the DHT only.
+Changes to routing take effect after a restart.
+
+```bash
+porcupin settings ipfs.delegated_routers "auto,https://my-router.example/routing/v1"
+# Output: ipfs.delegated_routers: auto → auto,https://my-router.example/routing/v1
+```
+
 ### Dash and Underscore Support
 
 Dashes and underscores are interchangeable in key names:

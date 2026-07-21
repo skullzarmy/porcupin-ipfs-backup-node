@@ -115,7 +115,7 @@ func (a *App) startup(ctx context.Context) {
 		repoPath = filepath.Join(homeDir, repoPath[2:])
 	}
 
-	ipfsNode, err := ipfs.NewNode(repoPath, cfg.IPFS.SwarmPort)
+	ipfsNode, err := ipfs.NewNode(repoPath, cfg.IPFS.SwarmPort, ipfs.WithDelegatedRouters(cfg.IPFS.DelegatedRouters))
 	if err != nil {
 		slog.Error("Failed to create IPFS node", "error", err)
 		os.Exit(1)

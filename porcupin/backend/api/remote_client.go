@@ -48,7 +48,7 @@ func NewRemoteClient(host string, port int, token string, useTLS bool) *RemoteCl
 	if useTLS {
 		protocol = "https"
 	}
-	
+
 	return &RemoteClient{
 		baseURL: fmt.Sprintf("%s://%s:%d", protocol, host, port),
 		token:   token,
@@ -62,29 +62,29 @@ func NewRemoteClient(host string, port int, token string, useTLS bool) *RemoteCl
 func (c *RemoteClient) Health(ctx context.Context) (*HealthResponse, error) {
 	url := c.baseURL + "/api/v1/health"
 	slog.Debug("RemoteClient: GET", "url", url)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Error("RemoteClient: request failed", "error", err)
 		return nil, fmt.Errorf("connection failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	slog.Debug("RemoteClient: response received", "status_code", resp.StatusCode)
-	
+
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		errBody := string(body)
 		if len(errBody) > 200 {
@@ -93,12 +93,12 @@ func (c *RemoteClient) Health(ctx context.Context) (*HealthResponse, error) {
 		slog.Error("RemoteClient: error response", "body", errBody)
 		return nil, fmt.Errorf("server returned %d: %s", resp.StatusCode, errBody)
 	}
-	
+
 	var health HealthResponse
 	if err := json.Unmarshal(body, &health); err != nil {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
-	
+
 	return &health, nil
 }
 
@@ -106,40 +106,40 @@ func (c *RemoteClient) Health(ctx context.Context) (*HealthResponse, error) {
 func (c *RemoteClient) Proxy(ctx context.Context, proxyReq ProxyRequest) (*ProxyResponse, error) {
 	url := c.baseURL + proxyReq.Path
 	slog.Debug("RemoteClient.Proxy", "method", proxyReq.Method, "url", url)
-	
+
 	var bodyReader io.Reader
 	if proxyReq.Body != "" {
 		bodyReader = bytes.NewBufferString(proxyReq.Body)
 	}
-	
+
 	req, err := http.NewRequestWithContext(ctx, proxyReq.Method, url, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	// Set default headers
 	req.Header.Set("Authorization", "Bearer "+c.token)
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	// Set any custom headers from the request
 	for k, v := range proxyReq.Headers {
 		req.Header.Set(k, v)
 	}
-	
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		slog.Error("RemoteClient.Proxy: request failed", "error", err)
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20)) // 10 MB limit
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-	
+
 	slog.Debug("RemoteClient.Proxy: response", "status_code", resp.StatusCode, "body_length", len(body))
-	
+
 	// Collect response headers
 	headers := make(map[string]string)
 	for k, v := range resp.Header {
@@ -147,7 +147,7 @@ func (c *RemoteClient) Proxy(ctx context.Context, proxyReq ProxyRequest) (*Proxy
 			headers[k] = v[0]
 		}
 	}
-	
+
 	return &ProxyResponse{
 		StatusCode: resp.StatusCode,
 		Headers:    headers,

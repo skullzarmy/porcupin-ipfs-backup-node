@@ -816,6 +816,7 @@ func (bm *BackupManager) pinWithRetry(ctx context.Context, cid string, retryCoun
 	maxRetries := 2 // Reduced from 3 to avoid long waits
 	backoff := time.Second
 
+	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		if attempt > 0 {
 			// Exponential backoff
@@ -838,11 +839,15 @@ func (bm *BackupManager) pinWithRetry(ctx context.Context, cid string, retryCoun
 		if err == nil {
 			return nil
 		}
+		lastErr = err
 
 		slog.Warn("pin attempt failed", "attempt", attempt+1, "cid", cid, "error", err)
 	}
 
-	return fmt.Errorf("max retries exceeded for CID %s", cid)
+	// Preserve the underlying cause (e.g. a timeout when the content is not
+	// retrievable on the IPFS network) so callers can classify the failure
+	// correctly instead of treating every exhausted retry as a generic error.
+	return fmt.Errorf("max retries exceeded for CID %s: %w", cid, lastErr)
 }
 
 // isWithinStorageLimit checks if we're within the user's configured storage limit
@@ -909,7 +914,10 @@ func isTimeoutError(err error) bool {
 	if err == nil {
 		return false
 	}
-	return err == context.DeadlineExceeded || err.Error() == "context deadline exceeded"
+	// Matches both a bare deadline error and one wrapped by pinWithRetry
+	// (e.g. "max retries exceeded for CID ...: ...: context deadline exceeded").
+	return errors.Is(err, context.DeadlineExceeded) ||
+		strings.Contains(err.Error(), "context deadline exceeded")
 }
 
 // Shutdown gracefully shuts down the backup manager

@@ -151,26 +151,26 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 		defer wg.Done()
 		buf := make([]byte, 8192)
 		var lineBuf strings.Builder
-		
+
 		for {
 			n, err := stdout.Read(buf)
 			if n > 0 {
 				chunk := string(buf[:n])
-				
+
 				// Process line by line for accurate byte counting
 				for _, char := range chunk {
 					if char == '\n' || char == '\r' {
 						line := lineBuf.String()
 						lineBuf.Reset()
-						
+
 						if line == "" {
 							continue
 						}
-						
+
 						// Parse "New File" or "Newer" lines which contain file size
 						// Format: "  New File  \t\t   123456789\tpath\\to\\file.ext"
-						if strings.Contains(line, "New File") || strings.Contains(line, "Newer") || 
-						   strings.Contains(line, "Modified") || strings.Contains(line, "*EXTRA") {
+						if strings.Contains(line, "New File") || strings.Contains(line, "Newer") ||
+							strings.Contains(line, "Modified") || strings.Contains(line, "*EXTRA") {
 							// Extract the file size (number before the filename)
 							fields := strings.Fields(line)
 							for i, field := range fields {
@@ -181,7 +181,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 										currentFile = fields[i+1]
 									}
 									bytesCopied += size
-									
+
 									// Calculate progress
 									var progress float64
 									if totalSize > 0 {
@@ -190,14 +190,14 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 											progress = 100
 										}
 									}
-									
+
 									m.mu.Lock()
 									m.migrationStatus.BytesCopied = bytesCopied
 									m.migrationStatus.Progress = progress
 									m.migrationStatus.CurrentFile = currentFile
 									status := *m.migrationStatus
 									m.mu.Unlock()
-									
+
 									if progressCallback != nil {
 										progressCallback(status)
 									}
@@ -205,7 +205,7 @@ func (m *Manager) rsyncMigrate(ctx context.Context, source, dest string, totalSi
 								}
 							}
 						}
-						
+
 						// Log progress periodically
 						if strings.Contains(line, "Bytes :") || strings.Contains(line, "Files :") {
 							slog.Debug("robocopy progress", "line", line)

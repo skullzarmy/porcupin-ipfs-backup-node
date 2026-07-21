@@ -28,13 +28,13 @@ const logoWidth = 42
 
 // ANSI escape codes
 const (
-	Bold      = "\033[1m"
-	Dim       = "\033[2m"
-	Reset     = "\033[0m"
-	Cyan      = "\033[36m"
-	Green     = "\033[32m"
-	Yellow    = "\033[33m"
-	White     = "\033[37m"
+	Bold   = "\033[1m"
+	Dim    = "\033[2m"
+	Reset  = "\033[0m"
+	Cyan   = "\033[36m"
+	Green  = "\033[32m"
+	Yellow = "\033[33m"
+	White  = "\033[37m"
 )
 
 // hrule returns a horizontal rule of the given width
@@ -56,10 +56,10 @@ func PrintBannerWithVersion(version string) {
 		fmt.Printf("Porcupin %s\n", version)
 		return
 	}
-	
+
 	fmt.Print(logo)
 	fmt.Println(hrule(logoWidth))
-	
+
 	// Center the version text
 	versionText := fmt.Sprintf("%sPorcupin%s %s%s%s", Bold, Reset, Cyan, version, Reset)
 	// Account for ANSI codes in padding calculation
@@ -70,7 +70,7 @@ func PrintBannerWithVersion(version string) {
 	} else {
 		fmt.Println(versionText)
 	}
-	
+
 	fmt.Println(hrule(logoWidth))
 	fmt.Println()
 }
@@ -78,7 +78,7 @@ func PrintBannerWithVersion(version string) {
 // PrintStats prints formatted statistics
 func PrintStats(nfts, total, pinned, pending, failed int64, storageGB float64) {
 	useColor := shouldShowBanner() // colors only if TTY
-	
+
 	if useColor {
 		fmt.Println(hrule(logoWidth))
 		fmt.Printf("%s%sPorcupin Stats%s\n", Bold, White, Reset)
@@ -136,12 +136,12 @@ func IsTTY() bool {
 func PrintAbout(version string) {
 	showBanner := shouldShowBanner()
 	useColor := showBanner
-	
+
 	if showBanner {
 		fmt.Print(logo)
 		fmt.Println(hrule(logoWidth))
 	}
-	
+
 	if useColor {
 		fmt.Printf("            %s%sPorcupin%s %s%s%s\n", Bold, White, Reset, Cyan, version, Reset)
 		fmt.Printf("        %sTezos NFT Backup to IPFS%s\n", Dim, Reset)
@@ -176,7 +176,7 @@ func PrintAbout(version string) {
 		fmt.Println("Developed by FAFOlab  •  fafolab.xyz")
 		fmt.Println("© 2025 Porcupin. MIT License.")
 	}
-	
+
 	if showBanner {
 		fmt.Println()
 		fmt.Println(hrule(logoWidth))
