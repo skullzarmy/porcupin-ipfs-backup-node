@@ -230,7 +230,10 @@ export function Settings({
             if (cfg?.IPFS) {
                 setIpfsSwarmPort(cfg.IPFS.swarm_port || 4001);
                 setIpfsPortChanged(false);
-                setDelegatedRouters((cfg.IPFS.delegated_routers ?? []).join("\n"));
+                const routers = Object.prototype.hasOwnProperty.call(cfg.IPFS, "delegated_routers")
+                    ? (cfg.IPFS.delegated_routers ?? [])
+                    : ["auto"];
+                setDelegatedRouters(routers.join("\n"));
                 setRoutersChanged(false);
             }
         } catch (err: unknown) {

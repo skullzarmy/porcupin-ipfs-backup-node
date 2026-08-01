@@ -17,9 +17,10 @@ const autoRouter = config.AutoPlaceholder // "auto"
 // rejected entries.
 //
 // An entry is accepted if it is the literal "auto" (AutoConf/IPNI) or an
-// absolute http(s) URL with a host. Blank entries are skipped silently;
-// anything else is rejected so a typo can never disable provider discovery
-// without a trace in the logs.
+// absolute http(s) URL with a host whose path is /routing/v1 (optionally with
+// a trailing slash). Blank entries are skipped silently; anything else is
+// rejected so a typo can never disable provider discovery without a trace in
+// the logs.
 func SanitizeDelegatedRouters(raw []string) (accepted []string, rejected []string) {
 	seen := make(map[string]struct{}, len(raw))
 	for _, entry := range raw {
@@ -41,7 +42,8 @@ func SanitizeDelegatedRouters(raw []string) (accepted []string, rejected []strin
 }
 
 // isValidRouterEntry reports whether an entry is "auto" or an absolute http(s)
-// URL with a host component.
+// URL with a host component whose path is /routing/v1 (optionally with a
+// trailing slash).
 func isValidRouterEntry(entry string) bool {
 	if entry == autoRouter {
 		return true
@@ -53,7 +55,10 @@ func isValidRouterEntry(entry string) bool {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
-	return u.Host != ""
+	if u.Host == "" {
+		return false
+	}
+	return u.Path == "/routing/v1" || u.Path == "/routing/v1/"
 }
 
 // applyDelegatedRouters resolves the effective delegated-router list from the

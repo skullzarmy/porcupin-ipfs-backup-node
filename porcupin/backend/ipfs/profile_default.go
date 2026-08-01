@@ -22,8 +22,7 @@ import (
 // to the IPNI indexer but NOT to the Amino DHT. A DHT-only client finds zero
 // providers for that content, so Bitswap has no peer to fetch from and pins
 // time out even though the content is widely available on the network. Adding
-// delegated routing lets the node discover (and, with HTTP retrieval, fetch)
-// those providers.
+// delegated routing lets the node discover those providers.
 func getRoutingOption(cfg *config.Config) libp2p.RoutingOption {
 	slog.Info("IPFS Profile: using DHT client + delegated IPNI routing")
 	return libp2p.ConstructDefaultRouting(cfg, libp2p.DHTClientOption)

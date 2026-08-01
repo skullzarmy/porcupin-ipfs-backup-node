@@ -59,6 +59,7 @@ func TestSanitizeDelegatedRouters(t *testing.T) {
 		{"rejects non-url", []string{"not-a-url"}, nil, []string{"not-a-url"}},
 		{"rejects bad scheme", []string{"ftp://x/routing/v1"}, nil, []string{"ftp://x/routing/v1"}},
 		{"rejects missing host", []string{"https://"}, nil, []string{"https://"}},
+		{"rejects missing routing path", []string{"https://r.example"}, nil, []string{"https://r.example"}},
 		{"mixed valid and invalid", []string{"auto", "bogus", router}, []string{"auto", router}, []string{"bogus"}},
 	}
 
