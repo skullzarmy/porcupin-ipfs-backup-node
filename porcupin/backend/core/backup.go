@@ -14,6 +14,7 @@ import (
 
 	"porcupin/backend/config"
 	"porcupin/backend/db"
+	"porcupin/backend/httpx"
 	"porcupin/backend/indexer"
 	ipfsuri "porcupin/backend/uri"
 )
@@ -722,7 +723,7 @@ func (bm *BackupManager) downloadMetadata(ctx context.Context, uri string) ([]by
 		return nil, "", 0, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpx.Client.Do(req)
 	if err != nil {
 		return nil, "", 0, err
 	}
@@ -1007,7 +1008,7 @@ func (bm *BackupManager) fetchMetadataFromChain(ctx context.Context, contractAdd
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpx.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}

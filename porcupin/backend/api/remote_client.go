@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"porcupin/backend/httpx"
 )
 
 // RemoteClient is an HTTP client for connecting to a remote Porcupin server
@@ -52,9 +54,7 @@ func NewRemoteClient(host string, port int, token string, useTLS bool) *RemoteCl
 	return &RemoteClient{
 		baseURL: fmt.Sprintf("%s://%s:%d", protocol, host, port),
 		token:   token,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		httpClient: httpx.NewClient(30 * time.Second),
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"porcupin/backend/httpx"
 	ipfsuri "porcupin/backend/uri"
 
 	"github.com/dipdup-net/go-lib/tzkt/api"
@@ -37,7 +38,7 @@ func NewIndexer(baseURL string) *Indexer {
 
 	return &Indexer{
 		client:     client,
-		httpClient: &http.Client{Timeout: 30 * time.Second},
+		httpClient: httpx.NewClient(30 * time.Second),
 		baseURL:    baseURL,
 		events:     events.NewTzKT(fmt.Sprintf("%s/v1/ws", baseURL)),
 	}
@@ -235,9 +236,7 @@ func (i *Indexer) SyncOwnedSince(ctx context.Context, address string, sinceLevel
 	limit := 1000 // TZKT recommended batch size
 
 	// Use a custom client with longer timeout for this operation
-	client := &http.Client{
-		Timeout: 60 * time.Second,
-	}
+	client := httpx.NewClient(60 * time.Second)
 
 	for {
 		// Build URL with cursor-based pagination using id.gt (greater than lastId)
@@ -332,9 +331,7 @@ func (i *Indexer) SyncCreatedSince(ctx context.Context, address string, sinceLev
 	limit := 1000 // TZKT recommended batch size
 
 	// Use a custom client with longer timeout
-	client := &http.Client{
-		Timeout: 60 * time.Second,
-	}
+	client := httpx.NewClient(60 * time.Second)
 
 	for {
 		// Build URL with cursor-based pagination using id.gt (greater than lastId)
