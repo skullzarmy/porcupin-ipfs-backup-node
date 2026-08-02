@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"porcupin/backend/httpx"
+
 	"github.com/creativeprojects/go-selfupdate"
 )
 
@@ -487,9 +489,8 @@ func fetchExpectedChecksum(ctx context.Context, checksumURL, filename string) (s
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("User-Agent", "Porcupin-Updater")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpx.Client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("download checksums: %w", err)
 	}
@@ -535,9 +536,8 @@ func findReleaseAssetURLs(ctx context.Context, version string, names ...string) 
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "Porcupin-Updater")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpx.Client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch release: %w", err)
 	}
@@ -579,9 +579,8 @@ func downloadFile(ctx context.Context, url string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "Porcupin-Updater")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpx.Client.Do(req)
 	if err != nil {
 		return err
 	}
