@@ -23,9 +23,9 @@ func TestUserAgentFormat(t *testing.T) {
 }
 
 func TestClientSetsUserAgent(t *testing.T) {
-	var got string
+	gotCh := make(chan string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got = r.Header.Get("User-Agent")
+		gotCh <- r.Header.Get("User-Agent")
 	}))
 	defer srv.Close()
 
@@ -35,15 +35,15 @@ func TestClientSetsUserAgent(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	if got != UserAgent() {
+	if got := <-gotCh; got != UserAgent() {
 		t.Errorf("expected User-Agent %q, got %q", UserAgent(), got)
 	}
 }
 
 func TestTransportPreservesExplicitUserAgent(t *testing.T) {
-	var got string
+	gotCh := make(chan string, 1)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got = r.Header.Get("User-Agent")
+		gotCh <- r.Header.Get("User-Agent")
 	}))
 	defer srv.Close()
 
@@ -59,7 +59,7 @@ func TestTransportPreservesExplicitUserAgent(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	if got != "Custom/1.0" {
+	if got := <-gotCh; got != "Custom/1.0" {
 		t.Errorf("explicit User-Agent should be preserved, got %q", got)
 	}
 }
