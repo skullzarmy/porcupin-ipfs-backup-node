@@ -127,10 +127,11 @@ These commands execute immediately and exit (they don't start the daemon).
 
 ### `--add-wallet <address>`
 
-Add a Tezos wallet to track.
+Add a Tezos wallet to track. Pair with `--alias` to attach a label.
 
 ```bash
 porcupin --add-wallet tz1YourWalletAddress
+porcupin --add-wallet tz1YourWalletAddress --alias "Main Wallet"
 ```
 
 **Note:** If running as a systemd service, you must restart the service after adding a wallet for it to start syncing:
@@ -138,6 +139,18 @@ porcupin --add-wallet tz1YourWalletAddress
 ```bash
 sudo -u porcupin porcupin --data /var/lib/porcupin --add-wallet tz1YourWallet
 sudo systemctl restart porcupin
+```
+
+### `--alias <name>`
+
+Sets the label used by `--add-wallet` and `--rename-wallet`. Has no effect on its own.
+
+### `--rename-wallet <address>`
+
+Change a tracked wallet's alias. Requires `--alias`.
+
+```bash
+porcupin --rename-wallet tz1YourWalletAddress --alias "Art Wallet"
 ```
 
 ### `--remove-wallet <address>`
@@ -149,6 +162,44 @@ porcupin --remove-wallet tz1YourWalletAddress
 ```
 
 **Note:** This removes the wallet but does not unpin its assets from IPFS.
+
+### `--unpin-wallet <address>`
+
+Unpin every asset belonging to a wallet, then exit. The wallet remains tracked.
+Disk space is not reclaimed until garbage collection runs (`--gc`).
+
+```bash
+porcupin --unpin-wallet tz1YourWalletAddress
+```
+
+### `--delete-wallet <address>`
+
+Remove the wallet **and** unpin all of its assets in a single step — the
+combination of `--remove-wallet` and `--unpin-wallet`.
+
+```bash
+porcupin --delete-wallet tz1YourWalletAddress
+```
+
+### `--gc`
+
+Run IPFS garbage collection and exit, reclaiming space held by unpinned blocks.
+Pinned content is never removed. Run this after `--unpin-wallet` or
+`--delete-wallet` to actually free the space.
+
+```bash
+porcupin --gc
+```
+
+### `--update`
+
+Check GitHub Releases for a newer version; if one exists, download it, verify its
+SHA256 checksum against `checksums.txt`, and replace the running binary. See
+[Updating Porcupin](updating.md) for systemd and platform specifics.
+
+```bash
+porcupin --update
+```
 
 ### `--list-wallets`
 

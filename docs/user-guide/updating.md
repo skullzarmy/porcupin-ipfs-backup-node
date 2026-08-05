@@ -231,6 +231,12 @@ v1.0.0 and v1.0.1's updater could install the **wrong binary** (the desktop app 
 
 ### Linux (Desktop App)
 
+Before v1.0.4, the desktop updater could install the **wrong binary** on Linux. The update library matched release assets by OS/arch suffix, which also matches the headless server asset (`porcupin-server-linux-{arch}`). When it picked that one, the GUI binary was replaced by the headless server and **the app would no longer open** — it would exit immediately or start a server with no window.
+
+**v1.0.4 fixes this** by downloading the desktop archive (`porcupin-linux-{arch}.tar.gz`) explicitly by name and verifying its SHA256 checksum before swapping the binary into place.
+
+**To recover manually:**
+
 1. **Close the app.**
 
 2. **Remove stale lock files:**
@@ -239,7 +245,16 @@ v1.0.0 and v1.0.1's updater could install the **wrong binary** (the desktop app 
     rm -f ~/.porcupin/ipfs/repo.lock ~/.porcupin/ipfs/datastore/LOCK
     ```
 
-3. **If the updater failed**, download `porcupin-linux-amd64.tar.gz` from the [Releases page](https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases), extract it, and replace the existing binary.
+3. **If the updater failed or replaced the app with the headless server**, download `porcupin-linux-amd64.tar.gz` (or `arm64`) from the [Releases page](https://github.com/skullzarmy/porcupin-ipfs-backup-node/releases), extract it, and replace the existing binary:
+
+    ```bash
+    tar -xzf porcupin-linux-amd64.tar.gz
+    chmod +x porcupin
+    # Move it over your existing install, e.g.:
+    mv porcupin ~/.local/bin/porcupin
+    ```
+
+**Future updates** from v1.0.4 onward download the correct desktop archive automatically.
 
 ### Docker
 
