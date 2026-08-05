@@ -1,8 +1,19 @@
 package updater
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -70,7 +81,10 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestInstallLatest(t *testing.T) {
-	// Setup test scenarios
+	// These cases cover the guard clauses and the go-selfupdate delegation used
+	// on Windows. goos is pinned so the result does not depend on the host OS —
+	// the macOS/Linux paths download real release assets and are covered
+	// separately against a stub server.
 	tests := []struct {
 		name            string
 		preCacheRelease bool
@@ -116,7 +130,7 @@ func TestInstallLatest(t *testing.T) {
 				shouldError: tt.mockError,
 			}
 
-			mgr := &Manager{}
+			mgr := &Manager{goos: "windows"}
 			if tt.updaterInit {
 				mgr.updater = mock
 			}
@@ -148,6 +162,142 @@ func TestInstallLatest(t *testing.T) {
 // Helper for string containment check
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
+}
+
+// newTarGz builds an in-memory .tar.gz containing a single regular file.
+func newTarGz(t *testing.T, name string, content []byte) []byte {
+	t.Helper()
+
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+
+	hdr := &tar.Header{
+		Name:     name,
+		Mode:     0o755,
+		Size:     int64(len(content)),
+		Typeflag: tar.TypeReg,
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		t.Fatalf("write tar header: %v", err)
+	}
+	if _, err := tw.Write(content); err != nil {
+		t.Fatalf("write tar body: %v", err)
+	}
+	if err := tw.Close(); err != nil {
+		t.Fatalf("close tar: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("close gzip: %v", err)
+	}
+	return buf.Bytes()
+}
+
+// serveRelease starts a stub GitHub API + asset server for release v0.2.0 and
+// points githubAPIBase at it for the duration of the test. The returned
+// checksum is what the server advertises for the archive.
+func serveRelease(t *testing.T, archive []byte, checksum string) {
+	t.Helper()
+
+	assetName := fmt.Sprintf("porcupin-linux-%s.tar.gz", runtime.GOARCH)
+
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	mux.HandleFunc("/repos/"+Repository+"/releases/tags/v0.2.0", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"assets":[
+			{"name":%q,"browser_download_url":%q},
+			{"name":"checksums.txt","browser_download_url":%q}
+		]}`, assetName, srv.URL+"/asset", srv.URL+"/checksums.txt")
+	})
+	mux.HandleFunc("/asset", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(archive)
+	})
+	mux.HandleFunc("/checksums.txt", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "%s  %s\n", checksum, assetName)
+	})
+
+	orig := githubAPIBase
+	githubAPIBase = srv.URL
+	t.Cleanup(func() { githubAPIBase = orig })
+}
+
+func TestInstallLinuxBinary(t *testing.T) {
+	newBinary := []byte("#!/bin/sh\necho new version\n")
+	archive := newTarGz(t, "porcupin", newBinary)
+	sum := sha256.Sum256(archive)
+	goodChecksum := hex.EncodeToString(sum[:])
+
+	// installLinuxBinary is called directly rather than through InstallLatest so
+	// the target is a temp file, never the test binary itself.
+	newTargetBinary := func(t *testing.T) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "porcupin")
+		if err := os.WriteFile(path, []byte("old version"), 0o755); err != nil {
+			t.Fatalf("seed target binary: %v", err)
+		}
+		return path
+	}
+
+	t.Run("Replaces binary on checksum match", func(t *testing.T) {
+		serveRelease(t, archive, goodChecksum)
+		exePath := newTargetBinary(t)
+
+		mgr := &Manager{
+			updater:       &MockUpdater{},
+			goos:          "linux",
+			latestRelease: &MockRelease{versionStr: "0.2.0"},
+		}
+
+		if err := mgr.installLinuxBinary(context.Background(), exePath); err != nil {
+			t.Fatalf("installLinuxBinary failed: %v", err)
+		}
+
+		got, err := os.ReadFile(exePath)
+		if err != nil {
+			t.Fatalf("read installed binary: %v", err)
+		}
+		if !bytes.Equal(got, newBinary) {
+			t.Errorf("binary not replaced: got %q, want %q", got, newBinary)
+		}
+
+		info, err := os.Stat(exePath)
+		if err != nil {
+			t.Fatalf("stat installed binary: %v", err)
+		}
+		if info.Mode().Perm() != 0o755 {
+			t.Errorf("permissions not preserved: got %v, want %v", info.Mode().Perm(), os.FileMode(0o755))
+		}
+	})
+
+	t.Run("Leaves binary intact on checksum mismatch", func(t *testing.T) {
+		serveRelease(t, archive, strings.Repeat("0", 64))
+		exePath := newTargetBinary(t)
+
+		mgr := &Manager{
+			updater:       &MockUpdater{},
+			goos:          "linux",
+			latestRelease: &MockRelease{versionStr: "0.2.0"},
+		}
+
+		err := mgr.installLinuxBinary(context.Background(), exePath)
+		if err == nil {
+			t.Fatal("expected checksum mismatch error, got nil")
+		}
+		if !contains(err.Error(), "checksum mismatch") {
+			t.Errorf("expected checksum mismatch error, got %q", err.Error())
+		}
+
+		got, err := os.ReadFile(exePath)
+		if err != nil {
+			t.Fatalf("read target binary: %v", err)
+		}
+		if string(got) != "old version" {
+			t.Errorf("binary was modified despite bad checksum: got %q", got)
+		}
+	})
 }
 
 func TestCheckForUpdates(t *testing.T) {

@@ -30,6 +30,10 @@ const (
 	Repository = "skullzarmy/porcupin-ipfs-backup-node"
 )
 
+// githubAPIBase is the GitHub REST API root. It is a variable so tests can
+// redirect asset lookups at a local server instead of the live API.
+var githubAPIBase = "https://api.github.com"
+
 // Release interface abstracts the selfupdate.Release struct
 type Release interface {
 	Version() string
@@ -88,6 +92,17 @@ type Manager struct {
 	// When set, InstallLatest bypasses go-selfupdate entirely and downloads
 	// this asset by name via the GitHub Releases API.
 	serverAsset string
+	// goos selects the install strategy. Defaults to runtime.GOOS; tests set it
+	// to exercise a platform's path without running on that platform.
+	goos string
+}
+
+// platform returns the OS this manager installs for.
+func (m *Manager) platform() string {
+	if m.goos == "" {
+		return runtime.GOOS
+	}
+	return m.goos
 }
 
 // NewManager creates an update manager for the desktop application.
@@ -203,7 +218,7 @@ func (m *Manager) InstallLatest(ctx context.Context) error {
 	}
 
 	// Desktop macOS: replace the entire .app bundle
-	if runtime.GOOS == "darwin" {
+	if m.platform() == "darwin" {
 		if bundle := FindAppBundle(exePath); bundle != "" {
 			return m.installMacOSBundle(ctx, bundle)
 		}
@@ -213,7 +228,7 @@ func (m *Manager) InstallLatest(ctx context.Context) error {
 	// go-selfupdate here is unsafe because its suffix matcher also matches the
 	// headless server asset (porcupin-server-linux-<arch>), which would replace
 	// the GUI binary with the headless server and leave the app unable to open.
-	if runtime.GOOS == "linux" {
+	if m.platform() == "linux" {
 		return m.installLinuxBinary(ctx, exePath)
 	}
 
@@ -529,7 +544,7 @@ type releaseInfo struct {
 // findReleaseAssetURLs queries the GitHub Releases API for the given version
 // and returns a map of asset name → browser_download_url for each requested name.
 func findReleaseAssetURLs(ctx context.Context, version string, names ...string) (map[string]string, error) {
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/releases/tags/v%s", Repository, version)
+	apiURL := fmt.Sprintf("%s/repos/%s/releases/tags/v%s", githubAPIBase, Repository, version)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, apiURL, nil)
 	if err != nil {
