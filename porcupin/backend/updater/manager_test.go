@@ -263,12 +263,18 @@ func TestInstallLinuxBinary(t *testing.T) {
 			t.Errorf("binary not replaced: got %q, want %q", got, newBinary)
 		}
 
-		info, err := os.Stat(exePath)
-		if err != nil {
-			t.Fatalf("stat installed binary: %v", err)
-		}
-		if info.Mode().Perm() != 0o755 {
-			t.Errorf("permissions not preserved: got %v, want %v", info.Mode().Perm(), os.FileMode(0o755))
+		// Windows has no Unix permission bits — Go reports 0666 regardless — so
+		// the mode assertion only applies elsewhere. The install path itself is
+		// Linux-only in production; the rest of the flow is worth exercising on
+		// every runner.
+		if runtime.GOOS != "windows" {
+			info, err := os.Stat(exePath)
+			if err != nil {
+				t.Fatalf("stat installed binary: %v", err)
+			}
+			if info.Mode().Perm() != 0o755 {
+				t.Errorf("permissions not preserved: got %v, want %v", info.Mode().Perm(), os.FileMode(0o755))
+			}
 		}
 	})
 

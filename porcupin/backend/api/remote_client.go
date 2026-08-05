@@ -52,8 +52,8 @@ func NewRemoteClient(host string, port int, token string, useTLS bool) *RemoteCl
 	}
 
 	return &RemoteClient{
-		baseURL: fmt.Sprintf("%s://%s:%d", protocol, host, port),
-		token:   token,
+		baseURL:    fmt.Sprintf("%s://%s:%d", protocol, host, port),
+		token:      token,
 		httpClient: httpx.NewClient(30 * time.Second),
 	}
 }
