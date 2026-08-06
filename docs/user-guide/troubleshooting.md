@@ -109,7 +109,7 @@ ipfs:
 Before Porcupin can pin a file, it has to find a peer on the IPFS network that is hosting it. If no provider is found within the pin timeout, the asset is marked "Failed (Unavailable)". This usually means one of:
 
 - The content genuinely has no online host anymore, **or**
-- The provider only advertises itself through the IPNI indexer (`cid.contact`) rather than the DHT. Porcupin queries **both** the DHT and IPNI as of v1.0.4+, which resolves the large batches of "max retries exceeded" failures seen on Versum, Emprops, and other content stored via nft.storage / web3.storage / Filecoin. If you saw many such failures on an older version, simply update and let the retry worker run — no re-import needed.
+- The provider only advertises itself through the IPNI indexer (`cid.contact`) rather than the DHT. Porcupin queries **both** the DHT and IPNI as of v1.0.4+, which resolves the large batches of "max retries exceeded" failures seen on Versum, Emprops, and other content stored via nft.storage / web3.storage / Filecoin. If you saw many such failures on an older version, simply update and let the retry worker run; the assets pin on the next pass.
 
 **Cause 3: Too many concurrent downloads**
 
@@ -130,8 +130,8 @@ This means Porcupin couldn't locate and retrieve a provider for the content with
 
 **What you can do:**
 
-1. **Update Porcupin** if you're on an older version — v1.0.4+ queries both the DHT and IPNI (`cid.contact`), which recovers most previously "unavailable" assets on the next retry.
-2. Wait — Porcupin periodically retries failed assets automatically.
+1. **Update Porcupin** if you're on an older version. v1.0.4+ queries both the DHT and IPNI (`cid.contact`), which recovers most previously "unavailable" assets on the next retry.
+2. Wait. Porcupin periodically retries failed assets automatically.
 3. Check if the NFT platform still shows the image. If a public gateway (e.g. `https://ipfs.io/ipfs/<cid>`) or `https://cid.contact/cid/<cid>` shows providers, the content is on the network and should pin.
 4. If your connection is slow, raise `ipfs.pin_timeout` in `~/.porcupin/config.yaml`.
 
@@ -341,7 +341,7 @@ Porcupin stores all user data in a single directory:
 | Config    | `~/.porcupin/config.yaml` |
 | Logs      | `~/.porcupin/logs/`       |
 
-> `~` means your **home directory** — e.g., `/home/yourname` on Linux, `/Users/yourname` on macOS, or `C:\Users\yourname` on Windows.
+> `~` means your **home directory**: e.g., `/home/yourname` on Linux, `/Users/yourname` on macOS, or `C:\Users\yourname` on Windows.
 
 ### macOS
 
@@ -359,7 +359,7 @@ rm -rf ~/.porcupin
 
 1. Quit Porcupin
 2. Delete the Porcupin folder from where you installed it (e.g., `C:\Program Files\Porcupin\` or your Desktop)
-3. Remove all user data — open PowerShell and run:
+3. Remove all user data. Open PowerShell and run:
 
 ```powershell
 Remove-Item -Recurse -Force "$env:USERPROFILE\.porcupin"
@@ -412,7 +412,7 @@ The app will recreate all necessary files and directories on next launch.
 If your issue isn't listed:
 
 1. **Check logs:**
-    - Desktop: **Settings → Logs & Diagnostics** — view recent logs and export a diagnostic report
+    - Desktop: **Settings → Logs & Diagnostics** to view recent logs and export a diagnostic report
     - Log files: `~/.porcupin/logs/porcupin-YYYY-MM-DD.log`
     - Crash reports: `~/.porcupin/logs/crash-*.txt`
     - Headless: Check stdout/stderr or `journalctl -u porcupin`

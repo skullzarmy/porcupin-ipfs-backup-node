@@ -175,7 +175,7 @@ v1.0.0 does not clean up IPFS lock files on shutdown. If the app fails to start 
 
 1. **Close Porcupin** completely (check the system tray).
 
-2. **Remove stale lock files** — open PowerShell and run:
+2. **Remove stale lock files.** Open PowerShell and run:
 
     ```powershell
     Remove-Item -Force "$env:USERPROFILE\.porcupin\ipfs\repo.lock" -ErrorAction SilentlyContinue
@@ -231,7 +231,7 @@ v1.0.0 and v1.0.1's updater could install the **wrong binary** (the desktop app 
 
 ### Linux (Desktop App)
 
-Before v1.0.4, the desktop updater could install the **wrong binary** on Linux. The update library matched release assets by OS/arch suffix, which also matches the headless server asset (`porcupin-server-linux-{arch}`). When it picked that one, the GUI binary was replaced by the headless server and **the app would no longer open** — it would exit immediately or start a server with no window.
+Before v1.0.4, the desktop updater could install the **wrong binary** on Linux. The update library matched release assets by OS/arch suffix, which also matches the headless server asset (`porcupin-server-linux-{arch}`). When it picked that one, the GUI binary was replaced by the headless server and **the app would no longer open**: it would exit immediately or start a server with no window.
 
 **v1.0.4 fixes this** by downloading the desktop archive (`porcupin-linux-{arch}.tar.gz`) explicitly by name and verifying its SHA256 checksum before swapping the binary into place.
 
@@ -258,7 +258,7 @@ Before v1.0.4, the desktop updater could install the **wrong binary** on Linux. 
 
 ### Docker
 
-Docker users are not affected by the updater — simply pull the latest image:
+Docker users are unaffected by the updater. Simply pull the latest image:
 
 ```bash
 docker pull ghcr.io/skullzarmy/porcupin-ipfs-backup-node:latest

@@ -74,9 +74,9 @@ This creates a new token and invalidates the old one.
 
 ### Token Sources (Priority Order)
 
-1. **`--api-token` flag** — ⚠️ Visible in `ps`, avoid if possible
-2. **`PORCUPIN_API_TOKEN` env var** — Recommended for Docker/scripts
-3. **Token file** — Auto-generated on first `--serve` run
+1. **`--api-token` flag**: ⚠️ Visible in `ps`, avoid if possible
+2. **`PORCUPIN_API_TOKEN` env var**: Recommended for Docker/scripts
+3. **Token file**: Auto-generated on first `--serve` run
 
 ### Example: Using Environment Variable
 
@@ -293,8 +293,8 @@ The `/api/v1/health` endpoint returns IPFS connectivity information:
 }
 ```
 
-- `is_online` — whether the IPFS node has connected peers
-- `peer_count` — number of currently connected IPFS swarm peers
+- `is_online`: whether the IPFS node has connected peers
+- `peer_count`: number of currently connected IPFS swarm peers
 
 All endpoints except `/health` require:
 
@@ -306,6 +306,6 @@ Authorization: Bearer <token>
 
 ## See Also
 
--   [CLI Reference](cli-reference.md) — All command-line options
--   [Configuration](configuration.md) — Config file options
--   [Installation](installation.md) — Installing Porcupin
+-   [CLI Reference](cli-reference.md): All command-line options
+-   [Configuration](configuration.md): Config file options
+-   [Installation](installation.md): Installing Porcupin

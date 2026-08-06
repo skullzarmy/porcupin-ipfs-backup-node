@@ -116,7 +116,7 @@ You can also run Porcupin using Docker or Docker Compose.
 ### Failed Assets
 
 - An asset is marked "Failed (Unavailable)" when Porcupin can't locate a provider for it before the timeout
-- This isn't always permanent — the content may just be slow to discover, or (on versions before v1.0.4) advertised only via the IPNI indexer
+- The content may simply be slow to discover, or (on versions before v1.0.4) advertised only via the IPNI indexer
 - Porcupin queries both the DHT and IPNI (`cid.contact`) and periodically retries failed assets automatically
 
 ### Skipped Assets

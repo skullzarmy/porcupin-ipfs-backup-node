@@ -155,23 +155,23 @@ backup:
 
 Before Porcupin can pin an asset, it must **find a peer that hosts that content**. Porcupin's embedded IPFS node discovers hosts using two systems at once:
 
-1. **The Amino DHT** (peer-to-peer distributed hash table) — in low-resource _client_ mode.
-2. **The IPNI indexer** (`cid.contact`) via delegated HTTP routing — resolved automatically through Kubo AutoConf.
+1. **The Amino DHT** (peer-to-peer distributed hash table), running in low-resource _client_ mode.
+2. **The IPNI indexer** (`cid.contact`) via delegated HTTP routing, resolved automatically through Kubo AutoConf.
 
-Both are queried in parallel. This dual approach is important: a large amount of NFT content — including **Versum, Emprops, and anything stored via nft.storage / web3.storage / Filecoin** — advertises its providers to the **IPNI indexer only**, not the DHT. A DHT-only node cannot find that content and would report it as "Failed (Unavailable)" even though it is widely available. (This was the cause of large "max retries exceeded" batches before v1.0.4.)
+Both are queried in parallel. This dual approach matters: a large amount of NFT content, including **Versum, Emprops, and anything stored via nft.storage / web3.storage / Filecoin**, advertises its providers to the **IPNI indexer only**. A DHT-only node would miss that content and report it as "Failed (Unavailable)" even though it is widely available. (This was the cause of large "max retries exceeded" batches before v1.0.4.)
 
-No configuration is required — delegated IPNI routing is enabled by default (`delegated_routers: ["auto"]`), and Porcupin applies it on every start, so even repositories created by older versions get IPNI discovery automatically after upgrading.
+Delegated IPNI routing is enabled by default (`delegated_routers: ["auto"]`) and needs no setup. Porcupin applies it on every start, so even repositories created by older versions get IPNI discovery automatically after upgrading.
 
 ### Adding custom provider endpoints (advanced)
 
-You can query additional `/routing/v1` delegated routers — for example a self-hosted [someguy](https://github.com/ipfs/someguy) instance or an alternative indexer — for redundancy, private networks, or self-hosted setups.
+You can query additional `/routing/v1` delegated routers for redundancy, private networks, or self-hosted setups. Examples include a self-hosted [someguy](https://github.com/ipfs/someguy) instance or an alternative indexer.
 
 **Recommended: the config file.** Add endpoints to the `delegated_routers` list. Keep `auto` to retain IPNI (cid.contact):
 
 ```yaml
 ipfs:
     delegated_routers:
-        - auto # IPNI indexer (cid.contact) — keep this for normal content
+        - auto # IPNI indexer (cid.contact), keep this for normal content
         - https://my-router.example/routing/v1
 ```
 
@@ -191,7 +191,7 @@ Entries must be `auto` or an absolute `http(s)` `/routing/v1` URL; invalid entri
 export IPFS_HTTP_ROUTERS="https://cid.contact https://my-router.example/routing/v1"
 ```
 
-None of this is needed for normal use — `cid.contact` (IPNI) already aggregates the major hosting providers.
+Normal use needs none of this: `cid.contact` (IPNI) already aggregates the major hosting providers.
 
 ---
 

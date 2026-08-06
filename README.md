@@ -8,7 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux%20%7C%20Docker-lightgrey.svg)](#user-installation)
 [![Tezos](https://img.shields.io/badge/Tezos-NFT%20Preservation-2C7DF7.svg)](https://tezos.com)
 
-Porcupin automatically monitors your Tezos wallets and backs up all NFT content (images, metadata, videos) to IPFS. Once configured, it runs in the background keeping your digital art collection safe—forever.
+Porcupin automatically monitors your Tezos wallets and backs up all NFT content (images, metadata, videos) to IPFS. Once configured, it runs in the background keeping your digital art collection safe, forever.
 
 🌐 **Website:** [porcupin.xyz](https://porcupin.xyz)
 
@@ -29,17 +29,17 @@ Porcupin automatically monitors your Tezos wallets and backs up all NFT content 
 
 ## ✨ Features
 
-- 🦔 **Set and Forget** — Add wallets once, Porcupin handles the rest
-- 📌 **IPFS Pinning** — Embedded Kubo node, no external services needed
-- 🧭 **Robust Content Discovery** — Finds providers via both the DHT and the IPNI indexer (`cid.contact`), so content stored on nft.storage / web3.storage / Filecoin (Versum, Emprops, etc.) is reliably located and pinned
-- 🔄 **Real-time Sync** — Watches for new NFTs via TZKT
-- 💻 **Cross-Platform** — macOS, Windows, Linux, Raspberry Pi, Docker
-- 🌐 **Remote Server Mode** — Run headless on NAS/Pi, manage from desktop app
-- 📊 **Dashboard** — Track sync status, storage usage, connected peers, and asset health
-- 🩺 **IPFS Health Monitoring** — Live online/offline indicator with connected peer count
-- 📋 **Built-in Log Viewer** — View, filter, and export logs directly from Settings
-- 🛡️ **Crash Diagnostics** — Rolling log files, panic recovery, and exportable diagnostic reports
-- 🔒 **Self-Sovereign** — Your data stays on your machine
+- 🦔 **Set and Forget**: Add wallets once, Porcupin handles the rest
+- 📌 **IPFS Pinning**: Embedded Kubo node, no external services needed
+- 🧭 **Robust Content Discovery**: Finds providers via both the DHT and the IPNI indexer (`cid.contact`), so content stored on nft.storage / web3.storage / Filecoin (Versum, Emprops, etc.) is reliably located and pinned
+- 🔄 **Real-time Sync**: Watches for new NFTs via TZKT
+- 💻 **Cross-Platform**: macOS, Windows, Linux, Raspberry Pi, Docker
+- 🌐 **Remote Server Mode**: Run headless on NAS/Pi, manage from desktop app
+- 📊 **Dashboard**: Track sync status, storage usage, connected peers, and asset health
+- 🩺 **IPFS Health Monitoring**: Live online/offline indicator with connected peer count
+- 📋 **Built-in Log Viewer**: View, filter, and export logs directly from Settings
+- 🛡️ **Crash Diagnostics**: Rolling log files, panic recovery, and exportable diagnostic reports
+- 🔒 **Self-Sovereign**: Your data stays on your machine
 
 ---
 
@@ -89,7 +89,7 @@ Look for issues labeled [`good first issue`](https://github.com/skullzarmy/porcu
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
 You are free to use, modify, and distribute this software. We just ask that you give credit where it's due! 💜
 
@@ -114,10 +114,10 @@ You are free to use, modify, and distribute this software. We just ask that you 
 
 This project was made possible by these incredible open-source technologies:
 
-- **[Wails](https://wails.io)** — The Go/React desktop application framework
-- **[Kubo IPFS](https://github.com/ipfs/kubo)** — The implementation of IPFS used for embedded pinning
-- **[TZKT](https://tzkt.io)** — The premier Tezos API and Indexer
-- **[Go](https://go.dev)** — The language that powers the backend
+- **[Wails](https://wails.io)**: The Go/React desktop application framework
+- **[Kubo IPFS](https://github.com/ipfs/kubo)**: The implementation of IPFS used for embedded pinning
+- **[TZKT](https://tzkt.io)**: The premier Tezos API and Indexer
+- **[Go](https://go.dev)**: The language that powers the backend
 
 ### Special Thanks
 

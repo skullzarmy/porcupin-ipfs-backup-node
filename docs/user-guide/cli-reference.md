@@ -174,8 +174,8 @@ porcupin --unpin-wallet tz1YourWalletAddress
 
 ### `--delete-wallet <address>`
 
-Remove the wallet **and** unpin all of its assets in a single step — the
-combination of `--remove-wallet` and `--unpin-wallet`.
+Remove the wallet **and** unpin all of its assets in a single step, combining
+`--remove-wallet` and `--unpin-wallet`.
 
 ```bash
 porcupin --delete-wallet tz1YourWalletAddress
