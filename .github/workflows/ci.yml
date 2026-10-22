@@ -31,7 +31,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v5
               with:
-                  node-version: "20"
+                  node-version: "24"
 
             - name: Build frontend
               working-directory: porcupin/frontend
@@ -68,7 +68,7 @@ jobs:
                   CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
     # NOTE: Lint job temporarily disabled - golangci-lint v1.64.8 is built with Go 1.24
-    # but Kubo (IPFS) requires Go 1.25. Re-enable when golangci-lint supports Go 1.25.
+    # but Kubo (IPFS) requires Go 1.26. Re-enable when golangci-lint supports Go 1.26.
     # See: https://github.com/golangci/golangci-lint/issues
     # lint:
     #     runs-on: ubuntu-latest
@@ -86,7 +86,7 @@ jobs:
     #         - name: Setup Node.js
     #           uses: actions/setup-node@v5
     #           with:
-    #               node-version: "20"
+    #               node-version: "24"
     #
     #         - name: Build frontend
     #           working-directory: porcupin/frontend
@@ -141,7 +141,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v5
               with:
-                  node-version: "20"
+                  node-version: "24"
 
             - name: Build frontend
               working-directory: porcupin/frontend

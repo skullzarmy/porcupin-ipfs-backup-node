@@ -11,7 +11,7 @@ on:
 
 env:
     GO_VERSION: "1.26"
-    NODE_VERSION: "20"
+    NODE_VERSION: "24"
 
 jobs:
     resolve-version:
@@ -30,6 +30,15 @@ jobs:
                       echo "::error::could not read version from porcupin/backend/version/version.go"
                       exit 1
                   fi
+                  mismatch=0
+                  for f in porcupin/wails.json package.json porcupin/frontend/package.json; do
+                      got=$(grep -oE '"(productVersion|version)": "[^"]+"' "$f" | head -n1 | sed -E 's/.*: "([^"]+)"/\1/')
+                      if [ "$got" != "$raw" ]; then
+                          echo "::error file=$f::version is $got, expected $raw (from version.go)"
+                          mismatch=1
+                      fi
+                  done
+                  [ "$mismatch" -eq 0 ] || exit 1
                   echo "version=v${raw}" >> "$GITHUB_OUTPUT"
                   echo "Resolved release tag: v${raw}"
 
