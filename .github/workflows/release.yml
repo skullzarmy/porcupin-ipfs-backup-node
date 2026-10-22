@@ -3,10 +3,6 @@ name: Build and Release
 on:
     workflow_dispatch:
         inputs:
-            version:
-                description: "Release version (e.g., v0.1.0)"
-                required: true
-                type: string
             prerelease:
                 description: "Mark as pre-release"
                 required: false
@@ -18,6 +14,25 @@ env:
     NODE_VERSION: "20"
 
 jobs:
+    resolve-version:
+        runs-on: ubuntu-latest
+        outputs:
+            version: ${{ steps.read.outputs.version }}
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v5
+
+            - name: Read version from porcupin/backend/version/version.go
+              id: read
+              run: |
+                  raw=$(grep -oE 'Version = "[^"]+"' porcupin/backend/version/version.go | head -n1 | sed -E 's/Version = "([^"]+)"/\1/')
+                  if [ -z "$raw" ]; then
+                      echo "::error::could not read version from porcupin/backend/version/version.go"
+                      exit 1
+                  fi
+                  echo "version=v${raw}" >> "$GITHUB_OUTPUT"
+                  echo "Resolved release tag: v${raw}"
+
     test:
         runs-on: ubuntu-latest
 
@@ -241,7 +256,7 @@ jobs:
                   cache-to: type=gha,mode=max
 
     release:
-        needs: [build-desktop, build-headless, build-docker]
+        needs: [resolve-version, build-desktop, build-headless, build-docker]
         runs-on: ubuntu-latest
 
         permissions:
@@ -282,8 +297,8 @@ jobs:
               # on every run.
               uses: softprops/action-gh-release@v3
               with:
-                  tag_name: ${{ inputs.version }}
-                  name: ${{ inputs.version }}
+                  tag_name: ${{ needs.resolve-version.outputs.version }}
+                  name: ${{ needs.resolve-version.outputs.version }}
                   draft: false
                   prerelease: ${{ inputs.prerelease }}
                   generate_release_notes: true
