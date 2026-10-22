@@ -54,7 +54,7 @@ export function About() {
                 <button
                     type="button"
                     className="about-link"
-                    onClick={() => BrowserOpenURL("https://github.com/skullzarmy/porcupin-ipfs-bakup-node")}
+                    onClick={() => BrowserOpenURL("https://github.com/skullzarmy/porcupin-ipfs-backup-node")}
                 >
                     <Github size={18} />
                     <span className="link-text">
@@ -66,7 +66,7 @@ export function About() {
                 <button
                     type="button"
                     className="about-link"
-                    onClick={() => BrowserOpenURL("https://github.com/skullzarmy/porcupin-ipfs-bakup-node/issues")}
+                    onClick={() => BrowserOpenURL("https://github.com/skullzarmy/porcupin-ipfs-backup-node/issues")}
                 >
                     <AlertTriangle size={18} />
                     <span className="link-text">

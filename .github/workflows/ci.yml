@@ -33,11 +33,16 @@ jobs:
               with:
                   node-version: "24"
 
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.9"
+
             - name: Build frontend
               working-directory: porcupin/frontend
               run: |
-                  npm install
-                  npm run build
+                  bun install --frozen-lockfile
+                  bun run build
 
             - name: Run tests
               working-directory: porcupin
@@ -91,8 +96,8 @@ jobs:
     #         - name: Build frontend
     #           working-directory: porcupin/frontend
     #           run: |
-    #               npm install
-    #               npm run build
+    #               bun install --frozen-lockfile
+    #               bun run build
     #
     #         - name: Run golangci-lint
     #           uses: golangci/golangci-lint-action@v6
@@ -143,11 +148,16 @@ jobs:
               with:
                   node-version: "24"
 
+            - name: Setup Bun
+              uses: oven-sh/setup-bun@v2
+              with:
+                  bun-version: "1.3.9"
+
             - name: Build frontend
               working-directory: porcupin/frontend
               run: |
-                  npm install
-                  npm run build
+                  bun install --frozen-lockfile
+                  bun run build
 
             - name: Install Linux dependencies
               run: |

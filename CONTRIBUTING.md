@@ -127,19 +127,19 @@ cd porcupin-ipfs-backup-node
 git remote add upstream https://github.com/skullzarmy/porcupin-ipfs-backup-node.git
 
 # Install dependencies
-npm install
+bun install
 
 # Start development server (hot reload)
-npm run dev
+bun run dev
 ```
 
 ### Building
 
 ```bash
-npm run build              # Build all
-npm run build:desktop      # Desktop apps
-npm run build:headless     # Headless server binaries
-npm run build:docker       # Docker image
+bun run build              # Build all
+bun run build:desktop      # Desktop apps
+bun run build:headless     # Headless server binaries
+bun run build:docker       # Docker image
 ```
 
 ---
