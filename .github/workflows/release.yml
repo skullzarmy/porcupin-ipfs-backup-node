@@ -266,6 +266,8 @@ jobs:
 
             - name: Build and push
               uses: docker/build-push-action@v7
+              env:
+                  DOCKER_BUILD_RECORD_UPLOAD: "false"
               with:
                   context: .
                   push: ${{ github.event_name != 'pull_request' }}
@@ -290,6 +292,9 @@ jobs:
               uses: actions/download-artifact@v5
               with:
                   path: artifacts
+                  # Only release binaries; build-push-action also uploads a
+                  # *.dockerbuild build record that cannot be extracted here.
+                  pattern: porcupin-*
 
             - name: List artifacts
               run: find artifacts -type f
