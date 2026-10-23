@@ -22,13 +22,13 @@ From the project root:
 
 ```bash
 # All platforms
-npm run build
+bun run build
 
 # Desktop only
-npm run build:desktop
+bun run build:desktop
 
 # Headless only (Linux/RPi)
-npm run build:headless
+bun run build:headless
 ```
 
 Or from the `porcupin/` directory:

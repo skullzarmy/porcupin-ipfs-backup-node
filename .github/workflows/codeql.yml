@@ -74,7 +74,7 @@ jobs:
       # directory to exist with at least one file at compile time. We don't
       # need the real bundle — CodeQL only traces the Go compile to extract
       # source facts, it never runs the binary. Avoids dragging the whole
-      # npm install + vite build into the Go-scanning job.
+      # bun install + vite build into the Go-scanning job.
       run: |
         mkdir -p porcupin/frontend/dist
         echo "codeql-stub" > porcupin/frontend/dist/.placeholder

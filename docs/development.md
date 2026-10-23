@@ -54,10 +54,10 @@ git clone https://github.com/skullzarmy/porcupin-ipfs-backup-node.git
 cd porcupin-ipfs-backup-node
 
 # Install npm dependencies
-npm install
+bun install
 
 # Run in development mode with hot reload
-npm run dev
+bun run dev
 ```
 
 The app will open with hot-reloading enabled. Changes to Go or React code will auto-refresh.
@@ -71,30 +71,30 @@ All builds are run from the repository root using npm scripts.
 ### Development
 
 ```bash
-npm run dev          # Start dev mode with hot reload
+bun run dev          # Start dev mode with hot reload
 ```
 
 ### Production Builds
 
 ```bash
 # Build everything
-npm run build
+bun run build
 
 # Desktop only
-npm run build:desktop      # macOS + Windows
-npm run build:macos        # macOS only
-npm run build:windows      # Windows only
+bun run build:desktop      # macOS + Windows
+bun run build:macos        # macOS only
+bun run build:windows      # Windows only
 
 # Headless/Server only
-npm run build:headless         # All platforms
-npm run build:headless:linux   # Linux x64
-npm run build:headless:arm     # Linux ARM64 (Raspberry Pi)
+bun run build:headless         # All platforms
+bun run build:headless:linux   # Linux x64
+bun run build:headless:arm     # Linux ARM64 (Raspberry Pi)
 
 # Docker
-npm run build:docker
+bun run build:docker
 
 # Clean
-npm run clean
+bun run clean
 ```
 
 ### Manual Wails Build
@@ -346,7 +346,7 @@ Kill the dev server and restart:
 
 ```bash
 # Ctrl+C to stop
-npm run dev
+bun run dev
 ```
 
 ---
